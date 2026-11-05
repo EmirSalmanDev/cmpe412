@@ -63,14 +63,22 @@ def template_digest(rows: list[dict[str, Any]]) -> str:
     return digest.hexdigest()
 
 
-def lines_views(directory: Path) -> dict[str, str]:
-    """Return view name to SQL for the `lines_*.parquet` files of a testbed."""
+def _family_views(directory: Path, family: str) -> dict[str, str]:
+    """Return a view per `<family>_*.parquet` file, and the view `<family>` over all of them."""
     views = {
         path.stem: f"SELECT * FROM read_parquet('{path}')"
-        for path in sorted(directory.glob("lines_*.parquet"))
+        for path in sorted(directory.glob(f"{family}_*.parquet"))
     }
-    views["lines"] = " UNION ALL BY NAME ".join(f"SELECT * FROM {name}" for name in sorted(views))
+    if views:
+        views[family] = " UNION ALL BY NAME ".join(
+            f"SELECT * FROM {name}" for name in sorted(views)
+        )
     return views
+
+
+def data_views(directory: Path) -> dict[str, str]:
+    """Return view name to SQL for the line and window tables of a testbed."""
+    return {**_family_views(directory, "lines"), **_family_views(directory, "windows")}
 
 
 def create_views(db_path: Path, views: dict[str, str]) -> None:
@@ -85,5 +93,5 @@ def create_views(db_path: Path, views: dict[str, str]) -> None:
 
 
 def build_agent_db(directory: Path) -> None:
-    """Create `agent.duckdb`, which exposes the line tables only (plan 5)."""
-    create_views(directory / "agent.duckdb", lines_views(directory))
+    """Create `agent.duckdb`, which exposes the line and window tables only (plan 5)."""
+    create_views(directory / "agent.duckdb", data_views(directory))

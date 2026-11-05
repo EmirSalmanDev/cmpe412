@@ -1,0 +1,7 @@
+Jan 14 00:01:00 host CRON[1]: pam_unix(cron:session): session opened for user root by (uid=0)
+Jan 14 00:01:01 host sshd[2]: Accepted publickey for alice from 10.0.0.2 port 22 ssh2: RSA SHA256:abc
+Jan 14 00:01:02 host sshd[2]: pam_unix(sshd:session): session opened for user alice by (uid=0)
+Jan 14 00:15:00 host sudo[3]: alice : TTY=pts/0 ; PWD=/home/alice ; USER=root ; COMMAND=/bin/ls
+Jan 14 00:30:00 host auth[4]: pam_unix(dovecot:auth): authentication failure; logname= uid=0 euid=0 tty=dovecot ruser=mallory rhost=10.0.0.9 user=mallory
+Jan 14 00:30:01 host su[5]: Successful su for alice by www-data
+Jan 14 00:30:02 host su[5]: pam_unix(su:session): session opened for user alice by (uid=33)

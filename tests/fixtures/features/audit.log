@@ -1,0 +1,7 @@
+type=USER_AUTH msg=audit(1642118460.000:1): pid=1 uid=0 auid=0 ses=1 msg='op=PAM:authentication acct="root" exe="/usr/sbin/sshd" hostname=? addr=? terminal=ssh res=success'
+type=USER_START msg=audit(1642118461.000:2): pid=1 uid=0 auid=0 ses=1 msg='op=PAM:session_open acct="root" exe="/usr/sbin/sshd" hostname=? addr=? terminal=ssh res=success'
+type=SERVICE_START msg=audit(1642118462.000:3): pid=1 uid=0 auid=0 ses=1 msg='unit=cron comm="systemd" exe="/lib/systemd/systemd" hostname=? addr=? terminal=? res=success'
+type=CRED_ACQ msg=audit(1642119300.000:4): pid=1 uid=0 auid=0 ses=1 msg='op=PAM:setcred acct="root" exe="/usr/sbin/cron" hostname=? addr=? terminal=cron res=success'
+type=SYSCALL msg=audit(1642120200.000:5): arch=c000003e syscall=59 success=yes exit=0 ppid=1 pid=2 uid=33 gid=33 euid=33 comm="sh" exe="/bin/sh" key=(null)
+type=SYSCALL msg=audit(1642120201.000:6): arch=c000003e syscall=59 success=yes exit=0 ppid=1 pid=3 uid=0 gid=0 euid=0 comm="x" exe="/tmp/x" key=(null)
+type=SYSCALL msg=audit(1642120202.000:7): arch=c000003e syscall=1 success=yes exit=0 ppid=1 pid=4 uid=0 gid=0 euid=0 comm="auditd" exe="/usr/sbin/sshd" key=(null)

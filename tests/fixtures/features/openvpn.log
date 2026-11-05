@@ -1,0 +1,7 @@
+2022-01-14 00:01:00 10.0.0.5:1194 TLS: Initial packet from [AF_INET]10.0.0.5:1194, sid=aa bb
+2022-01-14 00:01:01 alice/10.0.0.5:1194 MULTI_sva: pool returned IPv4=10.8.0.2, IPv6=(Not enabled)
+2022-01-14 00:01:02 10.0.0.5:1194 [alice] Peer Connection Initiated with [AF_INET]10.0.0.5:1194
+2022-01-14 00:15:00 10.0.0.6:1194 TLS Error: TLS handshake failed
+2022-01-14 00:30:00 mallory/10.0.0.9:1194 MULTI_sva: pool returned IPv4=10.8.0.3, IPv6=(Not enabled)
+2022-01-14 00:30:01 UNDEF/10.0.0.10:1194 [UNDEF] Inactivity timeout (--ping-restart), restarting
+2022-01-14 00:30:02 10.0.0.9:1194 [mallory] Peer Connection Initiated with [AF_INET]10.0.0.9:1194

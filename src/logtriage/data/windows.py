@@ -7,6 +7,8 @@ from pathlib import Path
 
 import duckdb
 
+from logtriage.data.periods import Periods
+
 PARSED_VIEW = "parsed_lines"
 
 
@@ -29,4 +31,25 @@ def create_parsed_view(
         FROM read_parquet('{lines_path}')
         WHERE parse_ok
         """
+    )
+
+
+def period_sql(window_seconds: int, periods: Periods) -> str:
+    """SQL for the `period` of a window: the period in which the window ends.
+
+    A window that crosses a boundary goes to the later period, so a `fit` window holds only
+    fit lines and nothing fit on `fit` windows can see a later line.
+
+    Args:
+        window_seconds: Window length.
+        periods: Boundaries of the testbed.
+
+    Returns:
+        A SQL expression over `window_start`.
+    """
+    end = f"window_start + INTERVAL {int(window_seconds)} SECOND"
+    return (
+        f"CASE WHEN {end} <= TIMESTAMPTZ '{periods.fit_end.isoformat()}' THEN 'fit' "
+        f"WHEN {end} <= TIMESTAMPTZ '{periods.train_end.isoformat()}' THEN 'calib' "
+        "ELSE 'eval' END"
     )
