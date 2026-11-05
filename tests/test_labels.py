@@ -4,7 +4,6 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import duckdb
 import pyarrow.parquet as pq
 import pytest
 
@@ -19,7 +18,7 @@ from logtriage.data.labels import (
     write_labels,
     write_phases_csv,
 )
-from logtriage.data.store import build_agent_db, template_digest, write_lines
+from logtriage.data.store import build_agent_db, connect, template_digest, write_lines
 
 SOURCES = load_sources(Path(__file__).parents[1] / "configs" / "sources.yaml")
 CONFIG = PhasesConfig()
@@ -143,11 +142,11 @@ def test_agent_db_has_no_label_tables_and_eval_db_has_them(
     build_agent_db(out)
     build_eval_db(out, out / "phases.csv")
 
-    with duckdb.connect(str(out / "agent.duckdb"), read_only=True) as agent:
+    with connect(out / "agent.duckdb", read_only=True) as agent:
         names = {row[0] for row in agent.execute("SHOW TABLES").fetchall()}
         assert names == {"lines", "lines_vpn"}
         assert agent.execute("SELECT count(*) FROM lines").fetchone() == (2,)
-    with duckdb.connect(str(out / "eval.duckdb"), read_only=True) as evaluation:
+    with connect(out / "eval.duckdb", read_only=True) as evaluation:
         names = {row[0] for row in evaluation.execute("SHOW TABLES").fetchall()}
         assert names == {"labels", "lines", "lines_vpn", "phases"}
         joined = evaluation.execute(

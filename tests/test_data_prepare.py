@@ -4,11 +4,11 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-import duckdb
 import pytest
 
 from logtriage.config import load_settings
 from logtriage.data.periods import load_periods
+from logtriage.data.store import connect
 from logtriage.prepare import run_prepare
 
 ROOT = Path(__file__).parents[1]
@@ -34,7 +34,7 @@ def load_json(testbed: str, name: str) -> dict:
 @pytest.fixture
 def evaluation(testbed: str, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.chdir(ROOT)
-    with duckdb.connect(str(processed(testbed) / "eval.duckdb"), read_only=True) as connection:
+    with connect(processed(testbed) / "eval.duckdb", read_only=True) as connection:
         yield connection
 
 
@@ -119,7 +119,7 @@ def test_fit_lines_are_never_unseen(testbed: str) -> None:
 
 def test_agent_db_exposes_no_ground_truth(testbed: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(ROOT)
-    with duckdb.connect(str(processed(testbed) / "agent.duckdb"), read_only=True) as agent:
+    with connect(processed(testbed) / "agent.duckdb", read_only=True) as agent:
         names = {row[0] for row in agent.execute("SHOW TABLES").fetchall()}
     assert names and not any("label" in name or "phase" in name for name in names)
 

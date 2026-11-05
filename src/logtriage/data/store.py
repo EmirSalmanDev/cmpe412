@@ -31,6 +31,24 @@ LINES_SCHEMA = pa.schema(
 )
 
 
+def connect(path: Path | str = ":memory:", read_only: bool = False) -> duckdb.DuckDBPyConnection:
+    """Open a DuckDB connection whose session time zone is UTC (plan 5.1).
+
+    The session zone decides how `TIMESTAMPTZ` values are bucketed, cast and returned, and it
+    defaults to the machine's zone. Every connection in the project comes from here.
+
+    Args:
+        path: Database file, or `:memory:`.
+        read_only: Open the file read-only.
+
+    Returns:
+        The open connection.
+    """
+    connection = duckdb.connect(str(path), read_only=read_only)
+    connection.execute("SET TimeZone='UTC'")
+    return connection
+
+
 def write_lines(rows: list[dict[str, Any]], path: Path) -> None:
     """Write rows to a `lines_<log_type>.parquet` file (plan 5.1)."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,7 +79,7 @@ def create_views(db_path: Path, views: dict[str, str]) -> None:
     View paths stay as given, so the files open from the directory they were built in.
     """
     db_path.unlink(missing_ok=True)
-    with duckdb.connect(str(db_path)) as connection:
+    with connect(db_path) as connection:
         for name, query in views.items():
             connection.execute(f'CREATE VIEW "{name}" AS {query}')
 

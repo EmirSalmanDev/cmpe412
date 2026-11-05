@@ -12,6 +12,7 @@ import duckdb
 import pandas as pd
 
 from logtriage.config import MLConfig, Settings
+from logtriage.data import store
 from logtriage.data.periods import Periods, is_baseline_capable, load_periods
 from logtriage.eval.metrics import required_detections
 
@@ -34,9 +35,7 @@ def connect(testbed: str, settings: Settings) -> duckdb.DuckDBPyConnection:
     Views use paths relative to the repository root, so run from there.
     """
     path = Path(settings.paths.processed_dir) / testbed / "eval.duckdb"
-    connection = duckdb.connect(str(path), read_only=True)
-    connection.execute("SET TimeZone='UTC'")
-    return connection
+    return store.connect(path, read_only=True)
 
 
 def testbed_periods(testbed: str, settings: Settings) -> Periods:
