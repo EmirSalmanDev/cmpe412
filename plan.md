@@ -99,7 +99,7 @@ Licenses: AIT data is CC BY-NC-SA 4.0 (non-commercial, attribution). Cite in REA
 
 ### 4.3 Testbeds and periods
 
-For each testbed, from `dataset.yaml` and the attack phases (§5.3):
+For each testbed, from `dataset.yaml` (changed: see status.md D9) and the attack phases (§5.3):
 
 - `sim_start`, `sim_end`: simulation interval. Drop all lines outside it.
 - `first_attack` = earliest start among the phases with source `ait_ads:labels.csv`, so `dnsteal_exfil` does not count (changed: see status.md D11).
@@ -149,7 +149,7 @@ All tables are Parquet under `data/processed/<testbed>/`, exposed through DuckDB
 | `src_ip` | str? | when present |
 | `user` | str? | when present |
 | `fields` | str (JSON) | log-type-specific parsed fields (status, method, path, user agent, qname, exe, uid, ...) |
-| `parse_ok` | bool | false → line kept with `raw` only |
+| `parse_ok` | bool | false → line kept with `raw` only, and left out of windows and features (changed: see status.md D14) |
 
 Reading rules: read files in binary, split on `b"\n"` only, keep empty lines in the count, decode per line. Stream in chunks; never load a multi-GB file at once.
 
@@ -181,7 +181,7 @@ Enforce with a test that scans the source of `data/` (except `labels.py`, `perio
 
 ### 5.4 `windows_<log_type>.parquet`
 
-Key `(testbed, host, log_type, window_start)`; only non-empty windows.
+Key `(testbed, host, log_type, window_start)`; only non-empty windows. Windows hold only lines with `parse_ok=True` (changed: see status.md D14).
 Columns: key, `n_lines`, feature columns (§6.3), `src_ips` (list[str], top 10 by count), `users` (list[str], top 10), `period` ∈ {`fit`, `calib`, `eval`}.
 
 ### 5.5 `scores.parquet`
@@ -267,6 +267,8 @@ The LLM only ever sees and cites `eid`s. Code resolves `eid → line_id`. A clai
 
 Compute with DuckDB SQL over `lines_*.parquet` grouped by window key. Vocabulary-based features ("unseen X") use vocabularies built **only from the fit period** of the same testbed.
 
+Lines with `parse_ok=False` stay in `lines_*.parquet` but are excluded from windows and features, because their `ts` is inherited from another line and is unreliable (changed: see status.md D14).
+
 Common (all log types): `n_lines`, `n_unseen_templates`, `ratio_unseen_templates`, `mean_template_rarity`, `max_template_rarity`, `n_unique_templates`.
 
 | log_type | Specific features |
@@ -279,6 +281,8 @@ Common (all log types): `n_lines`, `n_unseen_templates`, `ratio_unseen_templates
 | `vpn` | `n_auth_success`, `n_auth_fail`, `n_new_sessions`, `n_unique_src_ip`, `n_unseen_src_ip`, `n_unseen_users` |
 
 Features that turn out to be constant or missing in the real data are dropped. Log this in status.md.
+
+Vocabulary, rarity and "unseen" features (`n_unseen_templates`, `ratio_unseen_templates`, `mean_template_rarity`, `max_template_rarity`, and every `*_unseen_*` feature in the table) are dropped for a `(testbed, log_type)` whose fit period has fewer than `ml.min_fit_lines` parsed lines (`configs/default.yaml`, default 200) (changed: see status.md D15).
 Transform: `log1p` on counts, then `RobustScaler` fit on the fit period.
 
 ### 6.4 Anomaly models (`logtriage/ml/models.py`)
@@ -290,6 +294,7 @@ Per `(testbed, log_type)`, fit on **fit-period windows** only:
 - PCA reconstruction error with `n_components` explaining 95% variance
 
 Higher score = more anomalous for all three (negate sklearn scores where needed).
+If a `(testbed, log_type)` has zero fit-period windows (known case: santos `apache_error`), no model is fit for it. It is excluded from the ensemble and from incidents, reported as "no baseline, not detectable", and kept in parsed data and agent tools (changed: see status.md D15).
 Hyperparameter search (small grid) only on the dev testbed, choosing by phase recall at a fixed incident budget (§6.5). Because this needs labels, the search lives in `logtriage/eval/tuning.py`, which calls the `ml` functions; `ml/` itself never reads labels. The chosen values are written to `configs/default.yaml` and reused unchanged on the test testbed.
 
 ### 6.5 Calibration, ensemble, threshold (`logtriage/ml/ensemble.py`)
@@ -431,7 +436,7 @@ All numbers on the **santos evaluation period** unless stated. Dev numbers are r
 
 - Window is `attack` if it contains ≥ 1 labeled line. Window phases = phases of its labeled lines.
 - Incident is `malicious` if any of its windows is an attack window; its phases = union of window phases.
-- **Phases with traces** = phases having ≥ 1 labeled line in the processed log types of the testbed (fixed in M3; this is the recall denominator).
+- **Phases with traces** = phases having ≥ 1 labeled line in the processed log types of the testbed (fixed in M3; this is the recall denominator). The denominator is computed over log types with a fitted baseline (§6.4); phases excluded by this are listed explicitly in `reports/targets.md`, and the conservative variant over all parsed log types is reported as secondary (changed: see status.md D15).
 
 ### 10.2 Metrics
 
@@ -566,6 +571,7 @@ Accept: PR-AUC table on santos next to the unsupervised ensemble.
 ### M7 — ATT&CK index and agent tools (`m7-tools`)
 Read: §5.1, §7.3, §8, §11.
 Tasks: ATT&CK download + index, `index-attack` command, the five tools with the read-only DuckDB connection and SQL guard, incident store.
+Note: `log_search` must not surface `parse_ok=False` lines whose `ts` was inherited, or must clearly mark them (changed: see status.md D14).
 Accept: unit tests: SQL guard rejects INSERT/UPDATE/DELETE/ATTACH/COPY/PRAGMA/CREATE and multiple statements; tool outputs respect caps; `ip_profile` resolves VPN ↔ external IP on fixtures. `data` tests: gold IDs exist in the index and are not revoked; retrieval sanity (query "many DNS queries with long random subdomains to one domain" returns a T1048* or T1071.004 in the top 5). ATT&CK version logged in status.md.
 
 ### M8 — Agent graph (`m8-agents`)

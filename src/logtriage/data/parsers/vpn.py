@@ -17,7 +17,10 @@ def parse_line(raw: str, ctx: ParseContext) -> ParsedLine:
     match = LINE.match(raw)
     if match is None:
         return FAILED
-    ts = datetime.strptime(match["time"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
+    try:
+        ts = datetime.strptime(match["time"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
+    except ValueError:
+        return FAILED
     message = match["message"]
     fields: dict[str, object] = {}
     src_ip = user = None

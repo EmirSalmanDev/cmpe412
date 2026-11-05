@@ -18,6 +18,10 @@ def parse_line(raw: str, ctx: ParseContext) -> ParsedLine:
     match = LINE.match(raw)
     if match is None:
         return FAILED
+    try:
+        ts = datetime.fromtimestamp(float(match["epoch"]), tz=UTC)
+    except (ValueError, OverflowError, OSError):
+        return FAILED
     message = match["message"]
     pairs: dict[str, str] = {}
     for key, value in PAIR.findall(message):
@@ -32,7 +36,7 @@ def parse_line(raw: str, ctx: ParseContext) -> ParsedLine:
     user = pairs.get("acct") or pairs.get("id")
     return ParsedLine(
         ok=True,
-        ts=datetime.fromtimestamp(float(match["epoch"]), tz=UTC),
+        ts=ts,
         message=f"{match['type']} {message}",
         src_ip=None if address in NO_VALUE else address,
         user=None if user in NO_VALUE else user,
