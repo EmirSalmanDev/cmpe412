@@ -4,16 +4,16 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** M3 — EDA and frozen targets (not started)
+- **Current milestone:** M4 — Windows and features (not started)
 - **Branch:** —
-- **Next step:** Create branch `m3-eda`, do the M3 tasks in plan §13, and resolve the contaminated-baseline open question there, before targets freeze.
+- **Next step:** Create branch `m4-features`. Before writing any M4 code, extend the §5.2 isolation scan to cover `logtriage.eval`, `logtriage.prepare`, `label_report` and `first_attack` references. Then: exclude `parse_ok=False` lines from windows and features (D14); drop vocabulary and "unseen" features per D15; run `SET TimeZone='UTC'` on every DuckDB connection; add DNS qname features, because `is_unseen_template` has no DNS signal (only 2 unseen DNS lines per testbed).
 - **Blockers:** none
 
 ## Milestones
 - [x] M0 Bootstrap
 - [x] M1 Data acquisition and inventory
 - [x] M2 Parsing, Drain3, labels
-- [ ] M3 EDA and frozen targets
+- [x] M3 EDA and frozen targets
 - [ ] M4 Windows and features
 - [ ] M5 Anomaly detection and incidents
 - [ ] M6 Supervised reference
@@ -52,6 +52,13 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 - M2 labeled lines per phase, santos: dnsteal_exfil 38,561, dirb 4,485, wpscan 3,314, network_scans 558, service_scans 327, privilege_escalation 31, webshell 29, cracking 16, service_stop 2
 - M2 templates, frozen/online: russellmitchell apache_access 19/27, apache_error 8/15, audit 14/16, auth 15/23, dns 11/12, vpn 25/29; santos 17/27, 0/16, 12/15, 5/24, 10/11, 27/29
 - M1 phases: AIT-ADS starts match `attacks.log` within 3 s for the eight foothold-to-escalation phases on both testbeds
+- M3 frozen targets (`reports/targets.md`, santos evaluation period): phase recall ≥ 80% (≥ 8 of 9 phases), ≤ 25 incidents/day (≤ 67 in 2.697 days) and ≥ 90% fewer than raw IDS alerts, ATT&CK top-3 strict ≥ 70%, manual faithfulness ≥ 90% and higher than without the Verifier. All unchanged from §10.5
+- M3 phases with traces: russellmitchell 10, santos 9 (primary, equal to the all-parsed variant; without `dnsteal_exfil` 9 and 8). Excluded: `reverse_shell` on both, `dnsteal` on santos. No phase depends only on a log type without a baseline
+- M3 baseline-capable: every log type except `apache_error`, on both testbeds
+- M3 attack share of parsed lines, evaluation period: russellmitchell 9.86%, santos 4.65%; without exfiltration 3.09% and 1.65% (31 and 60 normal lines per attack line)
+- M3 label gap: unlabeled exfiltration on `inet-dns` 53,052 and 38,559 lines; unlabeled attacker-address lines inside phase windows 50–513 and 2–625 (low: external address, high: adds the shared tunnel address); unlabeled attacker stderr lines 3,847 on each testbed
+- M3 DNS contamination of training: 21.6% and 26.0% of `inet-firewall` DNS lines (hourly up to 45.5% and 90.2%), in every training hour
+- M3 IDS alerts/day in the evaluation period: russellmitchell 15,704, santos 30,774. Budget 25 incidents/day, so a reduction of 99.84% and 99.92%
 - M2 audit: 7 of 9 items passed; item 8 (1 missing plan marker) and item 9 (2 parser bugs) failed and are fixed; 193 tests pass; `line_no` right on all 1,422,649 rows; see `reports/audit_m2.md`
 
 ## Decision log
@@ -100,17 +107,14 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 
 ## Open questions
 (Things that need a human decision. Keep working on other parts meanwhile.)
-- `is_unseen_template` carries no signal for DNS: exfiltration queries match the ordinary `query[A] <*> from <IP>` template, and only 2 DNS lines are unseen on each testbed. This adds to the baseline question; DNS detection will need qname features in M4.
-- Stderr lines in Apache error logs hold attacker output (such as a `wget` stamped 01-24 03:59:22) but are unlabeled. D14 keeps them out of windows; M3 should cover them in its label gap analysis.
 - M7, label isolation: a read-only connection to `agent.duckdb` can still read `labels.parquet` and `phases_*.csv` with `read_parquet` and `read_csv` (61,813 and 47,323 rows returned). The planned SQL guard list does not stop a plain `SELECT` from a table function. Nothing leaks yet because no agent exists. Decide the guard before M7 tools are written, e.g. block file-reading functions or allow only the views.
-- M4–M7, §5.2 scan: the test matches the plan's patterns, but `logtriage.eval`, `logtriage.prepare`, `label_report` and `first_attack` all pass it. `periods.json` holds `first_attack`, which must not reach the agent context. Decide whether to extend the scan before those modules are written.
-- M4, time zones: DuckDB returns `ts` in the session zone (here `Europe/Istanbul`), and `date_trunc('day', ts)` gives 1,199 lines against 1,355 in UTC on the first day of russellmitchell `auth`. Stored instants are right, but Docker would differ. M4 and M7 connections should `SET TimeZone='UTC'`.
 - M5, calibration: the santos calib period is 01:01–07:16 UTC, so it holds quiet hours only: `apache_access` 253 lines/h against 2,430 in eval, `dns` 2,862 against 5,668. Percentiles calibrated there may flag normal daytime traffic. Decide in M5 whether the §4.3 split stands, without using labels.
 - M10: DuckDB views use paths relative to the repository root, so Docker and the app must run from there or rebuild the views.
 - Other labeled log types: only `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log` (49 labeled lines on russellmitchell, 44 on santos, raw labels include `crack_passwords` and `escalate`), left unprocessed. Syslog and Suricata files exist but have no label files.
 
 ## Session log
 Format: `YYYY-MM-DD · milestone · what was done · next`.
+- 2026-11-05 · M3 · `01_eda.ipynb`, `logtriage.eval` EDA and IDS code, gold mapping and `reports/targets.md` done; budget fixed at 25; targets frozen; plan changed by D16–D21; `CLAUDE.md` versioned · Start M4 on `m4-features`
 - 2026-11-05 · M2 audit · Audited M1 and M2 (`reports/audit_m2.md`), fixed 2 parser bugs, a plan marker and a status claim, recorded D14–D15, added 6 open questions · Start M3 on `m3-eda`
 - 2026-11-05 · M2 · Periods, parsers, Drain3, `labels.parquet`, DuckDB files and `prepare` done for both testbeds; plan changed by D12–D13 · Start M3 on `m3-eda`
 - 2026-11-05 · M1 · Download, selective extraction, inventory, `sources.yaml` and phases files done for both testbeds; plan changed by D8–D11 · Start M2 on `m2-parse`
