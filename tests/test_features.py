@@ -155,7 +155,7 @@ def dns_windows(tmp_path: Path) -> pd.DataFrame:
         create_derived_table(con, features)
         build_vocabularies(con, features, FIT_END)
         aggregate_windows(con, features.aggregates)
-        return con.execute(f"SELECT * FROM {FEATURE_TABLE}").fetch_arrow_table().to_pandas()
+        return con.sql(f"SELECT * FROM {FEATURE_TABLE}").to_arrow_table().to_pandas()
 
 
 @pytest.fixture

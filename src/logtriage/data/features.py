@@ -392,13 +392,10 @@ class FeatureScaler:
     center: list[float]
     scale: list[float]
 
-    def _logged(self, windows: pd.DataFrame) -> np.ndarray:
-        """Return the feature matrix with `log1p` applied to the count columns."""
-        return log_counts(windows, self.columns, self.count_columns)
-
     def transform(self, windows: pd.DataFrame) -> np.ndarray:
         """Return the scaled feature matrix of the given windows."""
-        return (self._logged(windows) - np.array(self.center)) / np.array(self.scale)
+        matrix = log_counts(windows, self.columns, self.count_columns)
+        return (matrix - np.array(self.center)) / np.array(self.scale)
 
     def save(self, path: Path) -> None:
         """Write the scaler as JSON."""
