@@ -289,3 +289,22 @@ def test_ctx_year_boundary_margin() -> None:
     ctx = ParseContext(datetime(2022, 7, 1, tzinfo=UTC))
     assert utc_from_parts(ctx, "Jan", 2, 0, 0, 0).year == 2022
     assert ctx.sim_start - utc_from_parts(ctx, "Jan", 2, 0, 0, 0) < timedelta(days=183)
+
+
+@pytest.mark.parametrize(
+    ("parse", "raw"),
+    [
+        (apache.parse_access, '1.2.3.4 - - [99/Jan/2022:03:56:53 +0000] "GET / HTTP/1.1" 200 5'),
+        (apache.parse_access, '1.2.3.4 - - [24/Foo/2022:03:56:53 +0000] "GET / HTTP/1.1" 200 5'),
+        (apache.parse_access, '1.2.3.4 - - [01/Jan/0001:00:00:00 +1400] "GET / HTTP/1.1" 200 5'),
+        (apache.parse_error, "[Mon Foo 24 03:57:26.1 2022] [core:error] [pid 1] text"),
+        (apache.parse_error, "[Mon Jan 99 03:57:26.1 2022] [core:error] [pid 1] text"),
+        (apache.parse_error, "[Mon Jan 24 99:57:26.1 2022] [core:error] [pid 1] text"),
+        (vpn.parse_line, "2022-13-45 03:01:00 text"),
+        (audit.parse_line, "type=X msg=audit(99999999999999999999.000:1): a=b"),
+    ],
+)
+def test_an_impossible_timestamp_fails_the_line_instead_of_raising(parse, raw: str) -> None:
+    parsed = parse(raw, CTX)
+    assert not parsed.ok
+    assert not parsed.foreign
