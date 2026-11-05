@@ -1,0 +1,6 @@
+172.21.128.119 - - [17/Jan/2022:06:25:38 +0000] "POST /wp-admin/admin-ajax.php HTTP/1.1" 200 3598 "https://intranet.example/wp-admin/upload.php" "Mozilla/5.0 (X11; Linux x86_64)"
+10.0.0.5 - alice [17/Jan/2022:08:25:39 +0200] "GET /index.php?a=1 HTTP/1.1" 404 - "-" "curl/7.58 \"quoted\""
+intranet.example:443 10.0.0.6 - - [17/Jan/2022:06:25:40 +0000] "GET / HTTP/1.1" 200 12 "-" "curl/7.58"
+10.0.0.7 - - [17/Jan/2022:06:25:41 +0000] "\x16\x03\x01" 400 0 "-" "-"
+10.0.0.8 - - [17/Jan/2022:06:25:42 +0000] "-" 408 0 "-" "-"
+not an access line

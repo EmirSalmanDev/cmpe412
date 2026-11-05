@@ -39,8 +39,13 @@ class MLConfig(PlaceholderSection):
     """Anomaly detection settings (plan 6.4-6.6)."""
 
 
-class PeriodsConfig(PlaceholderSection):
-    """Period settings (plan 4.3)."""
+class PeriodsConfig(BaseModel):
+    """Training and evaluation boundary settings (plan 4.3)."""
+
+    gap_hours: float = 24.0
+    min_training_hours: float = 24.0
+    fallback_gap_hours: float = 6.0
+    fit_fraction: float = 0.8
 
 
 class PathsConfig(BaseModel):
@@ -56,6 +61,22 @@ class PathsConfig(BaseModel):
     sources_file: Path = Path("configs/sources.yaml")
 
 
+class MaskingRule(BaseModel):
+    """One Drain3 masking instruction."""
+
+    pattern: str
+    mask_with: str
+
+
+class DrainConfig(BaseModel):
+    """Drain3 settings (plan 6.2)."""
+
+    sim_th: float = 0.4
+    depth: int = 4
+    max_children: int = 100
+    masking: list[MaskingRule] = Field(default_factory=list)
+
+
 class PhasesConfig(BaseModel):
     """Attack phase settings (plan 5.3)."""
 
@@ -63,7 +84,13 @@ class PhasesConfig(BaseModel):
     tolerance_seconds: float = 60.0
     exfil_log: str = "gather/attacker_0/logs/dnsteal.log"
     exfil_phase: str = "dnsteal_exfil"
+    exfil_label: str = "dnsteal"
     steps: dict[str, list[str]] = Field(default_factory=dict)
+
+    @property
+    def published_source(self) -> str:
+        """`source` value of the phase rows taken from AIT-ADS as published."""
+        return f"ait_ads:{self.intervals_file}"
 
 
 class SourceConfig(BaseModel):
@@ -104,6 +131,7 @@ class Settings(BaseSettings):
     paths: PathsConfig = Field(default_factory=PathsConfig)
     download: DownloadConfig = Field(default_factory=DownloadConfig)
     phases: PhasesConfig = Field(default_factory=PhasesConfig)
+    drain: DrainConfig = Field(default_factory=DrainConfig)
     deepseek_api_key: SecretStr | None = Field(default=None, validation_alias="DEEPSEEK_API_KEY")
 
     @classmethod

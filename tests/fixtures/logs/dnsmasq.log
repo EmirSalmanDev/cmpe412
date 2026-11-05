@@ -1,0 +1,6 @@
+Jan 13 11:35:21 dnsmasq[14569]: started, version 2.79 cachesize 150
+Jan 14 00:00:09 dnsmasq[14919]: query[A] a1-.b2.example.com from 10.0.0.2
+Jan 14 00:00:10 dnsmasq[14919]: forwarded a1-.b2.example.com to 8.8.8.8
+Jan 14 00:00:11 dnsmasq[14919]: reply a1-.b2.example.com is 1.2.3.4
+Jan 14 00:00:12 dnsmasq[14919]: cached mail is NXDOMAIN
+Jan 14 00:00:13 dnsmasq[14919]: /etc/hosts host1 is 10.0.0.1

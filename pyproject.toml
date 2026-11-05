@@ -19,6 +19,7 @@ dependencies = [
     "pydantic>=2",
     "pydantic-settings>=2.16.2",
     "python-dotenv>=1.2.4",
+    "pytz>=2026.6",
     "pyyaml>=6.0.3",
     "scikit-learn>=1.9.1",
     "sentence-transformers>=6.2.0",
