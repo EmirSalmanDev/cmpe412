@@ -4,8 +4,8 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** M4 — Windows and features (not started)
-- **Branch:** —
+- **Current milestone:** M4 — Windows and features (in progress)
+- **Branch:** `m4-features`
 - **Next step:** Create branch `m4-features`. Before writing any M4 code, extend the §5.2 isolation scan to cover `logtriage.eval`, `logtriage.prepare`, `label_report` and `first_attack` references. Then: exclude `parse_ok=False` lines from windows and features (D14); drop vocabulary and "unseen" features per D15; run `SET TimeZone='UTC'` on every DuckDB connection; add DNS qname features, because `is_unseen_template` has no DNS signal (only 2 unseen DNS lines per testbed).
 - **Blockers:** none
 
@@ -64,6 +64,7 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 
 ## Decision log
 Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the approved design decisions in plan §2.
+- 2026-11-05 · M4 · D22 · The §5.2 scan also rejects references to `logtriage.eval`, `logtriage.prepare` (including `from logtriage import eval` and relative imports), `label_report` and `first_attack`; §5.2 updated · These reach ground truth or attack timing without using the words `labels` or `phases`: `Periods.first_attack` is one attribute away in any module that reads `periods.json` · `tests/test_isolation.py`; no scanned module had such a reference
 - 2026-11-05 · M3 · Freeze reference clarified · The freeze is the content of `reports/targets.md` at `3684424`. Commit `0ae17bf` changed only line 3 (`PENDING` replaced by the hash); no target number or definition changed. Tag `m3-done` is on merge commit `cad7b1f`, which contains the freeze but does not point at it. New tag `targets-frozen` points at `3684424` · `git diff 3684424 m3-done -- reports/targets.md` shows one line
 - 2026-11-05 · M3 · D17 · Windows of log type `dns` on host `inet-dns` are label-ambiguous, and so is an incident with such a window and no attack window. Primary window-level and incident-level metrics (false positives, verdict confusion matrix) leave them out, a secondary number includes them, and phase recall is unaffected; §10.1 and §10.2 updated · That host holds the same exfiltration with no labels, so true detections there would count as false positives · By domain match, 53,052 and 38,559 unlabeled exfiltration lines on `inet-dns`; the same match on `inet-firewall` agrees with the labels exactly (0 false matches, 0 misses)
 - 2026-11-05 · M3 · D21 · All preliminary targets of §10.5 are kept and frozen in `reports/targets.md`; §10.5 updated · The EDA found no target that cannot be measured: every counted phase has labeled lines in a baseline-capable log type, and IDS data covers both evaluation periods · Smallest counted phases: santos `service_stop` 2 lines, `cracking` 16
