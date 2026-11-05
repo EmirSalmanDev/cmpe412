@@ -166,7 +166,7 @@ Built from `labels/**` JSON Lines (`{"line": N, "labels": [...], "rules": {...}}
 **Line base check (M2):** confirm whether the label `line` numbers are 0- or 1-based. Check that labeled lines look like attack lines (attacker IP, timestamps inside phase intervals) under each assumption. If they are 0-based, convert once in `labels.py`; `line_no` stays 1-based everywhere else. Log the finding in status.md.
 
 **Isolation rule:** this table and anything derived from it (window labels, phases, `data_meta/phases_*.csv`) MUST NOT be readable from feature code, unsupervised models, agent tools, prompts or the UI's agent/chat context. Allowed readers: `logtriage.eval` (incl. `eval/tuning.py`, which picks hyperparameters on the dev testbed), `logtriage.ml.supervised`, `logtriage.data.labels`, `logtriage.data.periods` (period boundaries only, §4.3), `logtriage.data.inventory` (aggregate counts for the inventory report, through `logtriage.data.labels` only; changed: see status.md D10), the EDA notebook, and the optional evaluation page of the UI, which may only call functions from `logtriage.eval`.
-Enforce with a test that scans the source of `data/` (except `labels.py`, `periods.py`, `inventory.py`, and `download.py`, which only names the `labels/` paths to extract), `ml/` (except `supervised.py`), `agents/`, `rag/` and `app/` (except the evaluation page) for references to `labels`, `phases` or `eval.duckdb`.
+Enforce with a test that scans the source of `data/` (except `labels.py`, `periods.py`, `inventory.py`, and `download.py`, which only names the `labels/` paths to extract), `ml/` (except `supervised.py`), `agents/`, `rag/` and `app/` (except the evaluation page) for references to `labels`, `phases`, `eval.duckdb`, `logtriage.eval`, `logtriage.prepare`, `label_report` or `first_attack` (changed: see status.md D22).
 
 ### 5.3 `data_meta/phases_<testbed>.csv` (committed, small)
 
@@ -183,6 +183,7 @@ Enforce with a test that scans the source of `data/` (except `labels.py`, `perio
 
 Key `(testbed, host, log_type, window_start)`; only non-empty windows. Windows hold only lines with `parse_ok=True` (changed: see status.md D14).
 Columns: key, `n_lines`, feature columns (§6.3), `src_ips` (list[str], top 10 by count), `users` (list[str], top 10), `period` ∈ {`fit`, `calib`, `eval`}.
+A window takes the period in which it ends, so one that crosses a boundary goes to the later period and a `fit` window holds only fit lines (changed: see status.md D24).
 
 ### 5.5 `scores.parquet`
 
@@ -280,10 +281,14 @@ Common (all log types): `n_lines`, `n_unseen_templates`, `ratio_unseen_templates
 | `audit` | `n_execve`, `n_execve_web_user`, `n_unique_exe`, `n_unseen_exe`, `n_user_auth_events` (USER_AUTH, USER_START, CRED_ACQ, USER_CMD), `n_root_execve` |
 | `vpn` | `n_auth_success`, `n_auth_fail`, `n_new_sessions`, `n_unique_src_ip`, `n_unseen_src_ip`, `n_unseen_users` |
 
-Features that turn out to be constant or missing in the real data are dropped. Log this in status.md.
+DNS definitions (changed: see status.md D23). Only `query` lines count, because dnsmasq repeats each name in its forwarded, reply and cached lines; a window without one has 0 in these features. The registered domain is the public suffix plus one part, lowercased; the suffix is the last part, or the last two when the TLD has two letters and the second-level name is in `features.second_level_suffixes` (`thesun.co.uk`). A name without a dot, such as `mail`, is its own domain. `*_label_*` features use the parts left of the public suffix, with case kept; entropy is Shannon entropy in bits over the characters of one part, and `mean_label_entropy` averages over all parts of all queries in the window. `ratio_unique_qnames` compares names without case or trailing dot.
+
+Other definitions (changed: see status.md D25). `*_paths` features use the path without its query string, and `mean_path_len` and `max_path_len` use the full request target. `n_errors` counts lines at level `error` or above. `n_unseen_X` counts distinct unseen values in the window, and `ratio_unseen_X` is the share of its lines with an unseen value. `n_execve` and the other execve features count `SYSCALL` records with `syscall=59`, which carry `uid` and `exe`. The VPN placeholder user `UNDEF` is no user.
+
+Features that turn out to be constant or missing in the real data are dropped per `(testbed, log_type)`, and `features_report.json` lists them. Constant means one value over the windows of all periods: `n_unseen_*` features are 0 on every fit window by construction, so a check on the fit period alone would drop all of them (changed: see status.md D25). Log this in status.md.
 
 Vocabulary, rarity and "unseen" features (`n_unseen_templates`, `ratio_unseen_templates`, `mean_template_rarity`, `max_template_rarity`, and every `*_unseen_*` feature in the table) are dropped for a `(testbed, log_type)` whose fit period has fewer than `ml.min_fit_lines` parsed lines (`configs/default.yaml`, default 200) (changed: see status.md D15).
-Transform: `log1p` on counts, then `RobustScaler` fit on the fit period.
+Transform: `log1p` on counts (features named `n_*`), then `RobustScaler` fit on the `fit` windows of a log type, pooled across hosts. Windows keep raw values; the scaler is saved to `data/processed/<testbed>/scalers/<log_type>.json` for M5, and only for baseline-capable types (§6.4). Vocabularies go to `vocabularies/<log_type>.parquet` (changed: see status.md D26).
 
 ### 6.4 Anomaly models (`logtriage/ml/models.py`)
 

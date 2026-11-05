@@ -1,5 +1,6 @@
 """Label isolation (plan 5.2): only the allowed modules may refer to ground truth."""
 
+import json
 import re
 from pathlib import Path
 
@@ -14,7 +15,14 @@ ALLOWED = {
     "data/download.py",
     "ml/supervised.py",
 }
-FORBIDDEN = re.compile(r"labels|phases|eval\.duckdb", re.IGNORECASE)
+FORBIDDEN = re.compile(
+    r"labels|phases|eval\.duckdb|label_report|first_attack"
+    r"|logtriage\.(?:eval|prepare)\b"
+    r"|from\s+logtriage\s+import\s+.*\b(?:eval|prepare)\b"
+    r"|from\s+\.+(?:eval|prepare)\b"
+    r"|from\s+\.+\s+import\s+.*\b(?:eval|prepare)\b",
+    re.IGNORECASE,
+)
 
 
 def violations(package: Path) -> list[str]:
@@ -42,6 +50,16 @@ def test_no_module_outside_the_allow_list_refers_to_ground_truth() -> None:
         "df = read_parquet('labels.parquet')",
         "path = 'data_meta/phases_santos.csv'",
         "duckdb.connect('eval.duckdb')",
+        "from logtriage.eval.metrics import window_recall",
+        "import logtriage.eval",
+        "from logtriage import eval as evaluation",
+        "from ..eval import metrics",
+        "from .. import eval",
+        "from logtriage.prepare import run_prepare",
+        "from logtriage import config, prepare",
+        "from ..prepare import run_prepare",
+        "path = out_dir / 'label_report.json'",
+        "cutoff = periods.first_attack",
     ],
 )
 def test_the_scan_catches_a_planted_reference(tmp_path: Path, line: str) -> None:
@@ -49,6 +67,29 @@ def test_the_scan_catches_a_planted_reference(tmp_path: Path, line: str) -> None
     module.parent.mkdir()
     module.write_text(f"{line}\n", encoding="utf-8")
     assert len(violations(tmp_path)) == 1
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "from logtriage.data.periods import load_periods",
+        "from logtriage.config import Settings",
+        "max_label_len = 63",
+        "evaluate = model.score(prepared)",
+    ],
+)
+def test_the_scan_accepts_a_harmless_line(tmp_path: Path, line: str) -> None:
+    module = tmp_path / "ml" / "models.py"
+    module.parent.mkdir()
+    module.write_text(f"{line}\n", encoding="utf-8")
+    assert violations(tmp_path) == []
+
+
+def test_the_preparation_notebook_refers_to_no_ground_truth() -> None:
+    path = PACKAGE.parents[1] / "notebooks" / "02_preparation.ipynb"
+    cells = json.loads(path.read_text(encoding="utf-8"))["cells"]
+    source = ["".join(cell["source"]) for cell in cells if cell["cell_type"] == "code"]
+    assert [line for text in source for line in text.splitlines() if FORBIDDEN.search(line)] == []
 
 
 def test_the_allowed_modules_exist() -> None:

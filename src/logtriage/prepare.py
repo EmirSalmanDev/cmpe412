@@ -1,4 +1,4 @@
-"""The `prepare` pipeline: periods, parsing, templates, tables and databases (plan 9.3)."""
+"""The `prepare` pipeline: periods, parsing, templates, features and databases (plan 9.3)."""
 
 import json
 import logging
@@ -8,6 +8,7 @@ from typing import Any
 
 from logtriage.config import Settings, load_sources
 from logtriage.data.drain import add_templates
+from logtriage.data.features import build_windows
 from logtriage.data.labels import (
     build_eval_db,
     build_labels,
@@ -92,6 +93,7 @@ def run_prepare(testbed: str, settings: Settings) -> Path:
     timestamps, report = _prepare_lines(testbed, testbed_dir, out_dir, periods, settings)
     text = json.dumps(report, indent=2, sort_keys=True) + "\n"
     (out_dir / "prepare_report.json").write_text(text, encoding="utf-8")
+    build_windows(out_dir, periods, settings)
     build_agent_db(out_dir)
 
     sources = load_sources(settings.paths.sources_file)

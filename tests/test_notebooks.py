@@ -6,19 +6,25 @@ from pathlib import Path
 
 import pytest
 
-NOTEBOOK = Path(__file__).parents[1] / "notebooks" / "01_eda.ipynb"
+NOTEBOOKS = Path(__file__).parents[1] / "notebooks"
+NAMES = ["01_eda.ipynb", "02_preparation.ipynb"]
 MAX_TABLE_ROWS = 100
 MAX_BYTES = 5_000_000
 
 
+@pytest.fixture(scope="module", params=NAMES)
+def notebook(request: pytest.FixtureRequest) -> Path:
+    return NOTEBOOKS / request.param
+
+
 @pytest.fixture(scope="module")
-def code_cells() -> list[dict]:
-    cells = json.loads(NOTEBOOK.read_text(encoding="utf-8"))["cells"]
+def code_cells(notebook: Path) -> list[dict]:
+    cells = json.loads(notebook.read_text(encoding="utf-8"))["cells"]
     return [cell for cell in cells if cell["cell_type"] == "code"]
 
 
-def test_notebook_is_small_enough_to_commit() -> None:
-    assert NOTEBOOK.stat().st_size < MAX_BYTES
+def test_notebook_is_small_enough_to_commit(notebook: Path) -> None:
+    assert notebook.stat().st_size < MAX_BYTES
 
 
 def test_notebook_ran_in_order_from_a_clean_kernel(code_cells: list[dict]) -> None:
@@ -37,6 +43,7 @@ def test_notebook_tables_stay_under_the_row_limit(code_cells: list[dict]) -> Non
             assert len(re.findall(r"<tr", html)) <= MAX_TABLE_ROWS + 2
 
 
-def test_notebook_shows_figures_as_png(code_cells: list[dict]) -> None:
-    formats = {key for cell in code_cells for out in cell["outputs"] for key in out.get("data", {})}
-    assert "image/png" in formats
+def test_the_eda_notebook_shows_figures_as_png() -> None:
+    cells = json.loads((NOTEBOOKS / NAMES[0]).read_text(encoding="utf-8"))["cells"]
+    outputs = [out for cell in cells if cell["cell_type"] == "code" for out in cell["outputs"]]
+    assert "image/png" in {key for out in outputs for key in out.get("data", {})}

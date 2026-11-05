@@ -43,6 +43,16 @@ class MLConfig(PlaceholderSection):
     incidents_per_day_budget: int = 25
 
 
+class FeaturesConfig(BaseModel):
+    """Window and feature settings (plan 5.4, 6.3)."""
+
+    window_seconds: int = 60
+    top_entities: int = 10
+    second_level_suffixes: list[str] = Field(
+        default_factory=lambda: ["ac", "co", "com", "edu", "go", "gov", "ne", "net", "or", "org"]
+    )
+
+
 class PeriodsConfig(BaseModel):
     """Training and evaluation boundary settings (plan 4.3)."""
 
@@ -133,6 +143,7 @@ class Settings(BaseSettings):
     seed: int = 42
     llm: LLMConfig = Field(default_factory=LLMConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
+    features: FeaturesConfig = Field(default_factory=FeaturesConfig)
     periods: PeriodsConfig = Field(default_factory=PeriodsConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     download: DownloadConfig = Field(default_factory=DownloadConfig)

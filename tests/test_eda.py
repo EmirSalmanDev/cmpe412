@@ -4,12 +4,12 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import duckdb
 import pandas as pd
 import pytest
 
 from logtriage.config import MLConfig, Settings
 from logtriage.data.periods import Periods, is_baseline_capable
+from logtriage.data.store import connect
 from logtriage.eval import eda
 from logtriage.eval.metrics import required_detections
 
@@ -42,8 +42,7 @@ class Lab:
     """Builds the `lines`, `labels` and `phases` tables of a test."""
 
     def __init__(self) -> None:
-        self.con = duckdb.connect()
-        self.con.execute("SET TimeZone='UTC'")
+        self.con = connect()
         self.con.execute(
             "CREATE TABLE lines (line_id VARCHAR, log_type VARCHAR, host VARCHAR, file VARCHAR, "
             "ts TIMESTAMPTZ, raw VARCHAR, fields VARCHAR, src_ip VARCHAR, parse_ok BOOLEAN)"
@@ -93,7 +92,7 @@ def lab() -> Lab:
 def test_connect_uses_utc_whatever_the_machine_zone_is(tmp_path: Path) -> None:
     directory = tmp_path / "tiny"
     directory.mkdir()
-    duckdb.connect(str(directory / "eval.duckdb")).close()
+    connect(directory / "eval.duckdb").close()
     settings = Settings()
     settings.paths.processed_dir = tmp_path
     with eda.connect("tiny", settings) as con:

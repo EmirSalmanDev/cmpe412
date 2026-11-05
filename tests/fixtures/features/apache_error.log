@@ -1,0 +1,5 @@
+[Fri Jan 14 00:01:00.000001 2022] [core:error] [pid 1] [client 10.0.0.2:5000] AH00001: bad request
+[Fri Jan 14 00:01:01.000001 2022] [mpm_prefork:notice] [pid 1] AH00171: Graceful restart requested
+[Fri Jan 14 00:30:00.000001 2022] [core:error] [pid 1] [client 10.0.0.9:5000] AH00001: bad request
+[Fri Jan 14 00:30:01.000001 2022] [core:crit] [pid 1] [client 10.0.0.2:5000] AH00002: worse request
+sh: 1: stderr of a child process

@@ -57,7 +57,7 @@ def inventory(
 def prepare(
     testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
 ) -> None:
-    """Parse logs, then build templates, label tables and the DuckDB files."""
+    """Parse logs, then build templates, windows, label tables and the DuckDB files."""
     try:
         out_dir = run_prepare(testbed, load_settings(config))
     except (ValueError, FileNotFoundError) as error:

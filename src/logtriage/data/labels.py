@@ -17,7 +17,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from logtriage.config import LogSources, PhasesConfig
-from logtriage.data.store import create_views, lines_views
+from logtriage.data.store import create_views, data_views
 
 LABELS_FILE = "labels.parquet"
 LABELS_SCHEMA = pa.schema(
@@ -359,7 +359,7 @@ def write_labels(rows: list[dict[str, Any]], report: dict[str, Any], directory: 
 
 def build_eval_db(directory: Path, phases_csv: Path) -> None:
     """Create `eval.duckdb`: every line view plus the label and phase tables (plan 5)."""
-    views = lines_views(directory)
+    views = data_views(directory)
     views["labels"] = f"SELECT * FROM read_parquet('{directory / LABELS_FILE}')"
     views["phases"] = f"SELECT * FROM read_csv('{phases_csv}')"
     create_views(directory / "eval.duckdb", views)

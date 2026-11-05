@@ -31,6 +31,24 @@ LINES_SCHEMA = pa.schema(
 )
 
 
+def connect(path: Path | str = ":memory:", read_only: bool = False) -> duckdb.DuckDBPyConnection:
+    """Open a DuckDB connection whose session time zone is UTC (plan 5.1).
+
+    The session zone decides how `TIMESTAMPTZ` values are bucketed, cast and returned, and it
+    defaults to the machine's zone. Every connection in the project comes from here.
+
+    Args:
+        path: Database file, or `:memory:`.
+        read_only: Open the file read-only.
+
+    Returns:
+        The open connection.
+    """
+    connection = duckdb.connect(str(path), read_only=read_only)
+    connection.execute("SET TimeZone='UTC'")
+    return connection
+
+
 def write_lines(rows: list[dict[str, Any]], path: Path) -> None:
     """Write rows to a `lines_<log_type>.parquet` file (plan 5.1)."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -45,14 +63,22 @@ def template_digest(rows: list[dict[str, Any]]) -> str:
     return digest.hexdigest()
 
 
-def lines_views(directory: Path) -> dict[str, str]:
-    """Return view name to SQL for the `lines_*.parquet` files of a testbed."""
+def _family_views(directory: Path, family: str) -> dict[str, str]:
+    """Return a view per `<family>_*.parquet` file, and the view `<family>` over all of them."""
     views = {
         path.stem: f"SELECT * FROM read_parquet('{path}')"
-        for path in sorted(directory.glob("lines_*.parquet"))
+        for path in sorted(directory.glob(f"{family}_*.parquet"))
     }
-    views["lines"] = " UNION ALL BY NAME ".join(f"SELECT * FROM {name}" for name in sorted(views))
+    if views:
+        views[family] = " UNION ALL BY NAME ".join(
+            f"SELECT * FROM {name}" for name in sorted(views)
+        )
     return views
+
+
+def data_views(directory: Path) -> dict[str, str]:
+    """Return view name to SQL for the line and window tables of a testbed."""
+    return {**_family_views(directory, "lines"), **_family_views(directory, "windows")}
 
 
 def create_views(db_path: Path, views: dict[str, str]) -> None:
@@ -61,11 +87,11 @@ def create_views(db_path: Path, views: dict[str, str]) -> None:
     View paths stay as given, so the files open from the directory they were built in.
     """
     db_path.unlink(missing_ok=True)
-    with duckdb.connect(str(db_path)) as connection:
+    with connect(db_path) as connection:
         for name, query in views.items():
             connection.execute(f'CREATE VIEW "{name}" AS {query}')
 
 
 def build_agent_db(directory: Path) -> None:
-    """Create `agent.duckdb`, which exposes the line tables only (plan 5)."""
-    create_views(directory / "agent.duckdb", lines_views(directory))
+    """Create `agent.duckdb`, which exposes the line and window tables only (plan 5)."""
+    create_views(directory / "agent.duckdb", data_views(directory))
