@@ -3,6 +3,8 @@
 Precedence, highest first: environment variables, `.env`, YAML file, field defaults.
 """
 
+import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +53,27 @@ class PathsConfig(BaseModel):
     cache_dir: Path = Path("data/cache")
     data_meta_dir: Path = Path("data_meta")
     reports_dir: Path = Path("reports")
+    sources_file: Path = Path("configs/sources.yaml")
+
+
+class SourceConfig(BaseModel):
+    """One downloadable dataset: a Zenodo record and the files wanted from it."""
+
+    record: int
+    files: list[str]
+    extract: list[str] = Field(default_factory=list)
+
+
+class DownloadConfig(BaseModel):
+    """Dataset download settings (plan 4.2)."""
+
+    api_url: str = "https://zenodo.org/api/records"
+    sources: dict[str, SourceConfig] = Field(default_factory=dict)
+    max_retries: int = 3
+    backoff_seconds: float = 10.0
+    timeout_seconds: float = 60.0
+    chunk_bytes: int = 8 * 1024 * 1024
+    min_free_factor: float = 5.0
 
 
 class Settings(BaseSettings):
@@ -69,6 +92,7 @@ class Settings(BaseSettings):
     ml: MLConfig = Field(default_factory=MLConfig)
     periods: PeriodsConfig = Field(default_factory=PeriodsConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
+    download: DownloadConfig = Field(default_factory=DownloadConfig)
     deepseek_api_key: SecretStr | None = Field(default=None, validation_alias="DEEPSEEK_API_KEY")
 
     @classmethod
@@ -82,6 +106,50 @@ class Settings(BaseSettings):
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         """Rank init values (the YAML contents) below the environment and `.env`."""
         return env_settings, dotenv_settings, init_settings, file_secret_settings
+
+
+@lru_cache(maxsize=256)
+def _glob_regex(pattern: str) -> re.Pattern[str]:
+    """Compile a path glob: `*` stays within one path segment, `**` crosses segments."""
+    parts = (re.escape(part).replace(r"\*", "[^/]*") for part in pattern.split("**"))
+    return re.compile(".*".join(parts) + r"\Z")
+
+
+def glob_match(path: str, pattern: str) -> bool:
+    """Return True if a relative POSIX path matches a path glob."""
+    return _glob_regex(pattern).match(path) is not None
+
+
+class ExtractionRules(BaseModel):
+    """Zip members to extract besides the log families and labeled logs (plan 4.2)."""
+
+    always: list[str]
+    exclude: list[str]
+
+
+class LogSources(BaseModel):
+    """Contents of `configs/sources.yaml`: path patterns to log types and extraction rules."""
+
+    log_types: dict[str, list[str]]
+    other_labeled: list[str]
+    extraction: ExtractionRules
+
+    def log_type(self, path: str) -> str | None:
+        """Return the log type of a path, or None if it is outside the log families."""
+        for log_type, patterns in self.log_types.items():
+            if any(glob_match(path, pattern) for pattern in patterns):
+                return log_type
+        return None
+
+    def is_other_labeled(self, path: str) -> bool:
+        """Return True if a path is a known labeled source outside the log families."""
+        return any(glob_match(path, pattern) for pattern in self.other_labeled)
+
+
+def load_sources(path: Path | str) -> LogSources:
+    """Load `configs/sources.yaml`."""
+    with Path(path).open(encoding="utf-8") as handle:
+        return LogSources.model_validate(yaml.safe_load(handle))
 
 
 def load_settings(

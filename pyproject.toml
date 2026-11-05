@@ -5,6 +5,7 @@ description = "ML anomaly detection on AIT-LDS security logs and an agent that w
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "certifi>=2026.10.23",
     "chromadb>=1.5.9",
     "drain3>=0.9.11",
     "duckdb>=2.0.0",

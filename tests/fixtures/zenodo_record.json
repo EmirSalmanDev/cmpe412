@@ -1,0 +1,17 @@
+{
+  "id": 5789064,
+  "files": [
+    {
+      "key": "tiny.zip",
+      "size": 5,
+      "checksum": "md5:5d41402abc4b2a76b9719d911017c592",
+      "links": {"self": "https://zenodo.example/api/records/1/files/tiny.zip/content"}
+    },
+    {
+      "key": "other.zip",
+      "size": 3,
+      "checksum": "md5:acbd18db4cc2f85cedef654fccc4a4d8",
+      "links": {"self": "https://zenodo.example/api/records/1/files/other.zip/content"}
+    }
+  ]
+}

@@ -16,6 +16,28 @@ ml: {}
 # Filled in at M1/M2 (plan 4.3). Period boundaries themselves live in periods.json.
 periods: {}
 
+# Dataset sources (plan 4.1, 4.2). File names, URLs and checksums come from the Zenodo API.
+download:
+  api_url: https://zenodo.org/api/records
+  sources:
+    russellmitchell:
+      record: 5789064
+      files: [russellmitchell.zip]
+    santos:
+      record: 5789064
+      files: [santos.zip]
+    ait_ads:
+      record: 8263181
+      files: [ait_ads.zip, labels.csv]
+      # Only the alerts of the two testbeds in use; the zip holds all eight scenarios.
+      extract: [russellmitchell_*.json, santos_*.json]
+  max_retries: 3
+  backoff_seconds: 10
+  timeout_seconds: 60
+  chunk_bytes: 8388608
+  # Free space required before a download, as a multiple of the archive size.
+  min_free_factor: 5.0
+
 paths:
   data_dir: data
   raw_dir: data/raw
@@ -24,3 +46,4 @@ paths:
   cache_dir: data/cache
   data_meta_dir: data_meta
   reports_dir: reports
+  sources_file: configs/sources.yaml
