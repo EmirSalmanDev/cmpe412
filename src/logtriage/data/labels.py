@@ -7,11 +7,28 @@ from `periods.py`.
 import csv
 import json
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+from logtriage.config import LogSources, PhasesConfig
+from logtriage.data.store import create_views, lines_views
+
+LABELS_FILE = "labels.parquet"
+LABELS_SCHEMA = pa.schema(
+    [
+        ("line_id", pa.string()),
+        ("labels", pa.list_(pa.string())),
+        ("rules", pa.string()),
+        ("phase", pa.string()),
+    ]
+)
+UNASSIGNED = "unassigned"
 PHASE_COLUMNS = ("testbed", "phase", "start_utc", "end_utc", "source")
 
 
@@ -208,3 +225,155 @@ def write_phases_csv(phases: Iterable[Phase], path: Path) -> None:
                     phase.source,
                 ]
             )
+
+
+def read_phases_csv(path: Path) -> list[Phase]:
+    """Read `data_meta/phases_<testbed>.csv`, sorted by start time."""
+    with path.open(encoding="utf-8", newline="") as handle:
+        phases = [
+            Phase(
+                testbed=row["testbed"],
+                phase=row["phase"],
+                start=datetime.fromisoformat(row["start_utc"]),
+                end=datetime.fromisoformat(row["end_utc"]),
+                source=row["source"],
+            )
+            for row in csv.DictReader(handle)
+        ]
+    return sorted(phases, key=lambda phase: phase.start)
+
+
+def assign_phase(
+    ts: datetime, raw_labels: Iterable[str], phases: Iterable[Phase], config: PhasesConfig
+) -> str:
+    """Return the phase of a labeled line (plan 5.3).
+
+    The exfil phase overlaps the others, so only lines with the exfil label can take it, and
+    for them it comes first. An interval holding `ts` wins over the tolerance; failing that,
+    the nearest interval within the tolerance wins.
+
+    Args:
+        ts: Event time of the line.
+        raw_labels: Raw AIT labels of the line.
+        phases: Phases of the testbed.
+        config: Phase settings.
+
+    Returns:
+        A phase name, or `unassigned`.
+    """
+    tolerance = timedelta(seconds=config.tolerance_seconds)
+    can_be_exfil = config.exfil_label in raw_labels
+    candidates = [phase for phase in phases if can_be_exfil or phase.phase != config.exfil_phase]
+    candidates.sort(key=lambda phase: phase.phase != config.exfil_phase)
+    for phase in candidates:
+        if phase.start <= ts < phase.end:
+            return phase.phase
+    distances = []
+    for phase in candidates:
+        distance = phase.start - ts if ts < phase.start else ts - phase.end
+        if distance <= tolerance:
+            distances.append((distance, phase.phase))
+    return min(distances)[1] if distances else UNASSIGNED
+
+
+def build_labels(
+    testbed_dir: Path,
+    lines: Mapping[str, datetime],
+    phases: list[Phase],
+    sources: LogSources,
+    config: PhasesConfig,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Join the label files to the parsed lines and assign phases (plan 5.2).
+
+    Label `line` numbers are 1-based, like `line_no` (status.md, M2). Label files outside the
+    log families are skipped, because their lines are not parsed.
+
+    Args:
+        testbed_dir: `data/raw/<testbed>`.
+        lines: `line_id` to `ts` of the parsed lines.
+        phases: Rows of `data_meta/phases_<testbed>.csv`.
+        sources: Log source patterns.
+        config: Phase settings.
+
+    Returns:
+        Rows of `labels.parquet` and a report of the resolved and in-phase counts.
+    """
+    rows: list[dict[str, Any]] = []
+    per_file: dict[str, dict[str, Any]] = {}
+    skipped: list[str] = []
+    labels_dir = testbed_dir / "labels"
+    for path in sorted(item for item in labels_dir.rglob("*") if item.is_file()):
+        relative = path.relative_to(labels_dir).as_posix()
+        log_type = sources.log_type(f"gather/{relative}")
+        if log_type is None:
+            skipped.append(relative)
+            continue
+        host, file = relative.split("/", 1)
+        counts = Counter[str]()
+        phase_counts = Counter[str]()
+        with path.open(encoding="utf-8") as handle:
+            for text in handle:
+                if not text.strip():
+                    continue
+                entry = json.loads(text)
+                counts["labeled"] += 1
+                line_id = f"{host}|{file}|{entry['line']}"
+                if line_id not in lines:
+                    continue
+                counts["resolved"] += 1
+                phase = assign_phase(lines[line_id], entry["labels"], phases, config)
+                phase_counts[phase] += 1
+                rows.append(
+                    {
+                        "line_id": line_id,
+                        "labels": entry["labels"],
+                        "rules": json.dumps(entry["rules"], sort_keys=True),
+                        "phase": phase,
+                    }
+                )
+        per_file[relative] = {
+            "log_type": log_type,
+            "labeled": counts["labeled"],
+            "resolved": counts["resolved"],
+            "phases": dict(sorted(phase_counts.items())),
+        }
+    resolved = sum(item["resolved"] for item in per_file.values())
+    assigned = sum(row["phase"] != UNASSIGNED for row in rows)
+    report = {
+        "labeled": sum(item["labeled"] for item in per_file.values()),
+        "resolved": resolved,
+        "in_phase": assigned,
+        "in_phase_rate": assigned / resolved if resolved else 0.0,
+        "skipped_files": skipped,
+        "files": per_file,
+    }
+    return rows, report
+
+
+def write_labels(rows: list[dict[str, Any]], report: dict[str, Any], directory: Path) -> None:
+    """Write `labels.parquet` and `label_report.json`."""
+    pq.write_table(pa.Table.from_pylist(rows, schema=LABELS_SCHEMA), directory / LABELS_FILE)
+    text = json.dumps(report, indent=2, sort_keys=True) + "\n"
+    (directory / "label_report.json").write_text(text, encoding="utf-8")
+
+
+def build_eval_db(directory: Path, phases_csv: Path) -> None:
+    """Create `eval.duckdb`: every line view plus the label and phase tables (plan 5)."""
+    views = lines_views(directory)
+    views["labels"] = f"SELECT * FROM read_parquet('{directory / LABELS_FILE}')"
+    views["phases"] = f"SELECT * FROM read_csv('{phases_csv}')"
+    create_views(directory / "eval.duckdb", views)
+
+
+def phase_report(report: dict[str, Any]) -> list[dict[str, Any]]:
+    """Summarize `build_labels` per log type: labeled, resolved and in-phase lines."""
+    summary: dict[str, Counter[str]] = {}
+    for item in report["files"].values():
+        counts = summary.setdefault(item["log_type"], Counter())
+        counts["labeled"] += item["labeled"]
+        counts["resolved"] += item["resolved"]
+        counts["unassigned"] += item["phases"].get(UNASSIGNED, 0)
+    return [
+        {"log_type": log_type, **counts, "in_phase": counts["resolved"] - counts["unassigned"]}
+        for log_type, counts in sorted(summary.items())
+    ]
