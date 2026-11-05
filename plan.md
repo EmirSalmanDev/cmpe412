@@ -103,7 +103,7 @@ For each testbed, from `dataset.yaml` (changed: see status.md D9) and the attack
 
 - `sim_start`, `sim_end`: simulation interval. Drop all lines outside it.
 - `first_attack` = earliest start among the phases with source `ait_ads:labels.csv`, so `dnsteal_exfil` does not count (changed: see status.md D11).
-- **Training period** = `[sim_start, first_attack - 24h)`. Documented assumption: the analyst knows a clean baseline period. This is the **only** use of attack timing outside evaluation (allowed exception to §5.2). It MUST be ≥ 24h; if not, log it in status.md and use `[sim_start, first_attack - 6h)`. Known limitation: the baseline is not clean, because DNS exfiltration runs through all of it on both testbeds (changed: see status.md D11).
+- **Training period** = `[sim_start, first_attack - 24h)`. Documented assumption: the analyst knows a clean baseline period. This is the **only** use of attack timing outside evaluation (allowed exception to §5.2). It MUST be ≥ 24h; if not, log it in status.md and use `[sim_start, first_attack - 6h)`. Known limitation: the baseline is not clean, because DNS exfiltration runs through all of it on both testbeds (changed: see status.md D11). It is not cleaned with labels or attacker information, which §5.2 forbids; the definition stays as computed, and the contamination is quantified in `01_eda.ipynb` (changed: see status.md D16).
 - The training period is split by time into:
   - **fit** = first 80%. Drain3 frozen miner, all "unseen"/rarity vocabularies, scalers and anomaly models are fit **only** here.
   - **calib** = last 20%. Not used for fitting anything; used for percentile calibration (§6.5), so calibration sees "unseen" features the same way the eval period does.
@@ -438,14 +438,16 @@ All numbers on the **santos evaluation period** unless stated. Dev numbers are r
 - Incident is `malicious` if any of its windows is an attack window; its phases = union of window phases.
 - **Phases with traces** = phases having ≥ 1 labeled line in the processed log types of the testbed (fixed in M3; this is the recall denominator). The denominator is computed over baseline-capable log types (§6.4); phases excluded by this are listed explicitly in `reports/targets.md`, and the conservative variant over all parsed log types is reported as secondary (changed: see status.md D15, D19).
 
+- **Label-ambiguous**: every window of log type `dns` on host `inet-dns`, because that host holds unlabeled copies of the exfiltration. An incident is label-ambiguous if it has such a window and no attack window. `reports/targets.md` gives the exact rule (changed: see status.md D17).
+
 ### 10.2 Metrics
 
 | Metric | Definition |
 |---|---|
-| Window P/R/F1, PR-AUC | per log type and pooled, using `score` and `is_anomalous` |
-| Phase recall | a phase is detected if ≥ 1 anomalous window that belongs to an incident contains a labeled line of that phase; recall = detected / phases with traces |
+| Window P/R/F1, PR-AUC | per log type and pooled, using `score` and `is_anomalous`. `dns` results are also reported separately because of the contaminated baseline (changed: see status.md D16). Label-ambiguous windows are left out, and a secondary number includes them (changed: see status.md D17) |
+| Phase recall | a phase is detected if ≥ 1 anomalous window that belongs to an incident contains a labeled line of that phase; recall = detected / phases with traces. Secondary variant: the same without `dnsteal_exfil`, in both counts (changed: see status.md D16) |
 | Alert reduction | per day: incidents vs anomalous windows vs IDS alerts (AIT-ADS, same period) vs IDS alerts grouped with the same gap rule (§6.6, entity = host) |
-| Verdict | confusion matrix (3 predicted classes × 2 true). F1 with `uncertain` counted as non-benign. |
+| Verdict | confusion matrix (3 predicted classes × 2 true). F1 with `uncertain` counted as non-benign. Label-ambiguous incidents are left out, and a secondary number includes them (changed: see status.md D17) |
 | ATT&CK top-1/top-3 | per malicious incident: hit if any predicted technique in top-k ∈ union of gold sets of the incident's phases. Strict = exact ID. Lenient (secondary) = parent technique match. |
 | Faithfulness (primary) | manual annotation: share of claims supported by their cited lines, on a sample of ≥ 100 claims, rated by the team blind to the condition (Verifier on/off) |
 | Faithfulness (auto) | Verifier LLM judgment (reported, but labelled as self-assessment) |
