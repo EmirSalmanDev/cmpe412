@@ -99,7 +99,7 @@ Licenses: AIT data is CC BY-NC-SA 4.0 (non-commercial, attribution). Cite in REA
 
 ### 4.3 Testbeds and periods
 
-For each testbed, from `dataset.yaml` and the attack phases (§5.3):
+For each testbed, from `dataset.yaml` (changed: see status.md D9) and the attack phases (§5.3):
 
 - `sim_start`, `sim_end`: simulation interval. Drop all lines outside it.
 - `first_attack` = earliest start among the phases with source `ait_ads:labels.csv`, so `dnsteal_exfil` does not count (changed: see status.md D11).
