@@ -1,0 +1,22 @@
+# Required by plan 12
+data/
+.env
+*.sqlite
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+*.parquet
+*.duckdb
+*.zip
+
+# `data/` above matches at any depth; keep the Python package tracked.
+!src/logtriage/data/
+
+# Tooling
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+.DS_Store

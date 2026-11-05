@@ -1,0 +1,26 @@
+# Default LogTriage configuration, loaded by logtriage.config.
+# Environment overrides use the LOGTRIAGE_ prefix, with __ between nested keys,
+# e.g. LOGTRIAGE_SEED=7 or LOGTRIAGE_PATHS__DATA_DIR=/mnt/data.
+# Secrets never go here: DEEPSEEK_API_KEY comes only from the environment or .env.
+
+seed: 42
+
+# Filled in when the agent layer is built (plan 7.1). The model string must be verified first.
+llm:
+  model: null
+  base_url: null
+
+# Filled in at M5 (plan 6.4-6.6).
+ml: {}
+
+# Filled in at M1/M2 (plan 4.3). Period boundaries themselves live in periods.json.
+periods: {}
+
+paths:
+  data_dir: data
+  raw_dir: data/raw
+  processed_dir: data/processed
+  index_dir: data/index
+  cache_dir: data/cache
+  data_meta_dir: data_meta
+  reports_dir: reports
