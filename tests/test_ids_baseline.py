@@ -99,3 +99,11 @@ def test_budget_check_follows_the_arithmetic(
     assert check.largest_budget == largest
     assert check.feasible is feasible
     assert check.reduction_at_budget == pytest.approx(1 - budget / alerts_per_day)
+
+
+def test_budget_table_checks_each_scope() -> None:
+    rates = pd.DataFrame({"scope": ["a", "b"], "alerts": [1, 2], "alerts_per_day": [1000.0, 100.0]})
+    table = baselines.budget_table(rates, 25).set_index("scope")
+    assert table.loc["a", "largest_budget"] == 100
+    assert bool(table.loc["a", "feasible"]) is True
+    assert bool(table.loc["b", "feasible"]) is False

@@ -350,6 +350,13 @@ def attacker_gap_summary(lines: pd.DataFrame) -> pd.DataFrame:
     return table
 
 
+def attacker_gap_by(lines: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    """Total `attacker_ip_lines` inside the phase windows by the given columns."""
+    table = lines[lines["phase"].notna()].groupby(columns)[["lines", "labeled"]].sum()
+    table["unlabeled"] = table["lines"] - table["labeled"]
+    return table.reset_index()
+
+
 def labeled_timeline(con: duckdb.DuckDBPyConnection, seconds: int = 30) -> pd.DataFrame:
     """Count labeled lines per phase, log type and time bin, for the timeline figure."""
     return con.execute(

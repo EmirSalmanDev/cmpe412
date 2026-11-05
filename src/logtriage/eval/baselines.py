@@ -82,6 +82,10 @@ def daily_alerts(alerts: pd.DataFrame, periods: Periods) -> pd.DataFrame:
     return table.rename_axis("day")
 
 
+# Plan 10.5: incidents per day must be at least this much fewer than raw IDS alerts.
+REQUIRED_REDUCTION = 0.9
+
+
 @dataclass(frozen=True)
 class BudgetCheck:
     """Whether an incidents/day budget can meet the alert reduction target."""
@@ -105,3 +109,15 @@ class BudgetCheck:
     def feasible(self) -> bool:
         """True if the budget reaches the required reduction."""
         return self.budget <= self.largest_budget
+
+
+def budget_table(rates: pd.DataFrame, budget: int) -> pd.DataFrame:
+    """Check a budget against each row of `alert_rates`."""
+    checks = [
+        BudgetCheck(float(rate), budget, REQUIRED_REDUCTION) for rate in rates["alerts_per_day"]
+    ]
+    table = rates.copy()
+    table["largest_budget"] = [check.largest_budget for check in checks]
+    table["reduction_at_budget"] = [check.reduction_at_budget for check in checks]
+    table["feasible"] = [check.feasible for check in checks]
+    return table

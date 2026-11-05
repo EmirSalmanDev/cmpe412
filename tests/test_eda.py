@@ -253,6 +253,19 @@ def test_attacker_gap_summary_gives_low_and_high_estimates() -> None:
     assert table.loc["all roles", "unlabeled_outside_windows"] == 500
 
 
+def test_attacker_gap_by_ignores_lines_outside_the_windows() -> None:
+    lines = pd.DataFrame(
+        {
+            "role": ["tunnel", "tunnel"],
+            "phase": ["a", None],
+            "lines": [10, 500],
+            "labeled": [8, 0],
+        }
+    )
+    table = eda.attacker_gap_by(lines, ["phase"])
+    assert table[["phase", "lines", "unlabeled"]].values.tolist() == [["a", 10, 2]]
+
+
 def test_stderr_gap_splits_attacker_output_from_noise(lab: Lab) -> None:
     wget = "--2022-01-24 03:59:22--  https://example.org/x.tar.gz"
     lab.line("apache_error", "web", 5, raw=wget, parse_ok=False)
