@@ -484,7 +484,6 @@ Acceptable sets; the first ID is the primary. Verify against the pinned ATT&CK v
 
 | phase | acceptable techniques |
 |---|---|
-| `vpn_access` (if present) | T1133, T1078 |
 | `network_scans` | T1046, T1018 |
 | `service_scans` | T1046 |
 | `dirb` | T1595.003 |
@@ -495,8 +494,9 @@ Acceptable sets; the first ID is the primary. Verify against the pinned ATT&CK v
 | `privilege_escalation` | T1078.003, T1548.003, T1078 |
 | `service_stop` | T1489 |
 | `dnsteal` | T1048.003, T1048, T1071.004 |
+| `dnsteal_exfil` | T1048.003, T1048, T1071.004 (changed: see status.md D18) |
 
-Phases present in the data but missing here are added in M3 with a logged decision.
+Phases present in the data but missing here are added in M3 with a logged decision. `vpn_access` is not a phase of these testbeds, because §5.3 adds it only for unassigned VPN lines and there are none, so it has no entry (changed: see status.md D18).
 
 ---
 
