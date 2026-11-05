@@ -240,9 +240,10 @@ def run_inventory(testbed: str, settings: Settings) -> Path:
     sources = load_sources(settings.paths.sources_file)
     records = build_inventory(testbed_dir, sources)
 
-    intervals_file = settings.phases.intervals_file
     phases = read_phase_intervals(
-        settings.paths.raw_dir / "ait_ads" / intervals_file, testbed, f"ait_ads:{intervals_file}"
+        settings.paths.raw_dir / "ait_ads" / settings.phases.intervals_file,
+        testbed,
+        settings.phases.published_source,
     )
     exfil_start, exfil_end = read_exfil_interval(testbed_dir / settings.phases.exfil_log)
     steps = read_attack_steps(testbed_dir / "gather/attacker_0/logs/attacks.log")

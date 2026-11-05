@@ -1,0 +1,5 @@
+Jan 16 06:25:14 intranet-server CRON[14139]: pam_unix(cron:session): session closed for user root
+Jan 16 06:39:02 vpn sshd[100]: Accepted password for alice from 10.0.0.9 port 2222 ssh2
+Jan  6 06:39:03 vpn sshd[101]: Failed password for invalid user bob from 10.0.0.10 port 2223 ssh2
+Jan 16 06:39:04 vpn sudo:   carol : TTY=pts/0 ; PWD=/home ; USER=root ; COMMAND=/bin/ls
+garbage

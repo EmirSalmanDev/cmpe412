@@ -142,7 +142,7 @@ All tables are Parquet under `data/processed/<testbed>/`, exposed through DuckDB
 | `ts` | timestamp[UTC] | parsed event time |
 | `raw` | str | original line (decoded utf-8, `errors="replace"`) |
 | `message` | str | part after the syslog/apache prefix that is fed to Drain3 |
-| `template_id` | int | from the online Drain3 miner (§6.2) |
+| `template_id` | int | from the online Drain3 miner (§6.2); this and the other template columns are null when `parse_ok` is false (changed: see status.md D12) |
 | `template` | str | |
 | `is_unseen_template` | bool | frozen fit-period miner found no match (§6.2) |
 | `template_rarity` | float | `-log((count_fit + 1) / (N_fit + V))`, from fit-period counts of the frozen miner's templates (unseen → count 0) |
@@ -173,7 +173,7 @@ Enforce with a test that scans the source of `data/` (except `labels.py`, `perio
 `testbed, phase, start_utc, end_utc, source`
 
 - Primary source: the attack-phase intervals shipped with AIT-ADS in `labels.csv` (per scenario: phase name with epoch start/end, e.g. `network_scans, service_scans, dirb, wpscan, webshell, cracking, reverse_shell, privilege_escalation, service_stop, dnsteal`; changed: see status.md D8). These rows are kept as published, with source `ait_ads:labels.csv`. Cross-check against `gather/attacker_0/logs/attacks.log` of the testbed.
-- The published `dnsteal` interval starts as the exfiltration ends, so each file also has a `dnsteal_exfil` row: first to last `Received data` event in `gather/attacker_0/logs/dnsteal.log`, with source `attacker_0:dnsteal.log`. It overlaps the other phases, so it applies only to lines whose raw labels include `dnsteal`; all other lines ignore it (changed: see status.md D11).
+- The published `dnsteal` interval starts as the exfiltration ends, so each file also has a `dnsteal_exfil` row: first to last `Received data` event in `gather/attacker_0/logs/dnsteal.log`, with source `attacker_0:dnsteal.log`. It overlaps the other phases, so it applies only to lines whose raw labels include `dnsteal`; all other lines ignore it (changed: see status.md D11). For those lines it is tried first. An interval containing `ts` always beats the ±60 s tolerance, so `service_stop` keeps its lines (changed: see status.md D13).
 - Phase names and order can differ per testbed. Use what the data says.
 - A labeled line's `phase` = the phase whose interval contains its `ts` (±60 s tolerance), else `"unassigned"`.
 - If the `unassigned` lines are mostly VPN login/session lines of the attacker, add a phase `vpn_access` spanning those lines and log the decision.
@@ -251,7 +251,7 @@ The LLM only ever sees and cites `eid`s. Code resolves `eid → line_id`. A clai
 
 - One parser module per log type, each exposing `parse_line(raw: str, ctx) -> ParsedLine`.
 - Timestamps: syslog-style lines have no year. Take the year from `sim_start`; handle the year boundary. Audit lines use `msg=audit(<epoch>.<ms>:<serial>)`. Apache uses `[%d/%b/%Y:%H:%M:%S %z]`. Normalize everything to tz-aware UTC. Confirm the source timezone with the phase check (§5.3).
-- Unparseable lines: `parse_ok=False`, keep `raw`, `ts` = previous line's ts in the same file (log the count). Parse rate MUST be ≥ 99% per file.
+- Unparseable lines: `parse_ok=False`, keep `raw`, `ts` = previous line's ts in the same file, or the next one at the start of a file (log the count). Parse rate MUST be ≥ 99% per file. The rate counts log records only: blank lines, and text in Apache error logs that does not start with `[` (process stderr, no timestamp), stay `parse_ok=False` but are counted separately and left out of the rate (changed: see status.md D12).
 - Drop lines with `ts` outside `[sim_start, sim_end)` *after* assigning `line_no`.
 
 ### 6.2 Drain3 templating (`logtriage/data/drain.py`)
@@ -506,9 +506,9 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 ├── configs/        default.yaml  sources.yaml  gold_attack_mapping.yaml
 ├── data_meta/      phases_<testbed>.csv            # small, committed
 ├── src/logtriage/
-│   ├── config.py  cli.py
+│   ├── config.py  cli.py  prepare.py
 │   ├── data/       download.py inventory.py timeutil.py periods.py drain.py labels.py
-│   │               windows.py features.py store.py parsers/{apache,auth,dns,audit,vpn}.py
+│   │               windows.py features.py store.py parsers/{common,apache,auth,dns,audit,vpn}.py
 │   ├── ml/         models.py ensemble.py incidents.py supervised.py
 │   ├── rag/        attack_index.py incident_store.py
 │   ├── agents/     llm.py cache.py schemas.py tools.py graph.py runner.py chat.py prompts/

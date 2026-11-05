@@ -1,0 +1,5 @@
+2022-01-14 00:49:39 gmorgan/10.229.3.112:54658 TLS: soft reset sec=3515/3515 bytes=58568/-1 pkts=752/0
+2022-01-14 00:49:40 10.229.3.113:1194 TLS: Initial packet from [AF_INET]10.229.3.113:1194
+2022-01-14 00:49:41 gmorgan/10.229.3.112:54658 MULTI_sva: pool returned IPv4=10.8.0.6, IPv6=(Not enabled)
+2022-01-14 00:49:42 Initialization Sequence Completed
+broken

@@ -1,0 +1,4 @@
+type=USER_ACCT msg=audit(1642118941.668:306): pid=9699 uid=0 auid=4294967295 ses=4294967295 msg='op=PAM:accounting acct="root" exe="/usr/sbin/cron" hostname=? addr=? terminal=cron res=success'
+type=USER_AUTH msg=audit(1642118942.000:307): pid=1 uid=0 msg='op=PAM:authentication acct="alice" exe="/usr/sbin/sshd" hostname=10.0.0.9 addr=10.0.0.9 terminal=ssh res=failed'
+type=SYSCALL msg=audit(1642118943.250:308): arch=c000003e syscall=59 success=yes exit=0 ppid=5 pid=6 uid=33 euid=33 comm="sh" exe="/bin/dash" key="exec"
+no audit here

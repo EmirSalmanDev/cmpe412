@@ -1,0 +1,6 @@
+[Mon Jan 17 11:22:02.607946 2022] [authz_core:error] [pid 20320] [client 172.21.128.119:44498] AH01630: client denied by server configuration: /var/www/.hta
+[Sun Jan 16 06:25:06.680657 2022] [mpm_prefork:notice] [pid 428] AH00163: Apache/2.4.29 configured -- resuming normal operations
+[Mon Jan 17 11:22:03 2022] [php7:warn] [pid 1:tid 2] [client 10.0.0.1:80] PHP Warning: x
+TERM environment variable not set.
+
+[broken record

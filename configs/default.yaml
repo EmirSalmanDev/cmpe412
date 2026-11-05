@@ -13,8 +13,35 @@ llm:
 # Filled in at M5 (plan 6.4-6.6).
 ml: {}
 
-# Filled in at M1/M2 (plan 4.3). Period boundaries themselves live in periods.json.
-periods: {}
+# Training and evaluation boundaries (plan 4.3). The computed values go to periods.json.
+periods:
+  # Training ends this long before the first attack.
+  gap_hours: 24
+  # Training must last this long, otherwise fallback_gap_hours replaces gap_hours.
+  min_training_hours: 24
+  fallback_gap_hours: 6
+  # Share of the training period used to fit; the rest is calibration.
+  fit_fraction: 0.8
+
+# Drain3 templating (plan 6.2). File paths are deliberately not masked.
+drain:
+  sim_th: 0.4
+  depth: 4
+  max_children: 100
+  # Applied in order, so the more specific patterns come first.
+  masking:
+    - mask_with: UUID
+      pattern: '(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b'
+    - mask_with: IP
+      pattern: '(?<![\w.])\d{1,3}(?:\.\d{1,3}){3}(?![\w.])'
+    - mask_with: IP6
+      pattern: '(?i)(?<![\w:.])(?=(?:[0-9a-f]{0,4}:){2})[0-9a-f:]{3,39}(?![\w:.])'
+    - mask_with: HEX
+      pattern: '(?i)\b(?:0x[0-9a-f]+|[0-9a-f]{8,})\b'
+    - mask_with: B64
+      pattern: '(?<![\w/+=*-])[A-Za-z0-9+=*_-]{20,}'
+    - mask_with: NUM
+      pattern: '(?<![A-Za-z0-9])\d+(?![A-Za-z0-9])'
 
 # Attack phases (plan 5.3). Used only to build data_meta/phases_<testbed>.csv.
 phases:
@@ -23,6 +50,8 @@ phases:
   # Attacker-side record of the DNS exfiltration, the source of the exfil phase.
   exfil_log: gather/attacker_0/logs/dnsteal.log
   exfil_phase: dnsteal_exfil
+  # Only lines with this raw label can take the exfil phase.
+  exfil_label: dnsteal
   # Phase name to the attack steps to compare its start with, for the cross-check.
   # Steps come from attacks.log, except exfil_last_received, which comes from exfil_log.
   steps:

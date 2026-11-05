@@ -1,0 +1,55 @@
+"""Label isolation (plan 5.2): only the allowed modules may refer to ground truth."""
+
+import re
+from pathlib import Path
+
+import pytest
+
+PACKAGE = Path(__file__).parents[1] / "src" / "logtriage"
+SCANNED = ("data", "ml", "agents", "rag", "app")
+ALLOWED = {
+    "data/labels.py",
+    "data/periods.py",
+    "data/inventory.py",
+    "data/download.py",
+    "ml/supervised.py",
+}
+FORBIDDEN = re.compile(r"labels|phases|eval\.duckdb", re.IGNORECASE)
+
+
+def violations(package: Path) -> list[str]:
+    """Return `path:line` of every forbidden reference outside the allowed modules."""
+    found = []
+    for directory in SCANNED:
+        for path in sorted((package / directory).rglob("*")):
+            relative = path.relative_to(package).as_posix()
+            if not path.is_file() or path.suffix not in (".py", ".md") or relative in ALLOWED:
+                continue
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if FORBIDDEN.search(line):
+                    found.append(f"{relative}:{number}: {line.strip()}")
+    return found
+
+
+def test_no_module_outside_the_allow_list_refers_to_ground_truth() -> None:
+    assert violations(PACKAGE) == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "from logtriage.data.labels import build_labels",
+        "df = read_parquet('labels.parquet')",
+        "path = 'data_meta/phases_santos.csv'",
+        "duckdb.connect('eval.duckdb')",
+    ],
+)
+def test_the_scan_catches_a_planted_reference(tmp_path: Path, line: str) -> None:
+    module = tmp_path / "ml" / "models.py"
+    module.parent.mkdir()
+    module.write_text(f"{line}\n", encoding="utf-8")
+    assert len(violations(tmp_path)) == 1
+
+
+def test_the_allowed_modules_exist() -> None:
+    assert [name for name in ALLOWED if not (PACKAGE / name).is_file()] == []

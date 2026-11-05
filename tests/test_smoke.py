@@ -10,7 +10,6 @@ from logtriage.config import load_settings
 
 CONFIG = Path(__file__).parents[1] / "configs" / "default.yaml"
 STUB_COMMANDS = [
-    "prepare",
     "detect",
     "index-attack",
     "investigate",
@@ -92,5 +91,11 @@ def test_download_rejects_unknown_source() -> None:
 
 def test_inventory_needs_the_downloaded_testbed() -> None:
     result = runner.invoke(app, ["inventory", "--testbed", "nope", "--config", str(CONFIG)])
+    assert result.exit_code == 1
+    assert "logtriage download" in result.output
+
+
+def test_prepare_needs_the_downloaded_testbed() -> None:
+    result = runner.invoke(app, ["prepare", "--testbed", "nope", "--config", str(CONFIG)])
     assert result.exit_code == 1
     assert "logtriage download" in result.output
