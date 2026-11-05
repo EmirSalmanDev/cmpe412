@@ -1,0 +1,12 @@
+testbed,phase,start_utc,end_utc,source
+russellmitchell,dnsteal_exfil,2022-01-20T12:48:27.531129+00:00,2022-01-24T13:50:03.249096+00:00,attacker_0:dnsteal.log
+russellmitchell,network_scans,2022-01-24T03:01:00+00:00,2022-01-24T03:56:46+00:00,ait_ads:labels.csv
+russellmitchell,service_scans,2022-01-24T03:56:46+00:00,2022-01-24T03:57:25+00:00,ait_ads:labels.csv
+russellmitchell,dirb,2022-01-24T03:57:25+00:00,2022-01-24T03:57:48+00:00,ait_ads:labels.csv
+russellmitchell,wpscan,2022-01-24T03:57:48+00:00,2022-01-24T03:58:19+00:00,ait_ads:labels.csv
+russellmitchell,webshell,2022-01-24T03:58:19+00:00,2022-01-24T03:59:22+00:00,ait_ads:labels.csv
+russellmitchell,cracking,2022-01-24T03:59:22+00:00,2022-01-24T04:36:56+00:00,ait_ads:labels.csv
+russellmitchell,reverse_shell,2022-01-24T04:36:56+00:00,2022-01-24T04:37:39+00:00,ait_ads:labels.csv
+russellmitchell,privilege_escalation,2022-01-24T04:37:39+00:00,2022-01-24T04:38:13+00:00,ait_ads:labels.csv
+russellmitchell,service_stop,2022-01-24T13:50:38+00:00,2022-01-24T13:50:40+00:00,ait_ads:labels.csv
+russellmitchell,dnsteal,2022-01-24T13:50:40+00:00,2022-01-24T14:50:40+00:00,ait_ads:labels.csv
