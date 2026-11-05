@@ -468,9 +468,9 @@ Verifier on/off · RAG on/off in Mapper · zero-shot vs few-shot Reporter. Same 
 
 ### 10.5 Targets
 
-Preliminary (from the proposal), finalized in M3 and then **frozen** in `reports/targets.md`:
+Finalized in M3 and **frozen** in `reports/targets.md`, unchanged from the proposal (changed: see status.md D20, D21):
 - Phase recall ≥ 80% of phases with traces.
-- Incidents/day ≤ 25 and ≥ 90% fewer than raw IDS alerts.
+- Incidents/day ≤ 25 and ≥ 90% fewer than raw IDS alerts. The budget of 25 is `ml.incidents_per_day_budget`.
 - ATT&CK top-3 (strict) ≥ 70%.
 - Manual faithfulness ≥ 90% with the Verifier, and higher than without.
 
