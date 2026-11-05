@@ -308,3 +308,9 @@ def test_an_impossible_timestamp_fails_the_line_instead_of_raising(parse, raw: s
     parsed = parse(raw, CTX)
     assert not parsed.ok
     assert not parsed.foreign
+
+
+def test_apache_error_keeps_the_exact_microseconds() -> None:
+    # Real value from santos: float(".500624") * 1e6 truncates to 500623.
+    raw = "[Sun Jan 16 06:25:14.500624 2022] [mpm_prefork:notice] [pid 1] text"
+    assert apache.parse_error(raw, CTX).ts == datetime(2022, 1, 16, 6, 25, 14, 500624, tzinfo=UTC)

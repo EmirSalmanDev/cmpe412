@@ -70,7 +70,7 @@ def parse_error(raw: str, ctx: ParseContext) -> ParsedLine:
         is_foreign = raw.strip() and not raw.startswith("[")
         return ParsedLine(ok=False, foreign=True) if is_foreign else FAILED
     hour, minute, second = (int(part) for part in match["time"].split(":"))
-    microsecond = int(float(match["frac"]) * 1_000_000) if match["frac"] else 0
+    microsecond = int(match["frac"][1:7].ljust(6, "0")) if match["frac"] else 0
     try:
         ts = datetime(
             int(match["year"]),
