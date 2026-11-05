@@ -1,0 +1,32 @@
+# Log sources and extraction rules, written from the real AIT-LDS file lists (plan 4.2, 4.4).
+# Paths are relative to the root of a testbed zip and to data/raw/<testbed>/.
+# In patterns, * stays within one path segment and ** crosses segments.
+
+log_types:
+  apache_access:
+    - gather/*/logs/apache2/*access.log*
+  apache_error:
+    - gather/*/logs/apache2/*error.log*
+  auth:
+    - gather/*/logs/auth.log*
+  dns:
+    - gather/*/logs/dnsmasq.log*
+  audit:
+    - gather/*/logs/audit/audit.log*
+  vpn:
+    - gather/*/logs/openvpn.log*
+
+# Labeled in AIT-LDS but outside the log families in scope (plan 4.4). Extracted, not processed.
+other_labeled:
+  - gather/monitoring/logs/logstash/**
+
+extraction:
+  always:
+    - dataset.yaml
+    - labels/**
+    - gather/attacker_0/logs/**
+  # Applied to `always` and log_types matches. Log files that have a label file stay selected.
+  exclude:
+    - gather/**.pcap
+    - gather/**.pcap.*
+    - gather/attacker_0/logs/**/traffic.json

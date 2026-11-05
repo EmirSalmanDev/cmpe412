@@ -16,6 +16,48 @@ ml: {}
 # Filled in at M1/M2 (plan 4.3). Period boundaries themselves live in periods.json.
 periods: {}
 
+# Attack phases (plan 5.3). Used only to build data_meta/phases_<testbed>.csv.
+phases:
+  intervals_file: labels.csv
+  tolerance_seconds: 60
+  # Attacker-side record of the DNS exfiltration, the source of the exfil phase.
+  exfil_log: gather/attacker_0/logs/dnsteal.log
+  exfil_phase: dnsteal_exfil
+  # Phase name to the attack steps to compare its start with, for the cross-check.
+  # Steps come from attacks.log, except exfil_last_received, which comes from exfil_log.
+  steps:
+    network_scans: [vpn_connect]
+    service_scans: [service_scan]
+    dirb: [dirb_scan]
+    wpscan: [wpscan]
+    webshell: [upload_rce_shell]
+    cracking: [crack_wphash]
+    reverse_shell: [reverse_shell_listen]
+    privilege_escalation: [open_pty]
+    service_stop: [exfil_last_received, dnsteal_stop]
+
+# Dataset sources (plan 4.1, 4.2). File names, URLs and checksums come from the Zenodo API.
+download:
+  api_url: https://zenodo.org/api/records
+  sources:
+    russellmitchell:
+      record: 5789064
+      files: [russellmitchell.zip]
+    santos:
+      record: 5789064
+      files: [santos.zip]
+    ait_ads:
+      record: 8263181
+      files: [ait_ads.zip, labels.csv]
+      # Only the alerts of the two testbeds in use; the zip holds all eight scenarios.
+      extract: [russellmitchell_*.json, santos_*.json]
+  max_retries: 3
+  backoff_seconds: 10
+  timeout_seconds: 60
+  chunk_bytes: 8388608
+  # Free space required before a download, as a multiple of the archive size.
+  min_free_factor: 5.0
+
 paths:
   data_dir: data
   raw_dir: data/raw
@@ -24,3 +66,4 @@ paths:
   cache_dir: data/cache
   data_meta_dir: data_meta
   reports_dir: reports
+  sources_file: configs/sources.yaml

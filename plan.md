@@ -78,7 +78,7 @@ Further fixed choices:
 | Dataset | Where | Use |
 |---|---|---|
 | AIT-LDS V2.0 | Zenodo record 5789064 (`https://zenodo.org/records/5789064`), one zip per testbed, e.g. `russellmitchell.zip` | Logs + line labels |
-| AIT-ADS | Zenodo record 8263181, `ait_ads.zip` (~96 MB) | IDS baseline alerts (Wazuh, Suricata, AMiner) and attack phase time intervals |
+| AIT-ADS | Zenodo record 8263181: `ait_ads.zip` (~96 MB) for alerts, `labels.csv` beside it for phases (changed: see status.md D8) | IDS baseline alerts (Wazuh, Suricata, AMiner) and attack phase time intervals |
 | MITRE ATT&CK Enterprise (STIX 2.1) | `https://github.com/mitre-attack/attack-stix-data` (`enterprise-attack/enterprise-attack.json`) | RAG index and gold-ID validation |
 
 Licenses: AIT data is CC BY-NC-SA 4.0 (non-commercial, attribution). Cite in README and report.
@@ -88,22 +88,22 @@ Licenses: AIT data is CC BY-NC-SA 4.0 (non-commercial, attribution). Cite in REA
 - Get exact file names, URLs and MD5 checksums from the Zenodo API (`https://zenodo.org/api/records/5789064`, `.../8263181`). Verify MD5 after download.
 - Download to `data/raw/zips/`. Check free disk space first. Each testbed is several GB compressed and much larger unpacked.
 - **Do not unzip everything.** First `unzip -l` to list contents, then extract only:
-  - `dataset.yml` (simulation start and end),
+  - `dataset.yaml` (simulation start and end; changed: see status.md D9),
   - `labels/**` (all label files),
   - for every label file, the matching log file under `gather/**`,
   - the remaining `gather/<host>/logs/**` files of the five log families (§4.4), even if unlabeled,
   - `gather/attacker_0/logs/**` (attack execution logs, used only for phase timing),
   - skip pcap and other large unrelated files.
-- Target layout: `data/raw/<testbed>/{dataset.yml, gather/..., labels/...}`, `data/raw/ait_ads/...`.
+- Target layout: `data/raw/<testbed>/{dataset.yaml, gather/..., labels/...}`, `data/raw/ait_ads/...`.
 - The download script MUST be idempotent (skip if checksum matches) and runnable as `logtriage download --testbed russellmitchell`.
 
 ### 4.3 Testbeds and periods
 
-For each testbed, from `dataset.yml` and the attack phases (§5.3):
+For each testbed, from `dataset.yaml` and the attack phases (§5.3):
 
 - `sim_start`, `sim_end`: simulation interval. Drop all lines outside it.
-- `first_attack` = earliest phase start.
-- **Training period** = `[sim_start, first_attack - 24h)`. Documented assumption: the analyst knows a clean baseline period. This is the **only** use of attack timing outside evaluation (allowed exception to §5.2). It MUST be ≥ 24h; if not, log it in status.md and use `[sim_start, first_attack - 6h)`.
+- `first_attack` = earliest start among the phases with source `ait_ads:labels.csv`, so `dnsteal_exfil` does not count (changed: see status.md D11).
+- **Training period** = `[sim_start, first_attack - 24h)`. Documented assumption: the analyst knows a clean baseline period. This is the **only** use of attack timing outside evaluation (allowed exception to §5.2). It MUST be ≥ 24h; if not, log it in status.md and use `[sim_start, first_attack - 6h)`. Known limitation: the baseline is not clean, because DNS exfiltration runs through all of it on both testbeds (changed: see status.md D11).
 - The training period is split by time into:
   - **fit** = first 80%. Drain3 frozen miner, all "unseen"/rarity vocabularies, scalers and anomaly models are fit **only** here.
   - **calib** = last 20%. Not used for fitting anything; used for percentile calibration (§6.5), so calibration sees "unseen" features the same way the eval period does.
@@ -165,14 +165,15 @@ Reading rules: read files in binary, split on `b"\n"` only, keep empty lines in 
 Built from `labels/**` JSON Lines (`{"line": N, "labels": [...], "rules": {...}}`), joined by `(host, file, line)`.
 **Line base check (M2):** confirm whether the label `line` numbers are 0- or 1-based. Check that labeled lines look like attack lines (attacker IP, timestamps inside phase intervals) under each assumption. If they are 0-based, convert once in `labels.py`; `line_no` stays 1-based everywhere else. Log the finding in status.md.
 
-**Isolation rule:** this table and anything derived from it (window labels, phases, `data_meta/phases_*.csv`) MUST NOT be readable from feature code, unsupervised models, agent tools, prompts or the UI's agent/chat context. Allowed readers: `logtriage.eval` (incl. `eval/tuning.py`, which picks hyperparameters on the dev testbed), `logtriage.ml.supervised`, `logtriage.data.labels`, `logtriage.data.periods` (period boundaries only, §4.3), the EDA notebook, and the optional evaluation page of the UI, which may only call functions from `logtriage.eval`.
-Enforce with a test that scans the source of `data/` (except `labels.py`, `periods.py`), `ml/` (except `supervised.py`), `agents/`, `rag/` and `app/` (except the evaluation page) for references to `labels`, `phases` or `eval.duckdb`.
+**Isolation rule:** this table and anything derived from it (window labels, phases, `data_meta/phases_*.csv`) MUST NOT be readable from feature code, unsupervised models, agent tools, prompts or the UI's agent/chat context. Allowed readers: `logtriage.eval` (incl. `eval/tuning.py`, which picks hyperparameters on the dev testbed), `logtriage.ml.supervised`, `logtriage.data.labels`, `logtriage.data.periods` (period boundaries only, §4.3), `logtriage.data.inventory` (aggregate counts for the inventory report, through `logtriage.data.labels` only; changed: see status.md D10), the EDA notebook, and the optional evaluation page of the UI, which may only call functions from `logtriage.eval`.
+Enforce with a test that scans the source of `data/` (except `labels.py`, `periods.py`, `inventory.py`, and `download.py`, which only names the `labels/` paths to extract), `ml/` (except `supervised.py`), `agents/`, `rag/` and `app/` (except the evaluation page) for references to `labels`, `phases` or `eval.duckdb`.
 
 ### 5.3 `data_meta/phases_<testbed>.csv` (committed, small)
 
 `testbed, phase, start_utc, end_utc, source`
 
-- Primary source: the attack-phase intervals shipped with AIT-ADS (per scenario: phase name with epoch start/end, e.g. `network_scans, service_scans, dirb, wpscan, webshell, cracking, reverse_shell, privilege_escalation, service_stop, dnsteal`; find which file in `ait_ads.zip` holds them in M1). Cross-check against `gather/attacker_0/logs/attacks.log` of the testbed.
+- Primary source: the attack-phase intervals shipped with AIT-ADS in `labels.csv` (per scenario: phase name with epoch start/end, e.g. `network_scans, service_scans, dirb, wpscan, webshell, cracking, reverse_shell, privilege_escalation, service_stop, dnsteal`; changed: see status.md D8). These rows are kept as published, with source `ait_ads:labels.csv`. Cross-check against `gather/attacker_0/logs/attacks.log` of the testbed.
+- The published `dnsteal` interval starts as the exfiltration ends, so each file also has a `dnsteal_exfil` row: first to last `Received data` event in `gather/attacker_0/logs/dnsteal.log`, with source `attacker_0:dnsteal.log`. It overlaps the other phases, so it applies only to lines whose raw labels include `dnsteal`; all other lines ignore it (changed: see status.md D11).
 - Phase names and order can differ per testbed. Use what the data says.
 - A labeled line's `phase` = the phase whose interval contains its `ts` (±60 s tolerance), else `"unassigned"`.
 - If the `unassigned` lines are mostly VPN login/session lines of the attacker, add a phase `vpn_access` spanning those lines and log the decision.

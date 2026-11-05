@@ -1571,6 +1571,7 @@ name = "logtriage"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "certifi" },
     { name = "chromadb" },
     { name = "drain3" },
     { name = "duckdb" },
@@ -1603,6 +1604,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "certifi", specifier = ">=2026.10.23" },
     { name = "chromadb", specifier = ">=1.5.9" },
     { name = "drain3", specifier = ">=0.9.11" },
     { name = "duckdb", specifier = ">=2.0.0" },
