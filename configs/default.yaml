@@ -19,6 +19,13 @@ ml:
   # Fixed in M3 (reports/targets.md); the threshold q is chosen under it (plan 6.5).
   incidents_per_day_budget: 25
 
+# Windows and features (plan 5.4, 6.3).
+features:
+  # D1 fixes one-minute windows.
+  window_seconds: 60
+  # Length of the `src_ips` and `users` lists of a window.
+  top_entities: 10
+
 # Training and evaluation boundaries (plan 4.3). The computed values go to periods.json.
 periods:
   # Training ends this long before the first attack.
