@@ -9,6 +9,14 @@ from logtriage.cli import app
 from logtriage.config import load_settings
 
 CONFIG = Path(__file__).parents[1] / "configs" / "default.yaml"
+STUB_COMMANDS = [
+    "prepare",
+    "detect",
+    "index-attack",
+    "investigate",
+    "evaluate",
+    "app",
+]
 COMMANDS = [
     "download",
     "inventory",
@@ -69,8 +77,20 @@ def test_help_lists_all_commands() -> None:
         assert command in result.output
 
 
-@pytest.mark.parametrize("command", COMMANDS)
+@pytest.mark.parametrize("command", STUB_COMMANDS)
 def test_stub_commands_accept_options(command: str) -> None:
     result = runner.invoke(app, [command, "--testbed", "santos", "--config", str(CONFIG)])
     assert result.exit_code == 0
     assert "not implemented yet" in result.output
+
+
+def test_download_rejects_unknown_source() -> None:
+    result = runner.invoke(app, ["download", "--testbed", "nope", "--config", str(CONFIG)])
+    assert result.exit_code == 1
+    assert "unknown source" in result.output
+
+
+def test_inventory_needs_the_downloaded_testbed() -> None:
+    result = runner.invoke(app, ["inventory", "--testbed", "nope", "--config", str(CONFIG)])
+    assert result.exit_code == 1
+    assert "logtriage download" in result.output

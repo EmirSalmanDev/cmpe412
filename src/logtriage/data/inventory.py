@@ -5,8 +5,15 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from logtriage.config import LogSources
-from logtriage.data.labels import summarize_label_file
+from logtriage.config import LogSources, Settings, load_sources
+from logtriage.data.labels import (
+    cross_check_phases,
+    read_attack_steps,
+    read_phase_intervals,
+    render_phase_section,
+    summarize_label_file,
+    write_phases_csv,
+)
 
 CHUNK_BYTES = 8 * 1024 * 1024
 
@@ -210,3 +217,37 @@ def render_report(
     for section in extra_sections:
         out += [section, ""]
     return "\n".join(out)
+
+
+def run_inventory(testbed: str, settings: Settings) -> Path:
+    """Write `reports/inventory_<testbed>.md` and `data_meta/phases_<testbed>.csv`.
+
+    Args:
+        testbed: Testbed name.
+        settings: Loaded settings.
+
+    Returns:
+        The path of the report.
+
+    Raises:
+        FileNotFoundError: If the testbed or AIT-ADS has not been downloaded.
+    """
+    testbed_dir = settings.paths.raw_dir / testbed
+    if not (testbed_dir / "gather").is_dir():
+        raise FileNotFoundError(f"{testbed_dir}: run `logtriage download --testbed {testbed}`")
+    sources = load_sources(settings.paths.sources_file)
+    records = build_inventory(testbed_dir, sources)
+
+    intervals_file = settings.phases.intervals_file
+    phases = read_phase_intervals(
+        settings.paths.raw_dir / "ait_ads" / intervals_file, testbed, f"ait_ads:{intervals_file}"
+    )
+    steps = read_attack_steps(testbed_dir / "gather/attacker_0/logs/attacks.log")
+    checks = cross_check_phases(phases, steps, settings.phases.steps)
+    write_phases_csv(phases, settings.paths.data_meta_dir / f"phases_{testbed}.csv")
+
+    section = render_phase_section(phases, checks, settings.phases.tolerance_seconds)
+    report = settings.paths.reports_dir / f"inventory_{testbed}.md"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(render_report(testbed, records, sources, [section]), encoding="utf-8")
+    return report

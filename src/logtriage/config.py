@@ -56,6 +56,14 @@ class PathsConfig(BaseModel):
     sources_file: Path = Path("configs/sources.yaml")
 
 
+class PhasesConfig(BaseModel):
+    """Attack phase settings (plan 5.3)."""
+
+    intervals_file: str = "labels.csv"
+    tolerance_seconds: float = 60.0
+    steps: dict[str, str] = Field(default_factory=dict)
+
+
 class SourceConfig(BaseModel):
     """One downloadable dataset: a Zenodo record and the files wanted from it."""
 
@@ -93,6 +101,7 @@ class Settings(BaseSettings):
     periods: PeriodsConfig = Field(default_factory=PeriodsConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     download: DownloadConfig = Field(default_factory=DownloadConfig)
+    phases: PhasesConfig = Field(default_factory=PhasesConfig)
     deepseek_api_key: SecretStr | None = Field(default=None, validation_alias="DEEPSEEK_API_KEY")
 
     @classmethod

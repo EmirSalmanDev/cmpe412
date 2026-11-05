@@ -129,6 +129,39 @@ def cross_check_phases(
     ]
 
 
+def render_phase_section(
+    phases: Iterable[Phase], checks: Iterable[PhaseCheck], tolerance_seconds: float
+) -> str:
+    """Render the phases and their cross-check as a Markdown section."""
+    lines = [
+        "## Attack phases",
+        "",
+        "| phase | start UTC | end UTC | source |",
+        "|---|---|---|---|",
+    ]
+    lines += [
+        f"| {p.phase} | {p.start.isoformat()} | {p.end.isoformat()} | {p.source} |" for p in phases
+    ]
+    lines += [
+        "",
+        "## Phase cross-check against attacks.log",
+        "",
+        f"A phase passes if it starts within {tolerance_seconds:.0f} s of its attack step.",
+        "",
+        "| phase | attack step | step time UTC | phase start minus step (s) | result |",
+        "|---|---|---|---|---|",
+    ]
+    for check in checks:
+        delta = check.delta_seconds
+        if delta is None:
+            lines.append(f"| {check.phase} | {check.step} | not logged | - | NOT LOGGED |")
+            continue
+        result = "ok" if abs(delta) <= tolerance_seconds else "MISMATCH"
+        time = check.step_time.isoformat() if check.step_time else "-"
+        lines.append(f"| {check.phase} | {check.step} | {time} | {delta:.1f} | {result} |")
+    return "\n".join(lines)
+
+
 def write_phases_csv(phases: Iterable[Phase], path: Path) -> None:
     """Write phases to `data_meta/phases_<testbed>.csv` (plan 5.3)."""
     path.parent.mkdir(parents=True, exist_ok=True)

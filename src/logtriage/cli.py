@@ -1,16 +1,25 @@
 """Typer command line interface (plan 9.3). Commands are stubs until their milestones."""
 
+import logging
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED
+from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, load_settings
+from logtriage.data.download import InsufficientDiskError, run_download
+from logtriage.data.inventory import run_inventory
 
 app = typer.Typer(no_args_is_help=True, help="LogTriage Agent command line interface.")
 
 TestbedOption = Annotated[str, typer.Option("--testbed", help="Testbed name.")]
 ConfigOption = Annotated[Path, typer.Option("--config", help="Path to the YAML config file.")]
+
+
+@app.callback()
+def main() -> None:
+    """LogTriage Agent command line interface."""
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
 def _not_implemented(command: str, testbed: str, config: Path) -> None:
@@ -22,16 +31,25 @@ def _not_implemented(command: str, testbed: str, config: Path) -> None:
 def download(
     testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
 ) -> None:
-    """Download and selectively extract the datasets."""
-    _not_implemented("download", testbed, config)
+    """Download and selectively extract a testbed, or AIT-ADS with `--testbed ait_ads`."""
+    try:
+        run_download(testbed, load_settings(config))
+    except (ValueError, InsufficientDiskError) as error:
+        typer.echo(f"download failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
 
 
 @app.command()
 def inventory(
     testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
 ) -> None:
-    """Build the inventory of extracted log files."""
-    _not_implemented("inventory", testbed, config)
+    """Write the inventory report and the attack phases file of a testbed."""
+    try:
+        report = run_inventory(testbed, load_settings(config))
+    except (ValueError, FileNotFoundError) as error:
+        typer.echo(f"inventory failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(f"wrote {report}")
 
 
 @app.command()

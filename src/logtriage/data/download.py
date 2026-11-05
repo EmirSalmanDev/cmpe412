@@ -283,11 +283,11 @@ def run_download(testbed: str, settings: Settings) -> None:
         settings: Loaded settings.
 
     Raises:
-        KeyError: If `testbed` is not a configured source.
+        ValueError: If `testbed` is not a configured source.
     """
     if testbed not in settings.download.sources:
         known = sorted(settings.download.sources)
-        raise KeyError(f"unknown source {testbed!r}; known sources: {known}")
+        raise ValueError(f"unknown source {testbed!r}; known sources: {known}")
     source = settings.download.sources[testbed]
     target = settings.paths.raw_dir / testbed
     sources = load_sources(settings.paths.sources_file)
