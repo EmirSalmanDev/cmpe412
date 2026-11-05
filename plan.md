@@ -149,7 +149,7 @@ All tables are Parquet under `data/processed/<testbed>/`, exposed through DuckDB
 | `src_ip` | str? | when present |
 | `user` | str? | when present |
 | `fields` | str (JSON) | log-type-specific parsed fields (status, method, path, user agent, qname, exe, uid, ...) |
-| `parse_ok` | bool | false → line kept with `raw` only |
+| `parse_ok` | bool | false → line kept with `raw` only, and left out of windows and features (changed: see status.md D14) |
 
 Reading rules: read files in binary, split on `b"\n"` only, keep empty lines in the count, decode per line. Stream in chunks; never load a multi-GB file at once.
 
@@ -181,7 +181,7 @@ Enforce with a test that scans the source of `data/` (except `labels.py`, `perio
 
 ### 5.4 `windows_<log_type>.parquet`
 
-Key `(testbed, host, log_type, window_start)`; only non-empty windows.
+Key `(testbed, host, log_type, window_start)`; only non-empty windows. Windows hold only lines with `parse_ok=True` (changed: see status.md D14).
 Columns: key, `n_lines`, feature columns (§6.3), `src_ips` (list[str], top 10 by count), `users` (list[str], top 10), `period` ∈ {`fit`, `calib`, `eval`}.
 
 ### 5.5 `scores.parquet`
@@ -266,6 +266,8 @@ The LLM only ever sees and cites `eid`s. Code resolves `eid → line_id`. A clai
 ### 6.3 Features (`logtriage/data/features.py`)
 
 Compute with DuckDB SQL over `lines_*.parquet` grouped by window key. Vocabulary-based features ("unseen X") use vocabularies built **only from the fit period** of the same testbed.
+
+Lines with `parse_ok=False` stay in `lines_*.parquet` but are excluded from windows and features, because their `ts` is inherited from another line and is unreliable (changed: see status.md D14).
 
 Common (all log types): `n_lines`, `n_unseen_templates`, `ratio_unseen_templates`, `mean_template_rarity`, `max_template_rarity`, `n_unique_templates`.
 
@@ -566,6 +568,7 @@ Accept: PR-AUC table on santos next to the unsupervised ensemble.
 ### M7 — ATT&CK index and agent tools (`m7-tools`)
 Read: §5.1, §7.3, §8, §11.
 Tasks: ATT&CK download + index, `index-attack` command, the five tools with the read-only DuckDB connection and SQL guard, incident store.
+Note: `log_search` must not surface `parse_ok=False` lines whose `ts` was inherited, or must clearly mark them (changed: see status.md D14).
 Accept: unit tests: SQL guard rejects INSERT/UPDATE/DELETE/ATTACH/COPY/PRAGMA/CREATE and multiple statements; tool outputs respect caps; `ip_profile` resolves VPN ↔ external IP on fixtures. `data` tests: gold IDs exist in the index and are not revoked; retrieval sanity (query "many DNS queries with long random subdomains to one domain" returns a T1048* or T1071.004 in the top 5). ATT&CK version logged in status.md.
 
 ### M8 — Agent graph (`m8-agents`)
