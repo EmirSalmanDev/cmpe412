@@ -2,7 +2,7 @@
 
 LogTriage detects anomalies in AIT-LDS security logs with machine learning. A LangGraph agent then investigates each incident and writes a report that cites its log evidence and maps findings to MITRE ATT&CK.
 
-This repository is at the bootstrap stage: the CLI commands are stubs. See `status.md` for progress and `plan.md` for the design.
+`download` and `inventory` work; the other CLI commands are still stubs. See `status.md` for progress and `plan.md` for the design.
 
 ## Setup
 
@@ -21,8 +21,12 @@ Run commands from the repository root.
 
 ```
 uv run logtriage --help
-uv run logtriage prepare --testbed russellmitchell --config configs/default.yaml
+uv run logtriage download --testbed ait_ads
+uv run logtriage download --testbed russellmitchell
+uv run logtriage inventory --testbed russellmitchell
 ```
+
+`download` fetches into `data/raw/zips/` and extracts only the files the project needs. The archives take about 7 GB for russellmitchell and 10 GB for santos. Rerunning it skips whatever is already in place. `inventory` needs AIT-ADS as well as the testbed; it writes `reports/inventory_<testbed>.md` and `data_meta/phases_<testbed>.csv`.
 
 The commands are `download`, `inventory`, `prepare`, `detect`, `index-attack`, `investigate`, `evaluate` and `app`. Each takes `--testbed` and `--config`.
 
