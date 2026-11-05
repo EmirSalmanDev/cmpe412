@@ -281,6 +281,8 @@ Common (all log types): `n_lines`, `n_unseen_templates`, `ratio_unseen_templates
 | `vpn` | `n_auth_success`, `n_auth_fail`, `n_new_sessions`, `n_unique_src_ip`, `n_unseen_src_ip`, `n_unseen_users` |
 
 Features that turn out to be constant or missing in the real data are dropped. Log this in status.md.
+
+Vocabulary, rarity and "unseen" features (`n_unseen_templates`, `ratio_unseen_templates`, `mean_template_rarity`, `max_template_rarity`, and every `*_unseen_*` feature in the table) are dropped for a `(testbed, log_type)` whose fit period has fewer than `ml.min_fit_lines` parsed lines (`configs/default.yaml`, default 200) (changed: see status.md D15).
 Transform: `log1p` on counts, then `RobustScaler` fit on the fit period.
 
 ### 6.4 Anomaly models (`logtriage/ml/models.py`)
@@ -292,6 +294,7 @@ Per `(testbed, log_type)`, fit on **fit-period windows** only:
 - PCA reconstruction error with `n_components` explaining 95% variance
 
 Higher score = more anomalous for all three (negate sklearn scores where needed).
+If a `(testbed, log_type)` has zero fit-period windows (known case: santos `apache_error`), no model is fit for it. It is excluded from the ensemble and from incidents, reported as "no baseline, not detectable", and kept in parsed data and agent tools (changed: see status.md D15).
 Hyperparameter search (small grid) only on the dev testbed, choosing by phase recall at a fixed incident budget (§6.5). Because this needs labels, the search lives in `logtriage/eval/tuning.py`, which calls the `ml` functions; `ml/` itself never reads labels. The chosen values are written to `configs/default.yaml` and reused unchanged on the test testbed.
 
 ### 6.5 Calibration, ensemble, threshold (`logtriage/ml/ensemble.py`)
@@ -433,7 +436,7 @@ All numbers on the **santos evaluation period** unless stated. Dev numbers are r
 
 - Window is `attack` if it contains ≥ 1 labeled line. Window phases = phases of its labeled lines.
 - Incident is `malicious` if any of its windows is an attack window; its phases = union of window phases.
-- **Phases with traces** = phases having ≥ 1 labeled line in the processed log types of the testbed (fixed in M3; this is the recall denominator).
+- **Phases with traces** = phases having ≥ 1 labeled line in the processed log types of the testbed (fixed in M3; this is the recall denominator). The denominator is computed over log types with a fitted baseline (§6.4); phases excluded by this are listed explicitly in `reports/targets.md`, and the conservative variant over all parsed log types is reported as secondary (changed: see status.md D15).
 
 ### 10.2 Metrics
 

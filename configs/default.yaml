@@ -11,7 +11,9 @@ llm:
   base_url: null
 
 # Filled in at M5 (plan 6.4-6.6).
-ml: {}
+ml:
+  # A (testbed, log_type) with fewer parsed fit-period lines loses its vocabulary features (plan 6.3).
+  min_fit_lines: 200
 
 # Training and evaluation boundaries (plan 4.3). The computed values go to periods.json.
 periods:
