@@ -4,9 +4,9 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** M4 — Windows and features (in progress)
-- **Branch:** `m4-features`
-- **Next step:** Create branch `m4-features`. Before writing any M4 code, extend the §5.2 isolation scan to cover `logtriage.eval`, `logtriage.prepare`, `label_report` and `first_attack` references. Then: exclude `parse_ok=False` lines from windows and features (D14); drop vocabulary and "unseen" features per D15; run `SET TimeZone='UTC'` on every DuckDB connection; add DNS qname features, because `is_unseen_template` has no DNS signal (only 2 unseen DNS lines per testbed).
+- **Current milestone:** M5 — Anomaly detection and incidents (not started)
+- **Branch:** —
+- **Next step:** Create branch `m5-detect`. Read windows through `FeatureScaler` (`scalers/<log_type>.json`); fit only baseline-capable types. Decide the two M5 open questions below (calibration period, DNS baseline) before tuning, without labels.
 - **Blockers:** none
 
 ## Milestones
@@ -14,7 +14,7 @@ Format rules: newest entries first in the logs; numbers with their testbed; link
 - [x] M1 Data acquisition and inventory
 - [x] M2 Parsing, Drain3, labels
 - [x] M3 EDA and frozen targets
-- [ ] M4 Windows and features
+- [x] M4 Windows and features
 - [ ] M5 Anomaly detection and incidents
 - [ ] M6 Supervised reference
 - [ ] M7 ATT&CK index and agent tools (may start after M2)
@@ -60,10 +60,18 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 - M3 label gap: unlabeled exfiltration on `inet-dns` 53,052 and 38,559 lines; unlabeled attacker-address lines inside phase windows 50–513 and 2–625 (low: external address, high: adds the shared tunnel address); unlabeled attacker stderr lines 3,847 on each testbed
 - M3 DNS contamination of training: 21.6% and 26.0% of `inet-firewall` DNS lines (hourly up to 45.5% and 90.2%), in every training hour
 - M3 IDS alerts/day in the evaluation period: russellmitchell 15,704, santos 30,774. Budget 25 incidents/day, so a reduction of 99.84% and 99.92%
+- M4 windows (fit/calib/eval), russellmitchell: `apache_access` 4,172/1,264/3,458, `apache_error` 5/0/11, `audit` 1,393/209/1,514, `auth` 1,136/272/1,249, `dns` 4,896/1,226/4,855, `vpn` 119/24/157
+- M4 windows (fit/calib/eval), santos: `apache_access` 1,832/83/5,632, `apache_error` 0/3/9, `audit` 993/164/2,730, `auth` 692/176/1,798, `dns` 3,002/750/5,949, `vpn` 77/7/227
+- M4 windows hold every parsed line and no other: `parse_ok=False` lines left out are 4,763 on russellmitchell and 4,723 on santos, all `apache_error`
+- M4 features kept, russellmitchell/santos: `apache_access` 19/18, `apache_error` 4/4, `audit` 9/9, `auth` 14/14, `dns` 15/15, `vpn` 11/11. D15 removes the four template features of `apache_error` on both; D25 lists the constant features
+- M4 DNS means, fit to eval: `max_label_len` russellmitchell 35.0 to 32.0, santos 61.0 to 36.6; `max_label_entropy` 4.88 to 4.62 and 5.33 to 4.17. Scaled beyond 3 in eval: 20.7% and 52.9% of `dns` windows
 - M2 audit: 7 of 9 items passed; item 8 (1 missing plan marker) and item 9 (2 parser bugs) failed and are fixed; 193 tests pass; `line_no` right on all 1,422,649 rows; see `reports/audit_m2.md`
 
 ## Decision log
 Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the approved design decisions in plan §2.
+- 2026-11-05 · M4 · D26 · Windows keep raw feature values. The scaler is stored as JSON in `scalers/<log_type>.json` and applied by `FeatureScaler.transform`; it exists only for baseline-capable types; vocabularies go to `vocabularies/<log_type>.parquet`; §6.3 updated · §5.4 had no column for scaled values, and agent tools need readable numbers. `apache_error` cannot have a scaler on santos (0 fit windows), and no model would read one on russellmitchell · `features_report.json`
+- 2026-11-05 · M4 · D25 · A feature is constant only if it has one value over the windows of all periods, and it is dropped per `(testbed, log_type)`; `n_lines` always stays. §6.3 also states the path, `n_errors`, unseen-count, execve and `UNDEF` definitions; §6.3 updated · Every `n_unseen_*` is 0 on fit windows by construction, so a fit-only check would remove all of them. The check reads eval windows but no ground truth, and it only removes columns with no information · Dropped: `n_execve`, `n_execve_web_user`, `n_root_execve` on both testbeds (no `EXECVE` record exists and every `SYSCALL` has `syscall=1`, 24 and 4 lines); `n_unseen_users` for `vpn` on both; `n_unseen_src_ip` for `apache_access` on santos
+- 2026-11-05 · M4 · D24 · A window takes the period in which it ends; §5.4 updated · §5.4 gave `period` no rule for a window that crosses a boundary, and with the window start a `fit` window could hold calib lines. Boundaries are not on the minute: santos `fit_end` is 01:01:01.6 · `tests/test_data_features.py`; no `fit` window ends after `fit_end` on either testbed
 - 2026-11-05 · M4 · D23 · DNS features of §6.3 are defined precisely: `query` lines only, registered domain from a short suffix rule in `features.second_level_suffixes`, single-label names as their own domain, `*_label_*` over the parts left of the public suffix with case kept; §6.3 updated · §6.3 named the features but not their inputs. dnsmasq logs each name up to four times, a plain last-two-parts rule gives `co.uk` as a domain and an empty domain for `mail`, and lowercasing would remove entropy from mixed-case encoded labels. No public suffix package: it would need a list download, and these names need only this rule · Query lines are 61,012 of 227,598 lines on russellmitchell `inet-dns`; `mail`-style names 2,612 and 4,758 queries; `co.uk`, `co.jp`, `co.kr`, `com.cn`, `net.id`, `co.nz` all appear
 - 2026-11-05 · M4 · D22 · The §5.2 scan also rejects references to `logtriage.eval`, `logtriage.prepare` (including `from logtriage import eval` and relative imports), `label_report` and `first_attack`; §5.2 updated · These reach ground truth or attack timing without using the words `labels` or `phases`: `Periods.first_attack` is one attribute away in any module that reads `periods.json` · `tests/test_isolation.py`; no scanned module had such a reference
 - 2026-11-05 · M3 · Freeze reference clarified · The freeze is the content of `reports/targets.md` at `3684424`. Commit `0ae17bf` changed only line 3 (`PENDING` replaced by the hash); no target number or definition changed. Tag `m3-done` is on merge commit `cad7b1f`, which contains the freeze but does not point at it. New tag `targets-frozen` points at `3684424` · `git diff 3684424 m3-done -- reports/targets.md` shows one line
@@ -112,12 +120,14 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 ## Open questions
 (Things that need a human decision. Keep working on other parts meanwhile.)
 - M7, label isolation: a read-only connection to `agent.duckdb` can still read `labels.parquet` and `phases_*.csv` with `read_parquet` and `read_csv` (61,813 and 47,323 rows returned). The planned SQL guard list does not stop a plain `SELECT` from a table function. Nothing leaks yet because no agent exists. Decide the guard before M7 tools are written, e.g. block file-reading functions or allow only the views.
+- M5, DNS baseline: exfiltration fills the fit period, so qname features are high in training and fall in eval (Key results). Windows without the tunnel may then score as anomalous, on inet-firewall and inet-dns alike. Check in M5 whether DNS detections mark the tunnel or its absence. Found without labels, from `02_preparation.ipynb` §6 and §7.
 - M5, calibration: the santos calib period is 01:01–07:16 UTC, so it holds quiet hours only: `apache_access` 253 lines/h against 2,430 in eval, `dns` 2,862 against 5,668. Percentiles calibrated there may flag normal daytime traffic. Decide in M5 whether the §4.3 split stands, without using labels.
 - M10: DuckDB views use paths relative to the repository root, so Docker and the app must run from there or rebuild the views.
 - Other labeled log types: only `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log` (49 labeled lines on russellmitchell, 44 on santos, raw labels include `crack_passwords` and `escalate`), left unprocessed. Syslog and Suricata files exist but have no label files.
 
 ## Session log
 Format: `YYYY-MM-DD · milestone · what was done · next`.
+- 2026-11-05 · M4 · Isolation scan extended, UTC on every DuckDB connection, D14 and D15 applied, DNS qname features, windows, vocabularies and scalers built in `prepare` for both testbeds, `02_preparation.ipynb` executed; plan changed by D22–D26 · Start M5 on `m5-detect`
 - 2026-11-05 · M3 · `01_eda.ipynb`, `logtriage.eval` EDA and IDS code, gold mapping and `reports/targets.md` done; budget fixed at 25; targets frozen; plan changed by D16–D21; `CLAUDE.md` versioned · Start M4 on `m4-features`
 - 2026-11-05 · M2 audit · Audited M1 and M2 (`reports/audit_m2.md`), fixed 2 parser bugs, a plan marker and a status claim, recorded D14–D15, added 6 open questions · Start M3 on `m3-eda`
 - 2026-11-05 · M2 · Periods, parsers, Drain3, `labels.parquet`, DuckDB files and `prepare` done for both testbeds; plan changed by D12–D13 · Start M3 on `m3-eda`
