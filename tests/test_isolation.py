@@ -1,5 +1,6 @@
 """Label isolation (plan 5.2): only the allowed modules may refer to ground truth."""
 
+import json
 import re
 from pathlib import Path
 
@@ -82,6 +83,13 @@ def test_the_scan_accepts_a_harmless_line(tmp_path: Path, line: str) -> None:
     module.parent.mkdir()
     module.write_text(f"{line}\n", encoding="utf-8")
     assert violations(tmp_path) == []
+
+
+def test_the_preparation_notebook_refers_to_no_ground_truth() -> None:
+    path = PACKAGE.parents[1] / "notebooks" / "02_preparation.ipynb"
+    cells = json.loads(path.read_text(encoding="utf-8"))["cells"]
+    source = ["".join(cell["source"]) for cell in cells if cell["cell_type"] == "code"]
+    assert [line for text in source for line in text.splitlines() if FORBIDDEN.search(line)] == []
 
 
 def test_the_allowed_modules_exist() -> None:
