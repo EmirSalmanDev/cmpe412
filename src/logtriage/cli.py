@@ -9,6 +9,7 @@ import typer
 from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, load_settings
 from logtriage.data.download import InsufficientDiskError, run_download
 from logtriage.data.inventory import run_inventory
+from logtriage.prepare import run_prepare
 
 app = typer.Typer(no_args_is_help=True, help="LogTriage Agent command line interface.")
 
@@ -56,8 +57,13 @@ def inventory(
 def prepare(
     testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
 ) -> None:
-    """Parse logs, then run Drain3, labels and features."""
-    _not_implemented("prepare", testbed, config)
+    """Parse logs, then build templates, label tables and the DuckDB files."""
+    try:
+        out_dir = run_prepare(testbed, load_settings(config))
+    except (ValueError, FileNotFoundError) as error:
+        typer.echo(f"prepare failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(f"wrote {out_dir}")
 
 
 @app.command()
