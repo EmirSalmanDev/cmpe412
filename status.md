@@ -4,16 +4,16 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** M3 — EDA and frozen targets (not started)
+- **Current milestone:** M4 — Windows and features (not started)
 - **Branch:** —
-- **Next step:** Create branch `m3-eda`, do the M3 tasks in plan §13, and resolve the contaminated-baseline open question there, before targets freeze.
+- **Next step:** Create branch `m4-features`. Before writing any M4 code, extend the §5.2 isolation scan to cover `logtriage.eval`, `logtriage.prepare`, `label_report` and `first_attack` references. Then: exclude `parse_ok=False` lines from windows and features (D14); drop vocabulary and "unseen" features per D15; run `SET TimeZone='UTC'` on every DuckDB connection; add DNS qname features, because `is_unseen_template` has no DNS signal (only 2 unseen DNS lines per testbed).
 - **Blockers:** none
 
 ## Milestones
 - [x] M0 Bootstrap
 - [x] M1 Data acquisition and inventory
 - [x] M2 Parsing, Drain3, labels
-- [ ] M3 EDA and frozen targets
+- [x] M3 EDA and frozen targets
 - [ ] M4 Windows and features
 - [ ] M5 Anomaly detection and incidents
 - [ ] M6 Supervised reference
@@ -29,7 +29,7 @@ Format rules: newest entries first in the logs; numbers with their testbed; link
 Fill these in when they are known; they are referenced by plan §7.1, §8.1 and §15.
 - LLM model string (verified): —
 - LLM prices per 1M tokens (verified, date): —
-- ATT&CK version used: —
+- ATT&CK version used: 20.1 (`data/raw/attack/enterprise-attack.json`, sha256 `539a843a7b53ed9749740b2123dddae3726b1a4831841c32aca740b011b910b5`, downloaded 2026-11-05 from `attack-stix-data` master; M7 should reuse this file)
 - Simulation periods (`dataset.yaml`, naive timestamps; dnsmasq lines line up with them as UTC): russellmitchell 2022-01-21 to 2022-01-25, santos 2022-01-14 to 2022-01-18
 - §4.3 boundaries (UTC, gap 24h, from `periods.json`): russellmitchell first_attack 2022-01-24 03:01:00, training 51.0h, fit to 01-22 16:48:48, calib to 01-23 03:01:00, eval to 01-25 00:00; santos first_attack 2022-01-16 07:16:17, training 31.3h, fit to 01-15 01:01:01.6, calib to 01-15 07:16:17, eval to 01-18 00:00
 - Label line base: 1-based, like `line_no`, on both testbeds. Labeled auth lines start at `Successful su for ...` and VPN lines at `TLS: Initial packet`; under 0-based they would skip those lines and include an unrelated CRON line
@@ -52,10 +52,29 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 - M2 labeled lines per phase, santos: dnsteal_exfil 38,561, dirb 4,485, wpscan 3,314, network_scans 558, service_scans 327, privilege_escalation 31, webshell 29, cracking 16, service_stop 2
 - M2 templates, frozen/online: russellmitchell apache_access 19/27, apache_error 8/15, audit 14/16, auth 15/23, dns 11/12, vpn 25/29; santos 17/27, 0/16, 12/15, 5/24, 10/11, 27/29
 - M1 phases: AIT-ADS starts match `attacks.log` within 3 s for the eight foothold-to-escalation phases on both testbeds
+- M3 frozen targets (`reports/targets.md`, santos evaluation period): phase recall ≥ 80% (≥ 8 of 9 phases), ≤ 25 incidents/day (≤ 67 in 2.697 days) and ≥ 90% fewer than raw IDS alerts, ATT&CK top-3 strict ≥ 70%, manual faithfulness ≥ 90% and higher than without the Verifier. All unchanged from §10.5
+- M3 phases with traces: russellmitchell 10, santos 9 (primary, equal to the all-parsed variant; without `dnsteal_exfil` 9 and 8). Excluded: `reverse_shell` on both, `dnsteal` on santos. No phase depends only on a log type without a baseline
+- M3 baseline-capable: every log type except `apache_error`, on both testbeds
+- M3 attack share of parsed lines, evaluation period: russellmitchell 9.86%, santos 4.65%; without exfiltration 3.09% and 1.65% (31 and 60 normal lines per attack line)
+- M3 label gap: unlabeled exfiltration on `inet-dns` 53,052 and 38,559 lines; unlabeled attacker-address lines inside phase windows 50–513 and 2–625 (low: external address, high: adds the shared tunnel address); unlabeled attacker stderr lines 3,847 on each testbed
+- M3 DNS contamination of training: 21.6% and 26.0% of `inet-firewall` DNS lines (hourly up to 45.5% and 90.2%), in every training hour
+- M3 IDS alerts/day in the evaluation period: russellmitchell 15,704, santos 30,774. Budget 25 incidents/day, so a reduction of 99.84% and 99.92%
 - M2 audit: 7 of 9 items passed; item 8 (1 missing plan marker) and item 9 (2 parser bugs) failed and are fixed; 193 tests pass; `line_no` right on all 1,422,649 rows; see `reports/audit_m2.md`
 
 ## Decision log
 Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the approved design decisions in plan §2.
+- 2026-11-05 · M3 · D17 · Windows of log type `dns` on host `inet-dns` are label-ambiguous, and so is an incident with such a window and no attack window. Primary window-level and incident-level metrics (false positives, verdict confusion matrix) leave them out, a secondary number includes them, and phase recall is unaffected; §10.1 and §10.2 updated · That host holds the same exfiltration with no labels, so true detections there would count as false positives · By domain match, 53,052 and 38,559 unlabeled exfiltration lines on `inet-dns`; the same match on `inet-firewall` agrees with the labels exactly (0 false matches, 0 misses)
+- 2026-11-05 · M3 · D21 · All preliminary targets of §10.5 are kept and frozen in `reports/targets.md`; §10.5 updated · The EDA found no target that cannot be measured: every counted phase has labeled lines in a baseline-capable log type, and IDS data covers both evaluation periods · Smallest counted phases: santos `service_stop` 2 lines, `cracking` 16
+- 2026-11-05 · M3 · D20 · The incidents/day budget stays at 25, in `ml.incidents_per_day_budget`; §10.5 updated · "≥ 90% fewer" needs incidents/day ≤ 0.1 × alerts/day, and 25 is far below that, so the evidence gives no reason to move the default. No detection result was used · Raw alerts in the evaluation period: russellmitchell 29,435 in 1.874 days = 15,704 per day (limit 1,570), santos 82,998 in 2.697 days = 30,774 per day (limit 3,077). Even AMiner alone allows 195 and 139
+- 2026-11-05 · M3 · "Phases with traces" counts labeled lines in the evaluation period, not the whole simulation · §10 scores the evaluation period, so a phase seen only in training could not be detected · Same result either way today: 10 and 9 phases
+- 2026-11-05 · M3 · Incidents/day and alert reduction count label-ambiguous incidents · An analyst still reads them, and D17 names only false positives and the verdict matrix · `reports/targets.md`
+- 2026-11-05 · M3 · The label-gap estimate has a low and a high end · The tunnel address comes from the VPN pool: it has 39,147 and 38,795 unlabeled lines outside phase windows, so it also serves ordinary users; only the attacker's external address is specific · `01_eda.ipynb` §6.2
+- 2026-11-05 · M3 · Downloaded `enterprise-attack.json` to `data/raw/attack/`, ahead of M7 · The gold IDs had to be checked before the freeze · ATT&CK 20.1, sha256 `539a843a...b910b5`
+- 2026-11-05 · M3 · D16 · Training is not cleaned with labels or attacker information (§5.2); §4.3 stays as computed and the contamination is a documented limitation. DNS results are reported separately in M5 and M11, and phase recall also in a secondary variant without `dnsteal_exfil`. The primary definition in §10.2 is unchanged; §4.3 and §10.2 updated · Cleaning would need labels, and no exfil-free span of 24 h exists · Exfiltration share of `inet-firewall` DNS lines in training: russellmitchell 21.6% (hourly 7.1–45.5%, 52 of 52 hours), santos 26.0% (hourly 8.6–90.2%, 32 of 32 hours); calib is worse than fit, 31.1% and 47.8%
+- 2026-11-05 · M3 · D18 · `configs/gold_attack_mapping.yaml` written: `dnsteal_exfil` takes the set of `dnsteal` (T1048.003, T1048, T1071.004), and `vpn_access` is dropped. Phases with no labeled line in the counted log types are left out of the recall denominator and named in `reports/targets.md`; §11 updated · Exfiltration holds almost all `dnsteal` lines but had no gold set. `vpn_access` is not in the phases files, because §5.3 adds it only for unassigned VPN lines · 0 unassigned lines on both testbeds; all 16 gold IDs exist and are neither revoked nor deprecated in ATT&CK 20.1
+- 2026-11-05 · M3 · The 28 attacker VPN lines per testbed stay in `network_scans`, whose gold set stays T1046, T1018 without T1133 or T1078 · Adding them would make the frozen ATT&CK target easier without new evidence · A VPN-only incident is scored against `network_scans`, stated in `reports/targets.md`
+- 2026-11-05 · M3 · D19 · Extends D15. A `(testbed, log_type)` is baseline-capable only with at least `min_fit_lines` (200) parsed fit lines and `min_calib_lines` (50, new in `configs/default.yaml`) parsed calib lines; other types are left out of ensemble and incidents as "no baseline, not detectable" and stay in parsed data and agent tools. The D7 denominator uses baseline-capable log types; §6.4 and §10.1 updated · D15 covered only zero fit-period windows, so russellmitchell `apache_error` could be fit but never calibrated · Full table from the data: every log type passes on both testbeds except `apache_error` (russellmitchell 13 fit, 0 calib; santos 0 fit, 10 calib); the next lowest calib count is 147 (santos `vpn`)
+- 2026-11-05 · M3 · `CLAUDE.md` is versioned with `git add -f`, because `~/.gitignore_global` ignores it · §12 lists it and a fresh clone needs it; checked first for secrets and personal paths · `a8c96f8`
 - 2026-11-05 · M2 audit · Fixed: `status.md` said `apache_access` is the slowest Drain3 type; corrected in Recorded facts · The claim did not match the report · `prepare_report.json`: `audit` 36,193 lines/s on russellmitchell, `apache_error` 34,797 on santos
 - 2026-11-05 · M2 audit · Fixed: §4.3 lacked the D9 marker that §14.3 requires · D9 names §4.2 and §4.3 · `cb2a524`
 - 2026-11-05 · M2 audit · Fixed: Apache error microseconds were truncated by float arithmetic · §5.1 keeps the event time · `44f48e4`; 1 santos line moved by 1 µs, everything else identical, santos regenerated
@@ -88,22 +107,14 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 
 ## Open questions
 (Things that need a human decision. Keep working on other parts meanwhile.)
-- CLAUDE.md is listed in §12 but `~/.gitignore_global` ignores it, so it is not committed and a fresh clone will not have it. It was not force-added. Should it be versioned?
-- The §4.3 clean baseline does not exist. DNS exfiltration is in every training hour (russellmitchell 52 of 52 hours, 21.6% of inet-firewall DNS lines; santos 32 of 32, 26.0%), and there is no exfil-free span of at least 24h before the main attack on russellmitchell. Removing it would need labels, so the training period stays as computed. Models will likely learn exfiltration as normal, which may make the dnsteal phase undetectable on the dns family. Decide before targets freeze in M3: accept and report it, or change the DNS approach.
-- Exfiltration is only labeled on `inet-firewall/logs/dnsmasq.log`. `inet-dns/logs/dnsmasq.log` holds a similar volume of the same queries (20,009 and 15,345 exfil-shaped queries) with no labels, so true detections there would count as false positives. Decide how M3 and §10 treat that host.
-- Gold mapping gap: §11 maps `dnsteal` but not `dnsteal_exfil`, which now holds almost all exfiltration lines. On santos `dnsteal` has no labeled lines, so under D7 it drops out of the recall denominator, and `dnsteal_exfil` has no gold techniques. Decide in M3 how the phase is scored. §10 and §11 were not changed.
-- `is_unseen_template` carries no signal for DNS: exfiltration queries match the ordinary `query[A] <*> from <IP>` template, and only 2 DNS lines are unseen on each testbed. This adds to the baseline question; DNS detection will need qname features in M4.
-- Stderr lines in Apache error logs hold attacker output (such as a `wget` stamped 01-24 03:59:22) but are unlabeled. D14 keeps them out of windows; M3 should cover them in its label gap analysis.
 - M7, label isolation: a read-only connection to `agent.duckdb` can still read `labels.parquet` and `phases_*.csv` with `read_parquet` and `read_csv` (61,813 and 47,323 rows returned). The planned SQL guard list does not stop a plain `SELECT` from a table function. Nothing leaks yet because no agent exists. Decide the guard before M7 tools are written, e.g. block file-reading functions or allow only the views.
-- M4–M7, §5.2 scan: the test matches the plan's patterns, but `logtriage.eval`, `logtriage.prepare`, `label_report` and `first_attack` all pass it. `periods.json` holds `first_attack`, which must not reach the agent context. Decide whether to extend the scan before those modules are written.
-- M4, time zones: DuckDB returns `ts` in the session zone (here `Europe/Istanbul`), and `date_trunc('day', ts)` gives 1,199 lines against 1,355 in UTC on the first day of russellmitchell `auth`. Stored instants are right, but Docker would differ. M4 and M7 connections should `SET TimeZone='UTC'`.
 - M5, calibration: the santos calib period is 01:01–07:16 UTC, so it holds quiet hours only: `apache_access` 253 lines/h against 2,430 in eval, `dns` 2,862 against 5,668. Percentiles calibrated there may flag normal daytime traffic. Decide in M5 whether the §4.3 split stands, without using labels.
-- M5, D15 gap: russellmitchell `apache_error` has 13 fit lines and 0 calib lines, so a model can be fit but not calibrated, and LOF with 35 neighbors would see at most 13 windows. D15 covers only zero fit-period windows. Decide how such a log type is treated.
 - M10: DuckDB views use paths relative to the repository root, so Docker and the app must run from there or rebuild the views.
 - Other labeled log types: only `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log` (49 labeled lines on russellmitchell, 44 on santos, raw labels include `crack_passwords` and `escalate`), left unprocessed. Syslog and Suricata files exist but have no label files.
 
 ## Session log
 Format: `YYYY-MM-DD · milestone · what was done · next`.
+- 2026-11-05 · M3 · `01_eda.ipynb`, `logtriage.eval` EDA and IDS code, gold mapping and `reports/targets.md` done; budget fixed at 25; targets frozen; plan changed by D16–D21; `CLAUDE.md` versioned · Start M4 on `m4-features`
 - 2026-11-05 · M2 audit · Audited M1 and M2 (`reports/audit_m2.md`), fixed 2 parser bugs, a plan marker and a status claim, recorded D14–D15, added 6 open questions · Start M3 on `m3-eda`
 - 2026-11-05 · M2 · Periods, parsers, Drain3, `labels.parquet`, DuckDB files and `prepare` done for both testbeds; plan changed by D12–D13 · Start M3 on `m3-eda`
 - 2026-11-05 · M1 · Download, selective extraction, inventory, `sources.yaml` and phases files done for both testbeds; plan changed by D8–D11 · Start M2 on `m2-parse`

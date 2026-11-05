@@ -14,6 +14,10 @@ llm:
 ml:
   # A (testbed, log_type) with fewer parsed fit-period lines loses its vocabulary features (plan 6.3).
   min_fit_lines: 200
+  # With min_fit_lines, the parsed lines a log type needs to be baseline-capable (plan 6.4).
+  min_calib_lines: 50
+  # Fixed in M3 (reports/targets.md); the threshold q is chosen under it (plan 6.5).
+  incidents_per_day_budget: 25
 
 # Training and evaluation boundaries (plan 4.3). The computed values go to periods.json.
 periods:
@@ -98,3 +102,5 @@ paths:
   data_meta_dir: data_meta
   reports_dir: reports
   sources_file: configs/sources.yaml
+  gold_mapping_file: configs/gold_attack_mapping.yaml
+  attack_stix_file: data/raw/attack/enterprise-attack.json

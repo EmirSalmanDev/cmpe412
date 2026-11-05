@@ -1,0 +1,16 @@
+# Gold ATT&CK mapping (plan 11). Evaluation only: agents and prompts never read this file.
+# Each phase of data_meta/phases_<testbed>.csv lists its acceptable techniques, primary first.
+# Finalized in M3 and frozen with reports/targets.md. IDs are checked against the ATT&CK
+# version in status.md by tests/test_gold_mapping.py.
+phases:
+  network_scans: [T1046, T1018]
+  service_scans: [T1046]
+  dirb: [T1595.003]
+  wpscan: [T1595.002, T1595.003]
+  webshell: [T1190, T1505.003]
+  cracking: [T1110.002]
+  reverse_shell: [T1059.004, T1059]
+  privilege_escalation: [T1078.003, T1548.003, T1078]
+  service_stop: [T1489]
+  dnsteal: [T1048.003, T1048, T1071.004]
+  dnsteal_exfil: [T1048.003, T1048, T1071.004]

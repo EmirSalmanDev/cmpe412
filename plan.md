@@ -103,7 +103,7 @@ For each testbed, from `dataset.yaml` (changed: see status.md D9) and the attack
 
 - `sim_start`, `sim_end`: simulation interval. Drop all lines outside it.
 - `first_attack` = earliest start among the phases with source `ait_ads:labels.csv`, so `dnsteal_exfil` does not count (changed: see status.md D11).
-- **Training period** = `[sim_start, first_attack - 24h)`. Documented assumption: the analyst knows a clean baseline period. This is the **only** use of attack timing outside evaluation (allowed exception to §5.2). It MUST be ≥ 24h; if not, log it in status.md and use `[sim_start, first_attack - 6h)`. Known limitation: the baseline is not clean, because DNS exfiltration runs through all of it on both testbeds (changed: see status.md D11).
+- **Training period** = `[sim_start, first_attack - 24h)`. Documented assumption: the analyst knows a clean baseline period. This is the **only** use of attack timing outside evaluation (allowed exception to §5.2). It MUST be ≥ 24h; if not, log it in status.md and use `[sim_start, first_attack - 6h)`. Known limitation: the baseline is not clean, because DNS exfiltration runs through all of it on both testbeds (changed: see status.md D11). It is not cleaned with labels or attacker information, which §5.2 forbids; the definition stays as computed, and the contamination is quantified in `01_eda.ipynb` (changed: see status.md D16).
 - The training period is split by time into:
   - **fit** = first 80%. Drain3 frozen miner, all "unseen"/rarity vocabularies, scalers and anomaly models are fit **only** here.
   - **calib** = last 20%. Not used for fitting anything; used for percentile calibration (§6.5), so calibration sees "unseen" features the same way the eval period does.
@@ -294,7 +294,7 @@ Per `(testbed, log_type)`, fit on **fit-period windows** only:
 - PCA reconstruction error with `n_components` explaining 95% variance
 
 Higher score = more anomalous for all three (negate sklearn scores where needed).
-If a `(testbed, log_type)` has zero fit-period windows (known case: santos `apache_error`), no model is fit for it. It is excluded from the ensemble and from incidents, reported as "no baseline, not detectable", and kept in parsed data and agent tools (changed: see status.md D15).
+A `(testbed, log_type)` is **baseline-capable** only if it has at least `ml.min_fit_lines` (200) parsed fit-period lines and at least `ml.min_calib_lines` (50) parsed calib-period lines. For any other type no model is fit: it is excluded from the ensemble and from incidents, reported as "no baseline, not detectable", and kept in parsed data and agent tools. Today this covers `apache_error` on both testbeds, russellmitchell 13 fit and 0 calib lines, santos 0 and 10 (changed: see status.md D15, D19).
 Hyperparameter search (small grid) only on the dev testbed, choosing by phase recall at a fixed incident budget (§6.5). Because this needs labels, the search lives in `logtriage/eval/tuning.py`, which calls the `ml` functions; `ml/` itself never reads labels. The chosen values are written to `configs/default.yaml` and reused unchanged on the test testbed.
 
 ### 6.5 Calibration, ensemble, threshold (`logtriage/ml/ensemble.py`)
@@ -436,16 +436,18 @@ All numbers on the **santos evaluation period** unless stated. Dev numbers are r
 
 - Window is `attack` if it contains ≥ 1 labeled line. Window phases = phases of its labeled lines.
 - Incident is `malicious` if any of its windows is an attack window; its phases = union of window phases.
-- **Phases with traces** = phases having ≥ 1 labeled line in the processed log types of the testbed (fixed in M3; this is the recall denominator). The denominator is computed over log types with a fitted baseline (§6.4); phases excluded by this are listed explicitly in `reports/targets.md`, and the conservative variant over all parsed log types is reported as secondary (changed: see status.md D15).
+- **Phases with traces** = phases having ≥ 1 labeled line in the processed log types of the testbed (fixed in M3; this is the recall denominator). The denominator is computed over baseline-capable log types (§6.4); phases excluded by this are listed explicitly in `reports/targets.md`, and the conservative variant over all parsed log types is reported as secondary (changed: see status.md D15, D19).
+
+- **Label-ambiguous**: every window of log type `dns` on host `inet-dns`, because that host holds unlabeled copies of the exfiltration. An incident is label-ambiguous if it has such a window and no attack window. `reports/targets.md` gives the exact rule (changed: see status.md D17).
 
 ### 10.2 Metrics
 
 | Metric | Definition |
 |---|---|
-| Window P/R/F1, PR-AUC | per log type and pooled, using `score` and `is_anomalous` |
-| Phase recall | a phase is detected if ≥ 1 anomalous window that belongs to an incident contains a labeled line of that phase; recall = detected / phases with traces |
+| Window P/R/F1, PR-AUC | per log type and pooled, using `score` and `is_anomalous`. `dns` results are also reported separately because of the contaminated baseline (changed: see status.md D16). Label-ambiguous windows are left out, and a secondary number includes them (changed: see status.md D17) |
+| Phase recall | a phase is detected if ≥ 1 anomalous window that belongs to an incident contains a labeled line of that phase; recall = detected / phases with traces. Secondary variant: the same without `dnsteal_exfil`, in both counts (changed: see status.md D16) |
 | Alert reduction | per day: incidents vs anomalous windows vs IDS alerts (AIT-ADS, same period) vs IDS alerts grouped with the same gap rule (§6.6, entity = host) |
-| Verdict | confusion matrix (3 predicted classes × 2 true). F1 with `uncertain` counted as non-benign. |
+| Verdict | confusion matrix (3 predicted classes × 2 true). F1 with `uncertain` counted as non-benign. Label-ambiguous incidents are left out, and a secondary number includes them (changed: see status.md D17) |
 | ATT&CK top-1/top-3 | per malicious incident: hit if any predicted technique in top-k ∈ union of gold sets of the incident's phases. Strict = exact ID. Lenient (secondary) = parent technique match. |
 | Faithfulness (primary) | manual annotation: share of claims supported by their cited lines, on a sample of ≥ 100 claims, rated by the team blind to the condition (Verifier on/off) |
 | Faithfulness (auto) | Verifier LLM judgment (reported, but labelled as self-assessment) |
@@ -466,9 +468,9 @@ Verifier on/off · RAG on/off in Mapper · zero-shot vs few-shot Reporter. Same 
 
 ### 10.5 Targets
 
-Preliminary (from the proposal), finalized in M3 and then **frozen** in `reports/targets.md`:
+Finalized in M3 and **frozen** in `reports/targets.md`, unchanged from the proposal (changed: see status.md D20, D21):
 - Phase recall ≥ 80% of phases with traces.
-- Incidents/day ≤ 25 and ≥ 90% fewer than raw IDS alerts.
+- Incidents/day ≤ 25 and ≥ 90% fewer than raw IDS alerts. The budget of 25 is `ml.incidents_per_day_budget`.
 - ATT&CK top-3 (strict) ≥ 70%.
 - Manual faithfulness ≥ 90% with the Verifier, and higher than without.
 
@@ -484,7 +486,6 @@ Acceptable sets; the first ID is the primary. Verify against the pinned ATT&CK v
 
 | phase | acceptable techniques |
 |---|---|
-| `vpn_access` (if present) | T1133, T1078 |
 | `network_scans` | T1046, T1018 |
 | `service_scans` | T1046 |
 | `dirb` | T1595.003 |
@@ -495,8 +496,9 @@ Acceptable sets; the first ID is the primary. Verify against the pinned ATT&CK v
 | `privilege_escalation` | T1078.003, T1548.003, T1078 |
 | `service_stop` | T1489 |
 | `dnsteal` | T1048.003, T1048, T1071.004 |
+| `dnsteal_exfil` | T1048.003, T1048, T1071.004 (changed: see status.md D18) |
 
-Phases present in the data but missing here are added in M3 with a logged decision.
+Phases present in the data but missing here are added in M3 with a logged decision. `vpn_access` is not a phase of these testbeds, because §5.3 adds it only for unassigned VPN lines and there are none, so it has no entry (changed: see status.md D18).
 
 ---
 

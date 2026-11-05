@@ -11,7 +11,7 @@ from pathlib import Path
 
 import yaml
 
-from logtriage.config import PeriodsConfig
+from logtriage.config import MLConfig, PeriodsConfig
 from logtriage.data.labels import Phase
 
 
@@ -34,6 +34,11 @@ class Periods:
     def training_hours(self) -> float:
         """Length of the training period."""
         return (self.train_end - self.train_start).total_seconds() / 3600
+
+
+def is_baseline_capable(fit_lines: int, calib_lines: int, config: MLConfig) -> bool:
+    """Return True if a log type has enough parsed lines to fit and calibrate (plan 6.4)."""
+    return fit_lines >= config.min_fit_lines and calib_lines >= config.min_calib_lines
 
 
 def read_simulation_interval(path: Path) -> tuple[datetime, datetime]:

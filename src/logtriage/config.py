@@ -36,7 +36,11 @@ class LLMConfig(PlaceholderSection):
 
 
 class MLConfig(PlaceholderSection):
-    """Anomaly detection settings (plan 6.4-6.6)."""
+    """Anomaly detection settings (plan 6.3-6.6)."""
+
+    min_fit_lines: int = 200
+    min_calib_lines: int = 50
+    incidents_per_day_budget: int = 25
 
 
 class PeriodsConfig(BaseModel):
@@ -59,6 +63,8 @@ class PathsConfig(BaseModel):
     data_meta_dir: Path = Path("data_meta")
     reports_dir: Path = Path("reports")
     sources_file: Path = Path("configs/sources.yaml")
+    gold_mapping_file: Path = Path("configs/gold_attack_mapping.yaml")
+    attack_stix_file: Path = Path("data/raw/attack/enterprise-attack.json")
 
 
 class MaskingRule(BaseModel):
