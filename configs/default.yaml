@@ -20,17 +20,21 @@ periods: {}
 phases:
   intervals_file: labels.csv
   tolerance_seconds: 60
-  # Phase name to the step in attacks.log that opens it, for the cross-check.
+  # Attacker-side record of the DNS exfiltration, the source of the exfil phase.
+  exfil_log: gather/attacker_0/logs/dnsteal.log
+  exfil_phase: dnsteal_exfil
+  # Phase name to the attack steps to compare its start with, for the cross-check.
+  # Steps come from attacks.log, except exfil_last_received, which comes from exfil_log.
   steps:
-    network_scans: vpn_connect
-    service_scans: service_scan
-    dirb: dirb_scan
-    wpscan: wpscan
-    webshell: upload_rce_shell
-    cracking: crack_wphash
-    reverse_shell: reverse_shell_listen
-    privilege_escalation: open_pty
-    service_stop: dnsteal_stop
+    network_scans: [vpn_connect]
+    service_scans: [service_scan]
+    dirb: [dirb_scan]
+    wpscan: [wpscan]
+    webshell: [upload_rce_shell]
+    cracking: [crack_wphash]
+    reverse_shell: [reverse_shell_listen]
+    privilege_escalation: [open_pty]
+    service_stop: [exfil_last_received, dnsteal_stop]
 
 # Dataset sources (plan 4.1, 4.2). File names, URLs and checksums come from the Zenodo API.
 download:

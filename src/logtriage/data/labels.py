@@ -36,7 +36,7 @@ class Phase:
 
 @dataclass(frozen=True)
 class PhaseCheck:
-    """Comparison of a phase start with the attack step that should open it."""
+    """Comparison of a phase start with an attack step that should coincide with it."""
 
     phase: str
     step: str
@@ -104,28 +104,51 @@ def read_attack_steps(path: Path) -> dict[str, datetime]:
     return steps
 
 
+def read_exfil_interval(path: Path) -> tuple[datetime, datetime]:
+    """Return the first and last time the attacker received exfiltrated data.
+
+    Args:
+        path: JSON Lines `dnsteal.log` of the attacker host.
+
+    Returns:
+        First and last `Received data` event, in UTC.
+
+    Raises:
+        ValueError: If the log has no such event.
+    """
+    first: float | None = None
+    last: float | None = None
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("event") == "Received data":
+                first = event["timestamp"] if first is None else first
+                last = event["timestamp"]
+    if first is None or last is None:
+        raise ValueError(f"{path}: no received data events")
+    return datetime.fromtimestamp(first, tz=UTC), datetime.fromtimestamp(last, tz=UTC)
+
+
 def cross_check_phases(
-    phases: Iterable[Phase], steps: dict[str, datetime], phase_steps: dict[str, str]
+    phases: Iterable[Phase], steps: dict[str, datetime], phase_steps: dict[str, list[str]]
 ) -> list[PhaseCheck]:
-    """Compare phase starts with the attack steps that should open them.
+    """Compare phase starts with the attack steps that should coincide with them.
 
     Args:
         phases: Phases to check.
         steps: Attack steps from `read_attack_steps`.
-        phase_steps: Phase name to attack step. Phases not listed have no matching step.
+        phase_steps: Phase name to attack steps. Phases not listed have no matching step.
 
     Returns:
-        One check per phase that has a matching step.
+        One check per phase and step.
     """
     return [
-        PhaseCheck(
-            phase=phase.phase,
-            step=phase_steps[phase.phase],
-            phase_start=phase.start,
-            step_time=steps.get(phase_steps[phase.phase]),
-        )
+        PhaseCheck(phase=phase.phase, step=step, phase_start=phase.start, step_time=steps.get(step))
         for phase in phases
-        if phase.phase in phase_steps
+        for step in phase_steps.get(phase.phase, [])
     ]
 
 
@@ -147,6 +170,12 @@ def render_phase_section(
         "## Phase cross-check against attacks.log",
         "",
         f"A phase passes if it starts within {tolerance_seconds:.0f} s of its attack step.",
+        "`exfil_last_received` is the last chunk in the attacker's `dnsteal.log`.",
+        "",
+        "`service_stop` marks the victim-side exfiltration stopping, so it follows that last",
+        "chunk. `dnsteal_stop` is the attacker's listener shutting down, which can be much",
+        "later, so a mismatch on that row is expected. The AIT-ADS `dnsteal` interval starts",
+        "after the exfiltration ended; the traffic itself is covered by `dnsteal_exfil`.",
         "",
         "| phase | attack step | step time UTC | phase start minus step (s) | result |",
         "|---|---|---|---|---|",

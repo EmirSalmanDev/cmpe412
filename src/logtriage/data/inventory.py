@@ -7,8 +7,10 @@ from pathlib import Path
 
 from logtriage.config import LogSources, Settings, load_sources
 from logtriage.data.labels import (
+    Phase,
     cross_check_phases,
     read_attack_steps,
+    read_exfil_interval,
     read_phase_intervals,
     render_phase_section,
     summarize_label_file,
@@ -242,8 +244,15 @@ def run_inventory(testbed: str, settings: Settings) -> Path:
     phases = read_phase_intervals(
         settings.paths.raw_dir / "ait_ads" / intervals_file, testbed, f"ait_ads:{intervals_file}"
     )
+    exfil_start, exfil_end = read_exfil_interval(testbed_dir / settings.phases.exfil_log)
     steps = read_attack_steps(testbed_dir / "gather/attacker_0/logs/attacks.log")
+    steps["exfil_last_received"] = exfil_end
     checks = cross_check_phases(phases, steps, settings.phases.steps)
+
+    # The AIT-ADS rows stay as published. The exfiltration itself is not in them (plan 5.3).
+    exfil_source = f"attacker_0:{Path(settings.phases.exfil_log).name}"
+    phases.append(Phase(testbed, settings.phases.exfil_phase, exfil_start, exfil_end, exfil_source))
+    phases.sort(key=lambda phase: phase.start)
     write_phases_csv(phases, settings.paths.data_meta_dir / f"phases_{testbed}.csv")
 
     section = render_phase_section(phases, checks, settings.phases.tolerance_seconds)

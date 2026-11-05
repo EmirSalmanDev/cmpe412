@@ -17,6 +17,7 @@ from logtriage.data.labels import (
     Phase,
     cross_check_phases,
     read_attack_steps,
+    read_exfil_interval,
     read_phase_intervals,
     summarize_label_file,
     write_phases_csv,
@@ -164,11 +165,37 @@ def test_cross_check_phases() -> None:
     phases = read_phase_intervals(FIXTURES / "ait_ads_labels.csv", "tiny", "labels.csv")
     steps = read_attack_steps(FIXTURES / "attacks.log")
     checks = cross_check_phases(
-        phases, steps, {"network_scans": "vpn_connect", "dnsteal": "not_logged"}
+        phases, steps, {"network_scans": ["vpn_connect", "service_scan"], "dnsteal": ["not_logged"]}
     )
-    by_phase = {check.phase: check for check in checks}
-    assert by_phase["network_scans"].delta_seconds == 0
-    assert by_phase["dnsteal"].delta_seconds is None
+    assert [(c.phase, c.step, c.delta_seconds) for c in checks] == [
+        ("dnsteal", "not_logged", None),
+        ("network_scans", "vpn_connect", 0),
+        ("network_scans", "service_scan", -10.5),
+    ]
+
+
+def test_read_exfil_interval(tmp_path: Path) -> None:
+    path = tmp_path / "dnsteal.log"
+    path.write_text(
+        '{"event": "DNS server listening", "timestamp": 100.0}\n'
+        '{"event": "Received data", "timestamp": 1642320000.0}\n'
+        '{"data": "b\'abc\'", "timestamp": 1642320001.0}\n'
+        "not json\n"
+        '{"event": "Received data", "timestamp": 1642320060.0}\n'
+        '{"event": "Saving unfinished files", "timestamp": 1642320090.0}\n',
+        encoding="utf-8",
+    )
+    assert read_exfil_interval(path) == (
+        datetime.fromtimestamp(1642320000, tz=UTC),
+        datetime.fromtimestamp(1642320060, tz=UTC),
+    )
+
+
+def test_read_exfil_interval_needs_events(tmp_path: Path) -> None:
+    path = tmp_path / "dnsteal.log"
+    path.write_text('{"event": "DNS server listening", "timestamp": 100.0}\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="no received data"):
+        read_exfil_interval(path)
 
 
 def test_write_phases_csv(tmp_path: Path) -> None:

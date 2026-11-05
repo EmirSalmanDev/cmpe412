@@ -61,7 +61,9 @@ class PhasesConfig(BaseModel):
 
     intervals_file: str = "labels.csv"
     tolerance_seconds: float = 60.0
-    steps: dict[str, str] = Field(default_factory=dict)
+    exfil_log: str = "gather/attacker_0/logs/dnsteal.log"
+    exfil_phase: str = "dnsteal_exfil"
+    steps: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class SourceConfig(BaseModel):
