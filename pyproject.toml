@@ -41,6 +41,8 @@ packages = ["src/logtriage"]
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
+# Ruff also formats code blocks in Markdown; plan.md and the other docs stay as written.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
