@@ -294,7 +294,7 @@ Per `(testbed, log_type)`, fit on **fit-period windows** only:
 - PCA reconstruction error with `n_components` explaining 95% variance
 
 Higher score = more anomalous for all three (negate sklearn scores where needed).
-If a `(testbed, log_type)` has zero fit-period windows (known case: santos `apache_error`), no model is fit for it. It is excluded from the ensemble and from incidents, reported as "no baseline, not detectable", and kept in parsed data and agent tools (changed: see status.md D15).
+A `(testbed, log_type)` is **baseline-capable** only if it has at least `ml.min_fit_lines` (200) parsed fit-period lines and at least `ml.min_calib_lines` (50) parsed calib-period lines. For any other type no model is fit: it is excluded from the ensemble and from incidents, reported as "no baseline, not detectable", and kept in parsed data and agent tools. Today this covers `apache_error` on both testbeds, russellmitchell 13 fit and 0 calib lines, santos 0 and 10 (changed: see status.md D15, D19).
 Hyperparameter search (small grid) only on the dev testbed, choosing by phase recall at a fixed incident budget (§6.5). Because this needs labels, the search lives in `logtriage/eval/tuning.py`, which calls the `ml` functions; `ml/` itself never reads labels. The chosen values are written to `configs/default.yaml` and reused unchanged on the test testbed.
 
 ### 6.5 Calibration, ensemble, threshold (`logtriage/ml/ensemble.py`)
@@ -436,7 +436,7 @@ All numbers on the **santos evaluation period** unless stated. Dev numbers are r
 
 - Window is `attack` if it contains ≥ 1 labeled line. Window phases = phases of its labeled lines.
 - Incident is `malicious` if any of its windows is an attack window; its phases = union of window phases.
-- **Phases with traces** = phases having ≥ 1 labeled line in the processed log types of the testbed (fixed in M3; this is the recall denominator). The denominator is computed over log types with a fitted baseline (§6.4); phases excluded by this are listed explicitly in `reports/targets.md`, and the conservative variant over all parsed log types is reported as secondary (changed: see status.md D15).
+- **Phases with traces** = phases having ≥ 1 labeled line in the processed log types of the testbed (fixed in M3; this is the recall denominator). The denominator is computed over baseline-capable log types (§6.4); phases excluded by this are listed explicitly in `reports/targets.md`, and the conservative variant over all parsed log types is reported as secondary (changed: see status.md D15, D19).
 
 ### 10.2 Metrics
 

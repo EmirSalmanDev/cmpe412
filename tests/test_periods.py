@@ -89,3 +89,11 @@ def test_simulation_interval_is_utc(tmp_path: Path) -> None:
     path = tmp_path / "dataset.yaml"
     path.write_text("name: x\nstart: '2022-01-14T00:00:00'\nend: '2022-01-18T00:00:00'\n")
     assert read_simulation_interval(path) == (START, END)
+
+
+def test_ml_defaults_match_the_committed_config() -> None:
+    from logtriage.config import MLConfig, load_settings
+
+    config = load_settings(Path(__file__).parents[1] / "configs" / "default.yaml", None).ml
+    assert (config.min_fit_lines, config.min_calib_lines) == (200, 50)
+    assert config.incidents_per_day_budget == MLConfig().incidents_per_day_budget == 25

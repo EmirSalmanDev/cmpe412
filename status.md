@@ -56,6 +56,8 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 
 ## Decision log
 Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the approved design decisions in plan §2.
+- 2026-11-05 · M3 · D19 · Extends D15. A `(testbed, log_type)` is baseline-capable only with at least `min_fit_lines` (200) parsed fit lines and `min_calib_lines` (50, new in `configs/default.yaml`) parsed calib lines; other types are left out of ensemble and incidents as "no baseline, not detectable" and stay in parsed data and agent tools. The D7 denominator uses baseline-capable log types; §6.4 and §10.1 updated · D15 covered only zero fit-period windows, so russellmitchell `apache_error` could be fit but never calibrated · Full table from the data: every log type passes on both testbeds except `apache_error` (russellmitchell 13 fit, 0 calib; santos 0 fit, 10 calib); the next lowest calib count is 147 (santos `vpn`)
+- 2026-11-05 · M3 · `CLAUDE.md` is versioned with `git add -f`, because `~/.gitignore_global` ignores it · §12 lists it and a fresh clone needs it; checked first for secrets and personal paths · `a8c96f8`
 - 2026-11-05 · M2 audit · Fixed: `status.md` said `apache_access` is the slowest Drain3 type; corrected in Recorded facts · The claim did not match the report · `prepare_report.json`: `audit` 36,193 lines/s on russellmitchell, `apache_error` 34,797 on santos
 - 2026-11-05 · M2 audit · Fixed: §4.3 lacked the D9 marker that §14.3 requires · D9 names §4.2 and §4.3 · `cb2a524`
 - 2026-11-05 · M2 audit · Fixed: Apache error microseconds were truncated by float arithmetic · §5.1 keeps the event time · `44f48e4`; 1 santos line moved by 1 µs, everything else identical, santos regenerated
@@ -88,7 +90,6 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 
 ## Open questions
 (Things that need a human decision. Keep working on other parts meanwhile.)
-- CLAUDE.md is listed in §12 but `~/.gitignore_global` ignores it, so it is not committed and a fresh clone will not have it. It was not force-added. Should it be versioned?
 - The §4.3 clean baseline does not exist. DNS exfiltration is in every training hour (russellmitchell 52 of 52 hours, 21.6% of inet-firewall DNS lines; santos 32 of 32, 26.0%), and there is no exfil-free span of at least 24h before the main attack on russellmitchell. Removing it would need labels, so the training period stays as computed. Models will likely learn exfiltration as normal, which may make the dnsteal phase undetectable on the dns family. Decide before targets freeze in M3: accept and report it, or change the DNS approach.
 - Exfiltration is only labeled on `inet-firewall/logs/dnsmasq.log`. `inet-dns/logs/dnsmasq.log` holds a similar volume of the same queries (20,009 and 15,345 exfil-shaped queries) with no labels, so true detections there would count as false positives. Decide how M3 and §10 treat that host.
 - Gold mapping gap: §11 maps `dnsteal` but not `dnsteal_exfil`, which now holds almost all exfiltration lines. On santos `dnsteal` has no labeled lines, so under D7 it drops out of the recall denominator, and `dnsteal_exfil` has no gold techniques. Decide in M3 how the phase is scored. §10 and §11 were not changed.
@@ -98,7 +99,6 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 - M4–M7, §5.2 scan: the test matches the plan's patterns, but `logtriage.eval`, `logtriage.prepare`, `label_report` and `first_attack` all pass it. `periods.json` holds `first_attack`, which must not reach the agent context. Decide whether to extend the scan before those modules are written.
 - M4, time zones: DuckDB returns `ts` in the session zone (here `Europe/Istanbul`), and `date_trunc('day', ts)` gives 1,199 lines against 1,355 in UTC on the first day of russellmitchell `auth`. Stored instants are right, but Docker would differ. M4 and M7 connections should `SET TimeZone='UTC'`.
 - M5, calibration: the santos calib period is 01:01–07:16 UTC, so it holds quiet hours only: `apache_access` 253 lines/h against 2,430 in eval, `dns` 2,862 against 5,668. Percentiles calibrated there may flag normal daytime traffic. Decide in M5 whether the §4.3 split stands, without using labels.
-- M5, D15 gap: russellmitchell `apache_error` has 13 fit lines and 0 calib lines, so a model can be fit but not calibrated, and LOF with 35 neighbors would see at most 13 windows. D15 covers only zero fit-period windows. Decide how such a log type is treated.
 - M10: DuckDB views use paths relative to the repository root, so Docker and the app must run from there or rebuild the views.
 - Other labeled log types: only `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log` (49 labeled lines on russellmitchell, 44 on santos, raw labels include `crack_passwords` and `escalate`), left unprocessed. Syslog and Suricata files exist but have no label files.
 
