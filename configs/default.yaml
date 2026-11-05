@@ -25,6 +25,8 @@ features:
   window_seconds: 60
   # Length of the `src_ips` and `users` lists of a window.
   top_entities: 10
+  # Second-level names that are public suffixes under a two-letter TLD, as in co.uk or com.cn.
+  second_level_suffixes: [ac, co, com, edu, go, gov, ne, net, or, org]
 
 # Training and evaluation boundaries (plan 4.3). The computed values go to periods.json.
 periods:

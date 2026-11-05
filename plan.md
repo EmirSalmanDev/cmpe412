@@ -280,6 +280,8 @@ Common (all log types): `n_lines`, `n_unseen_templates`, `ratio_unseen_templates
 | `audit` | `n_execve`, `n_execve_web_user`, `n_unique_exe`, `n_unseen_exe`, `n_user_auth_events` (USER_AUTH, USER_START, CRED_ACQ, USER_CMD), `n_root_execve` |
 | `vpn` | `n_auth_success`, `n_auth_fail`, `n_new_sessions`, `n_unique_src_ip`, `n_unseen_src_ip`, `n_unseen_users` |
 
+DNS definitions (changed: see status.md D23). Only `query` lines count, because dnsmasq repeats each name in its forwarded, reply and cached lines; a window without one has 0 in these features. The registered domain is the public suffix plus one part, lowercased; the suffix is the last part, or the last two when the TLD has two letters and the second-level name is in `features.second_level_suffixes` (`thesun.co.uk`). A name without a dot, such as `mail`, is its own domain. `*_label_*` features use the parts left of the public suffix, with case kept; entropy is Shannon entropy in bits over the characters of one part, and `mean_label_entropy` averages over all parts of all queries in the window. `ratio_unique_qnames` compares names without case or trailing dot.
+
 Features that turn out to be constant or missing in the real data are dropped. Log this in status.md.
 
 Vocabulary, rarity and "unseen" features (`n_unseen_templates`, `ratio_unseen_templates`, `mean_template_rarity`, `max_template_rarity`, and every `*_unseen_*` feature in the table) are dropped for a `(testbed, log_type)` whose fit period has fewer than `ml.min_fit_lines` parsed lines (`configs/default.yaml`, default 200) (changed: see status.md D15).

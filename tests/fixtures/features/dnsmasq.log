@@ -1,0 +1,12 @@
+Jan 14 00:01:00 dnsmasq[1]: query[A] www.example.com from 10.0.0.2
+Jan 14 00:01:01 dnsmasq[1]: forwarded www.example.com to 8.8.8.8
+Jan 14 00:01:02 dnsmasq[1]: reply www.example.com is 1.2.3.4
+Jan 14 00:01:03 dnsmasq[1]: query[A] mail.example.com from 10.0.0.2
+Jan 14 00:01:04 dnsmasq[1]: query[AAAA] WWW.Example.COM. from 10.0.0.3
+Jan 14 00:01:05 dnsmasq[1]: query[A] news.thesun.co.uk from 10.0.0.2
+Jan 14 00:02:00 dnsmasq[1]: reply www.example.com is 1.2.3.4
+Jan 14 00:15:00 dnsmasq[1]: query[A] a.calib-only.net from 10.0.0.2
+Jan 14 00:30:00 dnsmasq[1]: query[TXT] aabb.abcd.z.biz from 10.0.0.9
+Jan 14 00:30:01 dnsmasq[1]: query[A] mail from 10.0.0.2
+Jan 14 00:30:02 dnsmasq[1]: query[A] www.example.com from 10.0.0.2
+not a dnsmasq line

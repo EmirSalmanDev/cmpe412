@@ -48,6 +48,9 @@ class FeaturesConfig(BaseModel):
 
     window_seconds: int = 60
     top_entities: int = 10
+    second_level_suffixes: list[str] = Field(
+        default_factory=lambda: ["ac", "co", "com", "edu", "go", "gov", "ne", "net", "or", "org"]
+    )
 
 
 class PeriodsConfig(BaseModel):
