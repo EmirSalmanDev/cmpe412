@@ -1,6 +1,6 @@
 # Frozen targets
 
-**Frozen on 2026-11-05 at commit `PENDING`** (tag `m3-done`). This file must not change after that commit to make results look better (plan §14.3). If a definition turns out to be buggy, fix it, log it in `status.md`, and report it in `reports/results.md`.
+**Frozen on 2026-11-05 at commit `3684424`** (tag `m3-done`). This file must not change after that commit to make results look better (plan §14.3). If a definition turns out to be buggy, fix it, log it in `status.md`, and report it in `reports/results.md`.
 
 Evidence: `notebooks/01_eda.ipynb`. Nothing here uses a detection result: no window, feature or model existed at the freeze.
 
