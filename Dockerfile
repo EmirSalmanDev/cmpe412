@@ -39,7 +39,8 @@ ENV PATH=/app/.venv/bin:$PATH \
     LOGTRIAGE_APP__HOST=0.0.0.0
 WORKDIR /app
 
-COPY --from=builder /opt/huggingface /opt/huggingface
+# Owned by `app`: the hub keeps files only root can read, and logs an error at each load.
+COPY --from=builder --chown=app:app /opt/huggingface /opt/huggingface
 COPY --from=builder /app/.venv /app/.venv
 COPY configs ./configs
 COPY data_meta ./data_meta
