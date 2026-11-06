@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import streamlit as st
 import yaml
 from streamlit.testing.v1 import AppTest
 from typer.testing import CliRunner
@@ -56,6 +57,7 @@ def config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.chdir(tmp_path)  # so that no `.env` of the developer is read
     yield path
+    st.cache_resource.clear()
 
 
 def open_app() -> AppTest:
@@ -211,6 +213,15 @@ def test_pause_and_reset_buttons(config: Path):
     seek(at, 30)
     at.sidebar.button[1].click().run()
     assert at.session_state[ui.CLOCK].position == TS
+
+
+def test_a_new_start_time_moves_and_stops_the_clock(config: Path):
+    at = replay(open_app())
+    chosen = TS + timedelta(minutes=30)
+    at.sidebar.datetime_input[0].set_value(chosen.replace(tzinfo=None)).run()
+    assert not at.exception
+    assert at.session_state[ui.CLOCK].start == chosen
+    assert at.session_state[ui.VIEW].moment == chosen
 
 
 def test_the_speed_control_offers_the_configured_speeds_and_defaults_to_600x(config: Path):

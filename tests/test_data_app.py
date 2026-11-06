@@ -5,6 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
+import streamlit as st
 from streamlit.testing.v1 import AppTest
 
 from logtriage.app import ui
@@ -33,6 +34,9 @@ def santos(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv(ENV_CONFIG, str(CONFIG))
     monkeypatch.delenv(ENV_LIVE, raising=False)
     yield
+    # The cached connection locks the file for this process, and other data tests open it too.
+    ui.connection_of(str(_database())).close()
+    st.cache_resource.clear()
 
 
 def open_app() -> AppTest:
