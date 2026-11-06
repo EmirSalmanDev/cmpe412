@@ -292,7 +292,7 @@ Features that turn out to be constant or missing in the real data are dropped pe
 
 Vocabulary, rarity and "unseen" features (`n_unseen_templates`, `ratio_unseen_templates`, `mean_template_rarity`, `max_template_rarity`, and every `*_unseen_*` feature in the table) are dropped for a `(testbed, log_type)` whose fit period has fewer than `ml.min_fit_lines` parsed lines (`configs/default.yaml`, default 200) (changed: see status.md D15).
 Transform: `log1p` on counts (features named `n_*`), then `RobustScaler` fit on the `fit` windows of a log type, pooled across hosts. Windows keep raw values; the scaler is saved to `data/processed/<testbed>/scalers/<log_type>.json` for M5, and only for baseline-capable types (§6.4). Vocabularies go to `vocabularies/<log_type>.parquet` (changed: see status.md D26).
-The DNS features `mean_qname_len`, `max_label_len`, `mean_label_entropy`, `max_label_entropy`, `ratio_unique_qnames` and `top_domain_share` are one-sided: negative scaled values are clipped at 0 (`features.one_sided_features`), on every testbed. They rise with an attack by nature, and the baseline holds the tunnel, so a value below it only means the tunnel stopped. Raw window values are not clipped. Unclipped DNS numbers are reported as a secondary variant and used for no selection (changed: see status.md D29).
+The DNS features `mean_qname_len`, `max_label_len`, `mean_label_entropy`, `max_label_entropy`, `ratio_unique_qnames` and `top_domain_share` are one-sided: negative scaled values are clipped at 0 (`features.one_sided_features`), on every testbed. They rise with an attack by nature, and the baseline holds the tunnel, so a value below it only means the tunnel stopped. Raw window values are not clipped. Unclipped DNS numbers are reported as a secondary variant and used for no selection (changed: see status.md D29). That variant is for russellmitchell and santos only: on `wardbeck` and `harrison` it would need a second scoring pass (changed: see status.md D61).
 
 ### 6.4 Anomaly models (`logtriage/ml/models.py`)
 
@@ -514,7 +514,7 @@ Fixed before any result of `wardbeck` or `harrison` exists. Metric definitions (
 | Phase recall | sum of detected phases / sum of denominators, primary and both secondary variants of §10.1, §10.2 |
 | Incidents/day, alert reduction | not pooled: per testbed, each against the budget of 25 |
 | ATT&CK top-1/top-3 | over all malicious incidents of the three |
-| Verdict | over all malicious incidents of the three; the benign column of the §10.2 confusion matrix adds the other incidents of the three, as F1 needs it |
+| Verdict | over all malicious incidents of the three; the benign column of the §10.2 confusion matrix adds the other incidents of the three, as F1 needs it; label-ambiguous incidents follow D17 (changed: see status.md D62) |
 | Manual faithfulness | one sample of claims from the reports of the three, rated once |
 
 - Ablations (§10.4) and the LLM-only baseline (§10.3) stay on santos: each test testbed runs the agents once.
