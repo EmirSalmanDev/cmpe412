@@ -44,7 +44,7 @@ agents:
   rag: true
   few_shot: false
   # Set once prompts are final on the dev testbed; the test testbed needs it (M8).
-  prompts_frozen: false
+  prompts_frozen: true
 
 # Anomaly detection (plan 6.3-6.6).
 ml:

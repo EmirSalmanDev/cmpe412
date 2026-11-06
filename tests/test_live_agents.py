@@ -11,7 +11,7 @@ from logtriage.agents.cache import LlmCache
 from logtriage.agents.graph import AgentRuntime, IncidentState, build_graph, tool_schemas
 from logtriage.agents.llm import LLMClient, build_chat_model
 from logtriage.agents.prompting import load_prompts
-from logtriage.agents.schemas import draft_claims, report_claims
+from logtriage.agents.schemas import report_claims
 from logtriage.agents.tools import AgentTools
 from logtriage.config import DEV_TESTBED, Settings, load_settings
 from logtriage.rag.attack_index import cosine_collection, open_client
@@ -40,11 +40,16 @@ def tools(settings: Settings, tmp_path: Path) -> Iterator[AgentTools]:
 
 
 @pytest.fixture
-def client(settings: Settings, tmp_path: Path) -> LLMClient:
+def client(settings: Settings, tmp_path: Path) -> Iterator[LLMClient]:
+    """Answers stay in a temporary cache; what they cost goes to the real ledger."""
     cache = LlmCache(tmp_path / "llm.sqlite")
-    return LLMClient(
+    instance = LLMClient(
         build_chat_model(settings), cache, settings.llm, settings.agents.condition, use_cache=False
     )
+    yield instance
+    ledger = LlmCache(settings.paths.cache_dir / "llm.sqlite")
+    ledger.record_spend(settings.llm.model, "live-test", instance.run_spent)
+    ledger.close()
 
 
 def test_the_model_answers_under_the_configured_name(settings: Settings) -> None:
@@ -113,5 +118,4 @@ def test_one_full_incident(
     assert report.meta["tool_calls"]
     assert len(report.meta["retrieved_techniques"]) == settings.agents.mapper_k
     assert report.meta["draft_claims"] >= 1
-    assert draft_claims  # the first-draft count comes from this helper
     assert (tmp_path / f"{INCIDENT}.json").is_file()

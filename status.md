@@ -176,6 +176,7 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 - 2026-11-05 · D1–D7 · Approved before development (window key, VPN, calibrated ensemble, gap grouping, Drain3 + line_id + UTC, deterministic supervisor + validated LLM outputs, gold mapping sets + metric definitions) · Proposal review · plan §2
 
 ## Prompt versions (dev only, newest first)
+**Frozen before any santos run:** investigator-1, mapper-1, mapper-no-rag-1, reporter-2, verifier-3 (`agents.prompts_frozen`). Not changed for: 0 `benign` verdicts on dev (russellmitchell-0002 went from benign to uncertain under reporter-2) and weak mappings such as russellmitchell-0005 to T1568.001, because those would be accuracy tuning, not mechanical or faithfulness fixes.
 - verifier-3 · verifier-2 wrote its verdict before its reason, so one rejection reads "actually matches... Supported" under `unsupported` and removed a true claim, and two others miscounted nine lines; with thinking off, field order is reasoning order, so `reason` now comes first and counts are listed
 - reporter-2, verifier-2 · reading all 7 dev reports found about 16 of 101 claims their cited lines do not show, all passed by verifier-1: absence ("no successful login following"), judgment words ("routine", "lure"), relations to uncited lines ("seconds later"), one wrong count
 - investigator-1, mapper-1, reporter-1, verifier-1 · first versions
