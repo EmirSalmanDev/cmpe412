@@ -27,6 +27,14 @@ features:
   top_entities: 10
   # Second-level names that are public suffixes under a two-letter TLD, as in co.uk or com.cn.
   second_level_suffixes: [ac, co, com, edu, go, gov, ne, net, or, org]
+  # Negative scaled values of these features are clipped at 0 (D29).
+  one_sided_features:
+    - mean_qname_len
+    - max_label_len
+    - mean_label_entropy
+    - max_label_entropy
+    - ratio_unique_qnames
+    - top_domain_share
 
 # Training and evaluation boundaries (plan 4.3). The computed values go to periods.json.
 periods:

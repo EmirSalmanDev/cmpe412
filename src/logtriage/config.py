@@ -51,6 +51,7 @@ class FeaturesConfig(BaseModel):
     second_level_suffixes: list[str] = Field(
         default_factory=lambda: ["ac", "co", "com", "edu", "go", "gov", "ne", "net", "or", "org"]
     )
+    one_sided_features: list[str] = Field(default_factory=list)
 
 
 class PeriodsConfig(BaseModel):
