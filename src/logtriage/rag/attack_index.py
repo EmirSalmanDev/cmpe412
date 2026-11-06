@@ -51,7 +51,9 @@ class BgeEmbedder:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
-            self._model = SentenceTransformer(self.config.embedding_model)
+            self._model = SentenceTransformer(
+                self.config.embedding_model, revision=self.config.embedding_revision
+            )
         return self._model
 
     def documents(self, texts: list[str]) -> list[list[float]]:
