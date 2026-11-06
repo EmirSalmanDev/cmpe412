@@ -313,7 +313,7 @@ def test_the_plain_connection_still_writes_for_the_build(tmp_path: Path) -> None
 def test_the_agent_connection_runs_on_one_thread(tmp_path: Path) -> None:
     """Parallel execution changes tie order, which would change tool output between runs."""
     path = tmp_path / "agent.duckdb"
-    duckdb.connect(str(path)).close()
+    connect(path).close()
     connection = connect_agent(path)
     assert connection.execute("SELECT current_setting('threads')").fetchone()[0] == 1
     with pytest.raises(duckdb.Error):

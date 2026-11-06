@@ -5,12 +5,13 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from logtriage.agents.llm import DeepSeekChat
+from logtriage.agents.runner import RunSummary
 from logtriage.cli import app
 from logtriage.config import load_settings
 
 CONFIG = Path(__file__).parents[1] / "configs" / "default.yaml"
 STUB_COMMANDS = [
-    "investigate",
     "evaluate",
     "app",
 ]
@@ -79,6 +80,53 @@ def test_stub_commands_accept_options(command: str) -> None:
     result = runner.invoke(app, [command, "--testbed", "santos", "--config", str(CONFIG)])
     assert result.exit_code == 0
     assert "not implemented yet" in result.output
+
+
+def test_investigate_passes_its_options_to_the_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen = {}
+
+    def fake_run(testbed: str, settings: object, **options: object) -> RunSummary:
+        seen.update(options, testbed=testbed)
+        return RunSummary(testbed, "run", finished=["a"], spent_usd=0.5, total_spent_usd=1.5)
+
+    monkeypatch.setattr("logtriage.cli.run_incidents", fake_run)
+    arguments = ["investigate", "--testbed", "t", "--config", str(CONFIG), "--incident", "a"]
+    result = runner.invoke(app, [*arguments, "--no-cache", "--rerun-reason", "why"])
+    assert result.exit_code == 0
+    assert "1 reports, 0 failed, 0.5000 USD this run, 1.5000 USD in total" in result.output
+    assert seen == {
+        "testbed": "t",
+        "incident_ids": ["a"],
+        "use_cache": False,
+        "rerun_reason": "why",
+    }
+
+
+def test_investigate_exits_with_an_error_when_the_budget_stops_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = RunSummary("t", "run", aborted="run spend reached the limit")
+    monkeypatch.setattr("logtriage.cli.run_incidents", lambda *a, **k: summary)
+    result = runner.invoke(app, ["investigate", "--config", str(CONFIG)])
+    assert result.exit_code == 2
+    assert "stopped: run spend reached the limit" in result.output
+
+
+def test_investigate_reports_a_refused_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise ValueError("santos: reports exist")
+
+    monkeypatch.setattr("logtriage.cli.run_incidents", refuse)
+    result = runner.invoke(app, ["investigate", "--config", str(CONFIG)])
+    assert result.exit_code == 1
+    assert "investigate failed: santos: reports exist" in result.output
+
+
+def test_a_test_without_the_live_mark_cannot_reach_the_real_llm() -> None:
+    """The guard of `conftest.py` must fire before any request leaves."""
+    model = DeepSeekChat(model="m", api_key="k", base_url="http://localhost")
+    with pytest.raises(pytest.fail.Exception, match="reached the real LLM"):
+        model.invoke("hello")
 
 
 def test_index_attack_reports_a_missing_bundle(tmp_path: Path) -> None:

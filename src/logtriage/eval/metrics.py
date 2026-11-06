@@ -220,3 +220,59 @@ def phase_credit(detected: pd.DataFrame, counted: list[str]) -> pd.DataFrame:
 def incidents_per_day(incidents: int, days: float) -> float:
     """Return the incident rate over the evaluation period."""
     return incidents / days
+
+
+def incident_phases(table: pd.DataFrame) -> dict[str, list[str]]:
+    """Return the phases of every incident: the union of its window phases (plan 10.1).
+
+    Args:
+        table: Output of `with_truth`.
+
+    Returns:
+        Incident to sorted phases; an incident with no attack window has an empty list.
+    """
+    rows = table[table["incident_id"].notna()]
+    return {
+        incident: sorted({phase for phases in group["phases"] for phase in phases})
+        for incident, group in rows.groupby("incident_id")
+    }
+
+
+def candidate_recall(
+    reports: Iterable[dict], phases: dict[str, list[str]], gold: dict[str, list[str]]
+) -> pd.DataFrame:
+    """Tell, per incident, whether a gold technique was among the Mapper's candidates.
+
+    This bounds the Mapper: it may only pick retrieved techniques (plan 7.4), so an incident with
+    no gold technique among them cannot score a strict ATT&CK hit.
+
+    Args:
+        reports: Report dicts, with `meta.retrieved_techniques` in rank order.
+        phases: Output of `incident_phases`.
+        gold: Output of `load_gold_mapping`.
+
+    Returns:
+        One row per incident. `gold_in_top_k` is None for an incident with no gold set.
+    """
+    rows = []
+    for report in reports:
+        incident = report["incident_id"]
+        meta = report["meta"]
+        retrieved = meta["retrieved_techniques"]
+        names = phases.get(incident, [])
+        wanted = sorted({item for phase in names for item in gold.get(phase, [])})
+        hits = [item for item in retrieved if item in wanted]
+        rows.append(
+            {
+                "incident_id": incident,
+                "phases": " ".join(names),
+                "gold": " ".join(wanted),
+                "retrieved": " ".join(retrieved),
+                "gold_in_top_k": bool(hits) if wanted else None,
+                "gold_retrieved": " ".join(hits),
+                "best_rank": retrieved.index(hits[0]) + 1 if hits else None,
+                "mapped": " ".join(meta["mapped_techniques"]),
+                "behavior_summary": meta["behavior_summary"],
+            }
+        )
+    return pd.DataFrame(rows).sort_values("incident_id", ignore_index=True)
