@@ -4,9 +4,9 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** M5 — Anomaly detection and incidents (in progress)
-- **Branch:** `m5-detect`
-- **Next step:** Implement the one-sided transform, models, calibration, incidents and `detect`, then tune `q` and `gap_minutes` on russellmitchell only.
+- **Current milestone:** M6 — Supervised reference (not started)
+- **Branch:** —
+- **Next step:** Create branch `m6-supervised` and read plan §6.7. One decision is open for a human: the `q` grid (Open questions).
 - **Blockers:** none
 
 ## Milestones
@@ -15,7 +15,7 @@ Format rules: newest entries first in the logs; numbers with their testbed; link
 - [x] M2 Parsing, Drain3, labels
 - [x] M3 EDA and frozen targets
 - [x] M4 Windows and features
-- [ ] M5 Anomaly detection and incidents
+- [x] M5 Anomaly detection and incidents
 - [ ] M6 Supervised reference
 - [ ] M7 ATT&CK index and agent tools (may start after M2)
 - [ ] M8 Agent graph
@@ -35,7 +35,7 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 - Label line base: 1-based, like `line_no`, on both testbeds. Labeled auth lines start at `Successful su for ...` and VPN lines at `TLS: Initial packet`; under 0-based they would skip those lines and include an unrelated CRON line
 - Drain3 throughput (both miners together): russellmitchell 67,222 lines/s (636,526 lines, 9.5 s), santos 68,889 lines/s (776,637 lines, 11.3 s). Slowest types (`apache_access`, `apache_error`, `audit`) run at about 35,000–41,000 lines/s; no log type comes near the 1 hour limit
 - Processed data: russellmitchell 44 MB, santos 57 MB; `prepare` takes about 20 s per testbed
-- Chosen hyperparameters (q, gap_minutes, LOF k, ...): —
+- Chosen hyperparameters, on russellmitchell only: `q` 0.999, `gap_minutes` 30. LOF k stays 35, capped by distinct rows (D31). Grid in `reports/results/tuning_dev.csv`
 - Disk usage of raw data: 17 GB in `data/raw` (zips 16 GB; extracted russellmitchell 113 MB, santos 148 MB, ait_ads 189 MB). Archives hold 15.0 GB and 17.7 GB unpacked; extraction takes 127 of 14,911 and 121 of 14,908 members
 - Real paths: `dataset.yaml` (keys `name`, `start`, `end`); labels at `labels/<host>/logs/<path>`, one per log at `gather/<host>/logs/<path>`; phases in `data/raw/ait_ads/labels.csv`; alerts in `data/raw/ait_ads/<testbed>_{aminer,wazuh}.json`
 - Labeled files (8 per testbed): `inet-firewall/logs/dnsmasq.log`, `intranet_server/logs/auth.log`, `intranet_server/logs/audit/audit.log`, `internal_share/logs/audit/audit.log`, `vpn/logs/openvpn.log`, `intranet_server/logs/apache2/intranet.smith.<testbed>.com-{access,error}.log` (with suffix `.2` on russellmitchell, none on santos), `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log`
@@ -60,6 +60,13 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 - M3 label gap: unlabeled exfiltration on `inet-dns` 53,052 and 38,559 lines; unlabeled attacker-address lines inside phase windows 50–513 and 2–625 (low: external address, high: adds the shared tunnel address); unlabeled attacker stderr lines 3,847 on each testbed
 - M3 DNS contamination of training: 21.6% and 26.0% of `inet-firewall` DNS lines (hourly up to 45.5% and 90.2%), in every training hour
 - M3 IDS alerts/day in the evaluation period: russellmitchell 15,704, santos 30,774. Budget 25 incidents/day, so a reduction of 99.84% and 99.92%
+- M5 phase recall, primary: russellmitchell 6 of 10, santos 5 of 9 (needs 8 of 9). Missed on santos: `cracking`, `dnsteal_exfil`, `network_scans`, `service_stop`; on russellmitchell: `dnsteal`, `dnsteal_exfil`, `network_scans`, `service_stop`
+- M5 phase recall without `dnsteal_exfil`: russellmitchell 6 of 9, santos 5 of 8. No phase is credited through DNS windows alone on either testbed
+- M5 incidents: russellmitchell 7 (3.73 per day, 24 anomalous windows), santos 3 (1.11 per day, 5 anomalous windows); budget 25 per day
+- M5 windows, pooled, without label-ambiguous windows: russellmitchell P 0.167, R 0.002, F1 0.004, PR-AUC 0.146; santos P 0.600, R 0.002, F1 0.004, PR-AUC 0.117. Recall is low because exfiltration windows are most attack windows
+- M5 `apache_access`: russellmitchell P 0.600, R 0.750, F1 0.667, PR-AUC 0.574; santos P 0.667, R 0.500, F1 0.571, PR-AUC 0.817
+- M5 `dns`, reported separately (D16): 0 anomalous windows on both. PR-AUC 0.737 at attack share 0.859 on russellmitchell, 0.341 at 0.490 on santos
+- M5 secondary, unclipped, used for no selection: russellmitchell 6 of 10, 7.47 incidents per day, 17 `dns` windows, 0 true; santos 7 of 9, 1.11 per day, 1,012 `dns` windows, 5 true, with `network_scans` and `cracking` credited through DNS alone
 - M4 windows (fit/calib/eval), russellmitchell: `apache_access` 4,172/1,264/3,458, `apache_error` 5/0/11, `audit` 1,393/209/1,514, `auth` 1,136/272/1,249, `dns` 4,896/1,226/4,855, `vpn` 119/24/157
 - M4 windows (fit/calib/eval), santos: `apache_access` 1,832/83/5,632, `apache_error` 0/3/9, `audit` 993/164/2,730, `auth` 692/176/1,798, `dns` 3,002/750/5,949, `vpn` 77/7/227
 - M4 windows hold every parsed line and no other: `parse_ok=False` lines left out are 4,763 on russellmitchell and 4,723 on santos, all `apache_error`
@@ -69,6 +76,9 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 
 ## Decision log
 Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the approved design decisions in plan §2.
+- 2026-11-06 · M5 · Measured: the `dnsteal_exfil` expectation held on both testbeds · It is missed, no DNS window passes `q`, and exfiltration windows rank worse than chance: DNS PR-AUC is below the attack share, and their median score is below that of other DNS windows, 0.473 against 0.811 on russellmitchell and 0.534 against 0.811 on santos. The target and the denominator are unchanged · `03_ml_models.ipynb` §5
+- 2026-11-06 · M5 · Measured: the D29 risk is real · Without the clip santos reaches 7 of 9, but the 2 extra phases come only from DNS windows flagged after the tunnel stops: all 1,012 flagged `inet-firewall` windows come after 07:16 on 01-16, and 5 hold a labeled line. This was not used for any choice; `q` and the gap were fixed on russellmitchell before santos was scored · `03_ml_models.ipynb` §6
+- 2026-11-06 · M5 · Chose `q` 0.999 and `gap_minutes` 30 on russellmitchell by the §6.5 rule and reused them unchanged on santos · Only `q` 0.999 fits 25 incidents per day; the next value, 0.995, gives 53–57. All four gaps tie at 6 of 10 phases, and 30 gives the fewest incidents · `reports/results/tuning_dev.csv`
 - 2026-11-06 · M5 · D31 · LOF is fit on the distinct rows of the fit windows, with `n_neighbors` capped at their number minus one; §6.4 updated. Same rule on both testbeds, no labels. The first dev tuning run, with plain LOF, is discarded: it chose `q=0.999`, `gap=5`, with 1 of 10 phases and 3 incidents · Quiet minutes give identical windows, and with more copies of a row than neighbors its density is near infinite, so ordinary windows next to it score around 1e10. On russellmitchell this put an ordinary 6.1% of `apache_access` calib windows above LOF 100, so a burst of thousands of requests, at 8.6, got `pct_lof` 0.94. That capped apache scores near 0.98. The dev grid exposed it, by jumping from 2 to 9 phases between `q` 0.98 and 0.97; the fault and the fix are visible in raw training scores alone · russellmitchell fit rows and distinct rows: `apache_access` 4,172/1,364, `audit` 1,393/46, `auth` 1,136/13, `dns` 4,896/3,697, `vpn` 119/9. Calib LOF maximum before and after: `apache_access` 1.6e10/2.2, `audit` 9.3e9/1.05, `auth` 7.8e9/1.0, `vpn` 5.6e9/1.0, `dns` 53.6/41.5
 - 2026-11-06 · M5 · D30 · Incidents are built from eval windows only; §6.6 updated · §6.6 said "anomalous windows" without a period, and a fit or calib window is not an honest detection: the models saw it or it set their percentile scale. Incidents/day already divides by the evaluation period · `tests/test_detect.py`
 - 2026-11-06 · M5 · `ml/detect.py` holds the `detect` pipeline and `eval/detection.py` the results of a run; §12 updated · `detect` must sit under the §5.2 scan, so it lives in `ml/`. `eval.duckdb` is rebuilt by `prepare.refresh_databases`, called from the CLI, because `ml/` may not name it. `prepare` deletes old scores and incidents, which would no longer match the windows · `tests/test_isolation.py`
@@ -127,12 +137,14 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 ## Open questions
 (Things that need a human decision. Keep working on other parts meanwhile.)
 - M7, label isolation: a read-only connection to `agent.duckdb` can still read `labels.parquet` and `phases_*.csv` with `read_parquet` and `read_csv` (61,813 and 47,323 rows returned). The planned SQL guard list does not stop a plain `SELECT` from a table function. Nothing leaks yet because no agent exists. Decide the guard before M7 tools are written, e.g. block file-reading functions or allow only the views.
+- `q` grid: the chosen point uses about 15% of the budget on russellmitchell and 4% on santos, because the §6.5 grid has nothing between 0.995 (53–57 incidents per day on dev) and 0.999 (3.7–4.8). A finer grid might recover phases, but santos has now been scored, so changing it needs a human decision. Nothing was changed.
 - M5, calibration and DNS baseline: decided, see D27 and D29. Kept here because the frozen `reports/targets.md` points to this section.
 - M10: DuckDB views use paths relative to the repository root, so Docker and the app must run from there or rebuild the views.
 - Other labeled log types: only `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log` (49 labeled lines on russellmitchell, 44 on santos, raw labels include `crack_passwords` and `escalate`), left unprocessed. Syslog and Suricata files exist but have no label files.
 
 ## Session log
 Format: `YYYY-MM-DD · milestone · what was done · next`.
+- 2026-11-06 · M5 · Checked the `n_execve*` drops and the DNS mechanism; recorded D27–D29 before tuning; models, calibration, incidents, `detect`, dev tuning, figures and the first part of `03_ml_models.ipynb` done; fixed LOF on duplicated windows (D31); plan changed by D28–D31 · Start M6 on `m6-supervised`
 - 2026-11-05 · M4 · Isolation scan extended, UTC on every DuckDB connection, D14 and D15 applied, DNS qname features, windows, vocabularies and scalers built in `prepare` for both testbeds, `02_preparation.ipynb` executed; plan changed by D22–D26 · Start M5 on `m5-detect`
 - 2026-11-05 · M3 · `01_eda.ipynb`, `logtriage.eval` EDA and IDS code, gold mapping and `reports/targets.md` done; budget fixed at 25; targets frozen; plan changed by D16–D21; `CLAUDE.md` versioned · Start M4 on `m4-features`
 - 2026-11-05 · M2 audit · Audited M1 and M2 (`reports/audit_m2.md`), fixed 2 parser bugs, a plan marker and a status claim, recorded D14–D15, added 6 open questions · Start M3 on `m3-eda`
