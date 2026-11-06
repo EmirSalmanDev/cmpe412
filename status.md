@@ -4,9 +4,9 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** M11 — Evaluation (not started)
-- **Branch:** —
-- **Next step:** Create branch `m11-eval` and read the plan sections listed in §13.
+- **Current milestone:** M10b — Extra test testbeds (preparation only, no scoring)
+- **Branch:** `m10b-testbeds`
+- **Next step:** Disk check, plan change, guards, then acquire `wardbeck` and `harrison`.
 - **Blockers:** none
 
 ## Milestones
@@ -21,6 +21,7 @@ Format rules: newest entries first in the logs; numbers with their testbed; link
 - [x] M8 Agent graph
 - [x] M9 Chat, dashboard, replay
 - [x] M10 Docker
+- [ ] M10b Extra test testbeds
 - [ ] M11 Evaluation
 - [ ] M12 Stretch (optional)
 - [ ] M13 Finalize
@@ -119,6 +120,7 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 
 ## Decision log
 Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the approved design decisions in plan §2.
+- 2026-11-06 · M10b · D55 · **Testbed selection, committed before anything was downloaded: `wardbeck` and `harrison` become extra test testbeds.** Zenodo record 5789064 lists 8 zips: fox, harrison, russellmitchell, santos, shaw, wardbeck, wheeler, wilson. Without russellmitchell and santos, `random.Random(42).shuffle` of the sorted names gives **wardbeck, harrison, shaw, wheeler, fox, wilson** (same order on the project's Python 3.11.4 and on 3.14.6). Candidates were checked in that order and the check stopped at the second feasible one. wardbeck: feasible, `dataset.yaml` yes, `labels/` 8 files, all six log families under `gather/<host>/logs` (`apache_access` 30 files, `apache_error` 25, `auth` 22, `dns` 2, `audit` 7, `vpn` 1), 10 rows in AIT-ADS `labels.csv`. harrison: feasible, `dataset.yaml` yes, `labels/` 8 files, the same families (32, 25, 20, 2, 7, 1), 10 rows. shaw, wheeler, fox, wilson: not checked, not needed; no candidate was skipped · The user decided to choose before seeing any result, so that the choice can favour nothing. Selection used names, sizes and a row count only: no label content, alert count or detection output · Zip central directories read by HTTP range requests, about 2.4 MB per zip, no member content; `labels.csv` read for row counts per scenario only; the zips are 17.16 GB and 16.77 GB, not the 8 GB assumed in the brief
 - 2026-11-06 · M10 · D54 · Packaging and compose choices; §3, §9.2 and §12 updated. torch is a direct dependency with `[tool.uv.sources]`, because uv applies sources to direct dependencies only; the CPU index applies to all Linux, so CI too, and macOS and Windows keep the PyPI wheel. This removes 19 CUDA and Triton packages from the lock and changes no other version. The image skips `nvidia-nccl-cu12`, which XGBoost asks for on Linux, and XGBoost fits without it. Port published as `127.0.0.1:8501:8501`, since a bare `8501:8501` would open the dashboard to the whole network, against D50. `.env` is `required: false`, because a clean clone has none and `up` would fail; the plan said only "env file". `LOGTRIAGE_APP__HOST` is also in compose `environment`, which beats `.env`. `LOGTRIAGE_TESTBED` picks the testbed, santos by default. Runs as user `app`, uid 1000, so on Linux `data/cache` must be writable by it. `data_meta/` is in the image, because `prepare` reads it there; it holds phase rows, but no module the app loads opens it · The M10 acceptance needs a clean clone to start, and the CPU wheel needs the direct dependency · Lock diff, M10 results in Key results; image 3.82 GB, 4.66 GB with NCCL
 - 2026-11-06 · M10 · D53 · `check_test_run` refuses the test testbed where `/etc/logtriage-container` exists, before any other check and whatever `--rerun-reason` says. The Dockerfile writes that file as root; the app runs as `app`, which cannot delete it. `app --live` stays refused by D51; both routes end in `run_incidents`, so this also backs up D51. Only someone who rebuilds the image or starts it as root gets past it. §9.2 updated · The brief says the container must make no santos investigation possible, and `--rerun-reason` lifts the once-only guard. A file, not a setting, because the environment and `configs/` can be changed by hand, as D51 noted · `tests/test_runner.py`, `tests/test_docker.py`, real container runs in Key results
 - 2026-11-06 · M10 · D52 · The embedding model is baked into the image, not mounted, and `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1` are set. Added `rag.embedding_revision`, which `BgeEmbedder` now passes on; on the host it loads the same files as before. Dockerfile build arguments repeat the name and revision so the layer stays cached, and `tests/test_docker.py` keeps them equal to the config. ONNX, OpenVINO and `pytorch_model.bin` are not downloaded. §8.1 and §9.2 updated · A mount would tie `up` to a cache in one place on one machine, and 130 MB is small next to the image. The revision was recorded but never pinned, and a download by hash writes no `refs/main`, so an offline load of the bare name would fail · Key results; retrieval unchanged: same top 5 in the container as in D43
