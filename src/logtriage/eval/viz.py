@@ -419,3 +419,31 @@ def plot_window_embedding(
     figure.suptitle(title, x=0.02, ha="left", fontsize=11, color=INK)
     figure.tight_layout(rect=(0, 0.1, 1, 0.97))
     return _finish(figure, path)
+
+
+def plot_feature_importance(
+    table: pd.DataFrame, title: str, top: int, path: Path | None = None
+) -> Figure:
+    """Draw the top features of each model side by side, on one shared scale.
+
+    Args:
+        table: Rows of `supervised_importance.csv` for one log type.
+        title: Figure title.
+        top: Features shown per model.
+        path: PNG file to write, if any.
+
+    Returns:
+        The figure.
+    """
+    names = list(table["model"].unique())
+    figure, panels = plt.subplots(1, len(names), figsize=(9, 3.6), sharex=True, squeeze=False)
+    for axes, name in zip(panels[0], names, strict=True):
+        rows = table[table["model"] == name].nlargest(top, "importance").iloc[::-1]
+        axes.barh(rows["feature"], rows["importance"], height=0.55, color=SERIES)
+        _style(axes, grid="x")
+        axes.set_title(name.upper(), color=INK, fontsize=10, loc="left")
+        axes.set_xlabel("share of importance", color=INK_SECONDARY, fontsize=8)
+        axes.set_xlim(0, 1)
+    figure.suptitle(title, color=INK, fontsize=11, x=0.01, ha="left")
+    figure.tight_layout()
+    return _finish(figure, path)

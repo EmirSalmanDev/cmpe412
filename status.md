@@ -4,9 +4,9 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** M6 — Supervised reference (in progress)
-- **Branch:** `m6-supervised`
-- **Next step:** Implement `ml/supervised.py`, run dev OOF, commit it, then score santos once (D39).
+- **Current milestone:** M7 — ATT&CK index and agent tools (not started)
+- **Branch:** —
+- **Next step:** Create branch `m7-tools`. Decide the `agent.duckdb` guard first (Open questions).
 - **Blockers:** none
 
 ## Milestones
@@ -16,7 +16,7 @@ Format rules: newest entries first in the logs; numbers with their testbed; link
 - [x] M3 EDA and frozen targets
 - [x] M4 Windows and features
 - [x] M5 Anomaly detection and incidents
-- [ ] M6 Supervised reference
+- [x] M6 Supervised reference
 - [ ] M7 ATT&CK index and agent tools (may start after M2)
 - [ ] M8 Agent graph
 - [ ] M9 Chat, dashboard, replay
@@ -40,10 +40,18 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 - Real paths: `dataset.yaml` (keys `name`, `start`, `end`); labels at `labels/<host>/logs/<path>`, one per log at `gather/<host>/logs/<path>`; phases in `data/raw/ait_ads/labels.csv`; alerts in `data/raw/ait_ads/<testbed>_{aminer,wazuh}.json`
 - Labeled files (8 per testbed): `inet-firewall/logs/dnsmasq.log`, `intranet_server/logs/auth.log`, `intranet_server/logs/audit/audit.log`, `internal_share/logs/audit/audit.log`, `vpn/logs/openvpn.log`, `intranet_server/logs/apache2/intranet.smith.<testbed>.com-{access,error}.log` (with suffix `.2` on russellmitchell, none on santos), `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log`
 - Git remote: origin, https://github.com/EmirSalmanDev/cmpe412.git
+- macOS: XGBoost needs `brew install libomp` (in the README). scikit-learn's bundled copy cannot stand in, its install name differs. CI runs on Ubuntu and is not affected
+- M11 must report in `reports/results.md`: the unused incident budget, about 15% used on russellmitchell and 4% on santos (`q` decision in the Decision log)
 - Frozen targets: the reference is tag `targets-frozen` (`3684424`), not `m3-done`; M11 must repeat the freeze reference note from the Decision log in `reports/results.md`
 
 ## Key results
 (Add headline numbers per milestone, e.g. "M5 santos: phase recall 7/9, 18 incidents/day".)
+- M6 santos `dns` (primary, 2,952 windows, 1,446 positives, attack share 0.490): ensemble PR-AUC 0.341, flags 0; RF PR-AUC 0.999, P 0.998, R 0.997, F1 0.997; XGB PR-AUC 0.994, P 0.996, R 0.997, F1 0.996
+- M6 not trainable, reported n/a: `apache_access`, `audit`, `auth`, `vpn` (dev positives 4, 3, 2, 1), and so `pooled` for RF and XGB. `pooled_trained` equals the `dns` row. Ensemble on santos, for reference: PR-AUC 0.817, 0.505, 0.125, 0.200, pooled 0.117
+- M6 dev OOF, `dns`, k = 5, no block dropped: RF threshold 0.8667, F1 0.9998; XGB 0.9957, F1 0.9991. Optimistic: the dev series changes class once
+- M6 it is a tunnel detector: the 1,441 hits are exactly the exfiltration-only windows; 0 of the 5 other `dns` positives are found (RF PR-AUC 0.027, XGB 0.003 at attack share 0.003). XGB gain is 100% `max_label_entropy`; RF 33% that, 27% `max_label_len`, 17% `mean_qname_len`
+- M6 secondary: with label-ambiguous windows `dns` precision is 0.499 (RF) and 0.498 (XGB), because RF flags 1,442 of 2,997 `inet-dns` windows, 3 after the tunnel stopped; all dev periods RF PR-AUC 0.999, F1 0.998, XGB unchanged
+- M6 window-level phases on santos, not comparable to phase recall: ensemble 5 of 9, RF and XGB 1 of 9 (`dnsteal_exfil` only); without exfiltration 5 of 8 and 0 of 8
 - M1 russellmitchell: 118 files, 710,583 lines, 61,862 labeled lines, 53,056 of them `dnsteal`
 - M1 santos: 112 files, 860,215 lines, 47,367 labeled lines, 38,563 of them `dnsteal`
 - M2 parse rate: 100% of log records in every file (russellmitchell 82 files, santos 74). Left out of the rate (D12): 4,757 and 4,717 stderr lines, 6 blank lines each
@@ -76,6 +84,7 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 
 ## Decision log
 Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the approved design decisions in plan §2.
+- 2026-11-06 · M6 · D40 · Santos was scored by the frozen models three times, not once; only the first run is the result. Run 1 (commit `5d69553`) is the official run. Run 2 was an ad hoc script that re-predicted santos to name the wrong windows, done without a logged reason before this entry, and it should have gone through the guard. Run 3 used `--rerun-reason` to write `supervised_santos_errors.csv`, so that no further re-scoring is needed. Nothing changed between runs: same config hash `753b5c2b46e1`, same thresholds, no choice depends on them · D39 asks for a logged reason, and run 2 had none when it happened · Run 3 left `supervised_santos.csv` and `supervised_santos_phases.csv` byte-identical to commit `5d69553`; run 2 printed the same counts (1,441 true positives, 3 RF and 6 XGB false positives)
 - 2026-11-06 · M6 · D39 · Order of the supervised run: dev OOF and thresholds, then `reports/results/supervised_dev_oof.csv`, commit with the config frozen, then the santos eval period is scored once. `logtriage.ml.supervised` refuses a second santos run without a `--rerun-reason`, and refuses a config that differs from the one the thresholds came from; a re-run also needs an entry here · Nothing may be tuned on santos, and the guard makes that mechanical instead of a habit · §6.7
 - 2026-11-06 · M6 · D38 · `pooled` stays the §10.2 scope, all five types. RF and XGB have no value there while any type is not trainable: scoring those windows as 0 would be a fallback. A second row, `pooled_trained`, compares all methods on the same windows of the types that have a model. Today that is `dns` alone, so `pooled_trained` equals the `dns` row and says nothing about the other four. Label-ambiguous windows in the secondary number are a test-metric change only (D17), the models stay trained without them · A pooled RF number over one type next to an ensemble number over five would compare different windows · Audit: 4 of 5 types not trainable (D37)
 - 2026-11-06 · M6 · D37 · Threshold: argmax F1 on pooled time-blocked OOF predictions on dev; ties go to the higher threshold, so fewer flags, as in §6.5. `cv_blocks` 5, `purge_minutes` 30 around the held-out block. **Default changed:** blocks are cut per class. The windows of each class, in time order, are split into 5 contiguous equal-count slices, and fold i holds out slice i of both classes; training rows within 30 minutes of either held-out span are purged. A fold is dropped, and k reduced and logged, if its held-out part has no positive or its training part lacks a class. A type with fewer than 5 dev positives is "not trainable" and reported n/a, with no fallback; so is a type left with no fold. §6.7 updated · Plain blocks fail on `dns`, the only type that reaches 5 positives: holding out the block with the negatives leaves a training set of one class, and no negative ever gets an OOF score, so F1 cannot pick a threshold. The negatives cannot be spread by a different cut of plain blocks, because the dev series changes class once. The held-out parts stay contiguous and purged, so no neighbouring window leaks. Limit that stays: every negative comes from one 10-hour evening stretch, so dev OOF is optimistic about santos · `reports/audit_m6.md`, `dns` calib+eval on `inet-firewall`: 2,705 positives, 343 negatives, negatives per equal-count block 0/0/0/0/343 (equal-time the same), last positive 01-24 13:52, first negative 13:54. Dev positives per type: `dns` 2,705, `apache_access` 4, `audit` 3, `auth` 2, `vpn` 1, so the last four are not trainable. Positives of each of those lie in one or two blocks and within minutes (`apache_access` 03:56–03:59, `auth` 04:37–04:38), so they could not get an OOF threshold under any k
@@ -152,6 +161,7 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 
 ## Session log
 Format: `YYYY-MM-DD · milestone · what was done · next`.
+- 2026-11-06 · M6 · `q` grid decided; read-only audit (`reports/audit_m6.md`); D32–D40 logged, D32–D39 before training; `ml/supervised.py`, dev OOF, one official santos run, importance, errors, `03_ml_models.ipynb` finished; `brew install libomp` on this machine; plan changed by D32–D39 · Start M7 on `m7-tools`
 - 2026-11-06 · M5 · Checked the `n_execve*` drops and the DNS mechanism; recorded D27–D29 before tuning; models, calibration, incidents, `detect`, dev tuning, figures and the first part of `03_ml_models.ipynb` done; fixed LOF on duplicated windows (D31); plan changed by D28–D31 · Start M6 on `m6-supervised`
 - 2026-11-05 · M4 · Isolation scan extended, UTC on every DuckDB connection, D14 and D15 applied, DNS qname features, windows, vocabularies and scalers built in `prepare` for both testbeds, `02_preparation.ipynb` executed; plan changed by D22–D26 · Start M5 on `m5-detect`
 - 2026-11-05 · M3 · `01_eda.ipynb`, `logtriage.eval` EDA and IDS code, gold mapping and `reports/targets.md` done; budget fixed at 25; targets frozen; plan changed by D16–D21; `CLAUDE.md` versioned · Start M4 on `m4-features`

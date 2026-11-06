@@ -23,6 +23,7 @@ from logtriage.ml.supervised import (
     config_hash,
     dev_results,
     dev_row,
+    error_windows,
     flagged_phases,
     fold_split,
     importance_table,
@@ -293,6 +294,22 @@ def test_phase_rows_report_with_and_without_exfiltration() -> None:
     assert rows.loc["all_phases", "phases"] == 3
     assert rows.loc["without_exfil", "phases_flagged"] == 1
     assert rows.loc["without_exfil", "not_flagged"] == "wpscan"
+
+
+def test_error_windows_name_misses_and_false_positives_of_any_model() -> None:
+    labels = [True, True, False, False]
+    first = scored(labels, [True, False, False, False], "dns")
+    second = scored(labels, [True, True, False, True], "dns")
+    table = error_windows({"rf": first, "xgb": second})
+    assert table["kind"].tolist() == ["missed", "false_positive"]
+    assert table["rf_flag"].tolist() == [False, False]
+    assert table["xgb_flag"].tolist() == [True, True]
+
+
+def test_error_windows_leave_out_label_ambiguous_windows() -> None:
+    labels = [True, False]
+    first = scored(labels, [True, True], "dns").assign(is_ambiguous=[False, True])
+    assert error_windows({"rf": first, "xgb": first}).empty
 
 
 def test_thresholds_come_from_the_requested_variant() -> None:

@@ -41,6 +41,8 @@ OOF_FILE = "supervised_dev_oof.csv"
 TEST_FILE = "supervised_santos.csv"
 PHASES_FILE = "supervised_santos_phases.csv"
 IMPORTANCE_FILE = "supervised_importance.csv"
+ERRORS_FILE = "supervised_santos_errors.csv"
+ERROR_FEATURES = ["n_queries", "max_label_len", "max_label_entropy", "mean_qname_len"]
 
 ENSEMBLE = "ensemble"
 MODELS = ("rf", "xgb")
@@ -497,6 +499,33 @@ def phase_rows(tables: dict[tuple[str, str], pd.DataFrame], counted: list[str]) 
     return pd.DataFrame(rows)
 
 
+def error_windows(models: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Return the windows any model got wrong, without label-ambiguous windows.
+
+    Args:
+        models: Scored windows of each model, over the same log types.
+
+    Returns:
+        One row per window: key, `kind` (`missed` or `false_positive`), phases, the score and flag
+        of each model, and the raw features in `ERROR_FEATURES` that the log type has.
+    """
+    key = ["host", "log_type", "window_start"]
+    first = next(iter(models.values()))
+    kept = [*key, "is_attack", "phases", *first.columns.intersection(ERROR_FEATURES)]
+    table = first[kept]
+    for name, part in models.items():
+        flags = part[[*key, "score", "is_anomalous"]].rename(
+            columns={"score": f"{name}_score", "is_anomalous": f"{name}_flag"}
+        )
+        table = table.merge(flags, on=key)
+    flagged = [f"{name}_flag" for name in models]
+    wrong = table[flagged].ne(table["is_attack"], axis=0).any(axis=1)
+    table = table[wrong & ~first["is_ambiguous"].to_numpy()].sort_values("window_start")
+    kind = table["is_attack"].map({True: "missed", False: "false_positive"})
+    table = table.assign(kind=kind, phases=table["phases"].map(" ".join))
+    return table.drop(columns="is_attack")
+
+
 def with_thresholds(table: pd.DataFrame, dev_rows: pd.DataFrame, variant: str) -> pd.DataFrame:
     """Add the frozen threshold of each model and log type to a results table."""
     chosen = dev_rows.loc[
@@ -632,6 +661,8 @@ def run_test(settings: Settings, rerun_reason: str | None = None) -> Path:
     methods[(ENSEMBLE, " ".join(covered))] = ensemble[ensemble["log_type"].isin(covered)]
     methods |= {(name, " ".join(covered)): part for name, part in primary.items()}
     phase_rows(methods, context.counted).to_csv(results / PHASES_FILE, index=False)
+    if primary:
+        error_windows(primary).to_csv(results / ERRORS_FILE, index=False)
     return results / TEST_FILE
 
 
