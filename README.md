@@ -42,6 +42,25 @@ uv run logtriage app --testbed santos
 
 Opens the Incidents, Incident detail, Chat and Monitoring pages on http://127.0.0.1:8501. Turn on **Replay mode** in the sidebar to watch incidents close on a simulated clock (60×, 600× or 3600×). The chat needs `DEEPSEEK_API_KEY`, and it spends real money under the limits `llm.max_usd_per_run` and `llm.max_usd_total`. `--live` computes missing reports during a replay; it is refused on santos, which runs the agents once only.
 
+## Docker
+
+You need Docker with Compose 2.24 or later, and `data/processed/` and `data/index/` from the commands above; the image holds no data. On a clean clone with `data/` in place:
+
+```
+docker compose up
+```
+
+The first run builds the image, about 3.8 GB, which needs network. Then open http://localhost:8501. The dashboard shows santos; to see the dev testbed, set `LOGTRIAGE_TESTBED=russellmitchell` in the environment or in `.env`. Stop it with `docker compose down`.
+
+- **Port:** it is published on the loopback of the host only, because the dashboard shows logs and spends API money. If 8501 is taken, for example by a local `logtriage app`, `up` fails with "address already in use".
+- **Key:** `.env` is optional. Without `DEEPSEEK_API_KEY` every page works, and the chat shows its history but does not answer. The key reaches the container as an environment variable; it is never in the image.
+- **Network:** a running container needs none, except the chat to reach the LLM. The embedding model is in the image and Hugging Face offline mode is on.
+- **Writes:** the chat writes to `data/cache/`, so on Linux that folder must be writable by user id 1000, which the container runs as.
+- **Building data** stays a command-line job: `docker compose run --rm app logtriage prepare --testbed russellmitchell`, or run it locally.
+- **Santos:** the container never runs the agents on it. `investigate` refuses, even with `--rerun-reason`, and so does `app --live`.
+
+## Settings
+
 Settings live in `configs/default.yaml`. Override them with `LOGTRIAGE_`-prefixed variables in the environment or `.env`, using `__` between nested keys, for example `LOGTRIAGE_SEED=7`. The environment wins over `.env`, and `.env` wins over the YAML file.
 
 ## Development

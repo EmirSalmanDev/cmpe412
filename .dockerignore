@@ -1,0 +1,30 @@
+# Secrets and data never enter the build context. Patterns here match from the root only,
+# so `data` leaves the package `src/logtriage/data` in place.
+.env
+.env.*
+data
+.git
+.github
+
+.venv
+.pytest_cache
+.ruff_cache
+**/__pycache__
+**/*.py[cod]
+**/.ipynb_checkpoints
+**/.DS_Store
+
+*.sqlite
+*.parquet
+*.duckdb
+*.zip
+
+notebooks
+reports
+tests
+CLAUDE.md
+plan.md
+status.md
+Dockerfile
+docker-compose.yml
+.dockerignore

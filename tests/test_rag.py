@@ -1,14 +1,18 @@
 """ATT&CK index and incident memory (plan 8), with a fake embedder: no model, no network."""
 
 import shutil
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from logtriage.config import RagConfig, Settings
 from logtriage.rag.attack_index import (
     AttackIndex,
+    BgeEmbedder,
     bm25_scores,
     build_index,
     clean_text,
@@ -30,6 +34,20 @@ START = datetime(2022, 1, 16, 7, 0, tzinfo=UTC)
 def store(tmp_path: Path) -> IncidentStore:
     client = open_client(tmp_path)
     return IncidentStore(cosine_collection(client, "incidents"), FakeEmbedder())
+
+
+def test_the_embedder_loads_the_pinned_revision(monkeypatch: pytest.MonkeyPatch) -> None:
+    loaded: list[tuple[str, Any]] = []
+
+    def load(name: str, revision: str | None = None) -> str:
+        loaded.append((name, revision))
+        return "model"
+
+    fake = SimpleNamespace(SentenceTransformer=load)
+    monkeypatch.setitem(sys.modules, "sentence_transformers", fake)
+    config = RagConfig(embedding_model="org/model", embedding_revision="abc123")
+    assert BgeEmbedder(config).model == "model"
+    assert loaded == [("org/model", "abc123")]
 
 
 def test_clean_text_removes_citations_links_and_tags() -> None:

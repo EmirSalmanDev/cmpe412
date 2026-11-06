@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 REPORTS_DIR = "reports"
 RUN_FILE = "run_summary.json"
+# Written by the Dockerfile. A file, because an environment variable can be set by hand (D51, D53).
+CONTAINER_MARKER = Path("/etc/logtriage-container")
 RECURSION_LIMIT = 50
 ROW_FIELDS = (
     "incident_id", "verdict", "confidence", "claims", "summary_claims", "timeline_claims",
@@ -131,10 +133,13 @@ def check_test_run(
     """Allow a run on the test testbed only with frozen prompts, and once (status.md, M8).
 
     Raises:
-        ValueError: If the prompts are not frozen, or the run would repeat without a reason.
+        ValueError: In the container, whatever the reason given (D53). Elsewhere, if the prompts
+            are not frozen, or the run would repeat without a reason.
     """
     if testbed != TEST_TESTBED:
         return
+    if CONTAINER_MARKER.exists():
+        raise ValueError(f"{testbed}: the container never runs the agents on the test testbed")
     if not settings.agents.prompts_frozen:
         raise ValueError(f"{testbed}: freeze the prompts first (agents.prompts_frozen)")
     if (reports_dir / RUN_FILE).exists() and not rerun_reason:

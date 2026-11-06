@@ -150,6 +150,8 @@ class RagConfig(BaseModel):
     """ATT&CK index and incident memory settings (plan 8)."""
 
     embedding_model: str = "BAAI/bge-small-en-v1.5"
+    # The Docker image holds this revision only, so an empty value cannot load there (D52).
+    embedding_revision: str | None = None
     query_prefix: str = "Represent this sentence for searching relevant passages: "
     attack_sha256: str = ""
     attack_version: str = ""

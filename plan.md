@@ -57,7 +57,7 @@ Further fixed choices:
 - Python 3.11, managed with **uv** (`uv sync`, `uv run ...`). If uv is missing: `pip install uv`.
 - Packaging: `pyproject.toml`, package `logtriage` in `src/logtriage/`, CLI entry point `logtriage` (Typer).
 - Core libs: pandas, pyarrow, duckdb, drain3, scikit-learn, xgboost, matplotlib, plotly, langgraph, langgraph-checkpoint-sqlite (changed: see status.md D49), langchain-core, langchain-openai, chromadb, sentence-transformers, pydantic v2, pyyaml, python-dotenv, streamlit, typer, tqdm.
-  Dev: pytest, ruff, nbstripout (optional), jupyter. Optional: torch (LSTM stretch goal, M12).
+  Dev: pytest, ruff, nbstripout (optional), jupyter. torch is a direct dependency, CPU-only on Linux, so that uv can pick its wheel; sentence-transformers needs it anyway (changed: see status.md D54).
 - Lint/format: ruff (line length 100). Type hints everywhere; no mypy gate.
 - Config: `configs/default.yaml` loaded by `logtriage.config` into a Pydantic settings object; env overrides via `.env` (see `.env.example`).
 - Secrets: only `DEEPSEEK_API_KEY` in `.env` (gitignored). Never print or log it.
@@ -407,7 +407,7 @@ The loop is a small LangGraph on `LLMClient`, not `create_react_agent`, so every
 
 - Use the pinned local `enterprise-attack.json` (`rag.attack_sha256`); `index-attack` downloads no bundle and refuses any other file. Its ATT&CK version is in status.md. Exclude revoked/deprecated objects (changed: see status.md D42).
 - Document per technique/sub-technique: `"{id} {name}. {description}"` (strip citations/markdown), metadata: id, name, tactics, is_subtechnique.
-- Embeddings: `sentence-transformers` `BAAI/bge-small-en-v1.5` (normalize; use the query instruction prefix for queries). Store in Chroma persistent at `data/index/chroma`, collection `attack`.
+- Embeddings: `sentence-transformers` `BAAI/bge-small-en-v1.5` at `rag.embedding_revision` (changed: see status.md D52) (normalize; use the query instruction prefix for queries). Store in Chroma persistent at `data/index/chroma`, collection `attack`.
 - Search fuses the dense ranking with a BM25 ranking (`k1` 1.5, `b` 0.75, lowercase alphanumeric tokens) by Reciprocal Rank Fusion (`k` 60, equal weights) (changed: see status.md D43).
 - Test: the gold IDs (§11) all exist in the index and are not revoked.
 
@@ -435,9 +435,11 @@ The UI never shows labels except on an optional "Evaluation" page clearly marked
 
 ### 9.2 Docker
 
-- `Dockerfile` (python:3.11-slim, uv, CPU-only torch wheel for sentence-transformers), `docker-compose.yml` with service `app` (Streamlit on 8501), volumes `./data:/app/data`, `./configs:/app/configs`, env file `.env`.
-- `docker compose up` MUST start the dashboard from existing processed data. The container needs `LOGTRIAGE_APP__HOST=0.0.0.0`, as `app.host` is local by default (changed: see status.md D50). Building data runs via the CLI (`docker compose run app logtriage prepare ...` or locally).
-- `agent.duckdb` holds tables, so it works from any working directory and mount point; `eval.duckdb` keeps paths relative to the repository root (changed: see status.md D41).
+- `Dockerfile` (python:3.11-slim, uv, CPU-only torch wheel for sentence-transformers), `docker-compose.yml` with service `app` (Streamlit on 8501, published on the host's loopback only), volumes `./data:/app/data`, `./configs:/app/configs`, env file `.env`, optional so that a clean clone starts (changed: see status.md D54). `.dockerignore` keeps `.env`, `data/` and `.git` out of the build context.
+- `docker compose up` MUST start the dashboard from existing processed data, for `LOGTRIAGE_TESTBED` (default santos). The container needs `LOGTRIAGE_APP__HOST=0.0.0.0`, as `app.host` is local by default (changed: see status.md D50). Building data runs via the CLI (`docker compose run app logtriage prepare ...` or locally).
+- The image holds the embedding model at `rag.embedding_revision` and sets offline mode, so `up` needs no network; only the chat needs it, to reach the LLM (changed: see status.md D52).
+- The container never runs the agents on the test testbed, even with `--rerun-reason`: `investigate` refuses it where `/etc/logtriage-container` exists (changed: see status.md D53).
+- `agent.duckdb` holds tables, so it works from any working directory and mount point; `eval.duckdb` keeps paths relative to the repository root, and the dashboard does not open it (changed: see status.md D41).
 
 ### 9.3 CLI (`logtriage/cli.py`)
 
@@ -525,7 +527,7 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 .
 ├── CLAUDE.md  plan.md  status.md  README.md
 ├── pyproject.toml  uv.lock  .gitignore  .env.example
-├── Dockerfile  docker-compose.yml
+├── Dockerfile  docker-compose.yml  .dockerignore
 ├── .github/workflows/ci.yml
 ├── configs/        default.yaml  sources.yaml  gold_attack_mapping.yaml
 ├── data_meta/      phases_<testbed>.csv            # small, committed
