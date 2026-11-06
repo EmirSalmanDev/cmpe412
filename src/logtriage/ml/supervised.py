@@ -625,6 +625,7 @@ def run_test(settings: Settings, rerun_reason: str | None = None) -> Path:
         ],
         ignore_index=True,
     )
+    table.loc[table["method"] == ENSEMBLE, "threshold"] = settings.ml.q
     table.to_csv(results / TEST_FILE, index=False)
     covered = sorted({name for part in primary.values() for name in part["log_type"]})
     methods = {(ENSEMBLE, " ".join(log_types)): ensemble}
