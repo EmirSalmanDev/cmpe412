@@ -4,13 +4,14 @@ import inspect
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 
 from logtriage.data.store import connect
-from logtriage.eval import tuning
-from logtriage.eval.detection import anomalous_by_hour
+from logtriage.eval import tuning, viz
+from logtriage.eval.detection import anomalous_by_hour, window_phase
 from logtriage.eval.metrics import (
     detected_phases,
     phase_credit,
@@ -203,6 +204,48 @@ def test_anomalous_by_hour_uses_eval_windows() -> None:
     assert table.loc[0, "apache_access"] == 0.5
     assert table.loc[1, "apache_access"] == 1.0
     assert "auth" not in table.columns
+
+
+@pytest.mark.parametrize(
+    ("phases", "name"),
+    [
+        (["dnsteal_exfil", "wpscan"], "wpscan"),
+        (["dnsteal_exfil"], "dnsteal_exfil"),
+        ([], None),
+    ],
+)
+def test_window_phase_prefers_the_phase_that_is_not_exfiltration(phases, name) -> None:
+    assert window_phase(phases) == name
+
+
+def test_score_timeline_draws_a_panel_per_host() -> None:
+    scores = pd.DataFrame(
+        {
+            "host": ["a", "a", "b"],
+            "window_start": [stamp(0), stamp(30), stamp(10)],
+            "score": [0.2, 0.999, 0.5],
+        }
+    )
+    intervals = pd.DataFrame(
+        {
+            "phase": ["dirb", "dnsteal_exfil"],
+            "start": [stamp(5), stamp(-100)],
+            "end": [stamp(9), stamp(20)],
+            "source": ["ait_ads:labels.csv", "attacker_0:dnsteal.log"],
+        }
+    )
+    figure = viz.plot_score_timeline(scores, intervals, 0.99, "title")
+    assert len(figure.axes) == 2
+    plt.close(figure)
+
+
+def test_window_embedding_keeps_every_attack_window() -> None:
+    matrix = np.random.default_rng(0).normal(size=(60, 4))
+    phases = pd.Series([None] * 50 + ["dirb"] * 5 + ["service_stop"] * 5)
+    figure = viz.plot_window_embedding(matrix, phases, "title", 1, max_normal=40)
+    points = sum(len(item.get_offsets()) for item in figure.axes[0].collections)
+    assert points == 50
+    plt.close(figure)
 
 
 def grid(*rows: tuple[float, int, float, int]) -> pd.DataFrame:

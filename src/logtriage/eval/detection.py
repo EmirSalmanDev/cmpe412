@@ -3,12 +3,15 @@
 from dataclasses import dataclass
 
 import duckdb
+import numpy as np
 import pandas as pd
 
 from logtriage.config import Settings
+from logtriage.data.features import SCALER_DIR, FeatureScaler
 from logtriage.data.periods import Periods
 from logtriage.eval import eda
 from logtriage.eval.metrics import (
+    EXFIL_PHASE,
     detected_phases,
     incidents_per_day,
     phase_credit,
@@ -101,3 +104,36 @@ def anomalous_by_hour(scores: pd.DataFrame) -> pd.DataFrame:
     table = scores[scores["period"] == "eval"]
     hours = table["window_start"].dt.hour.rename("hour_utc")
     return table.groupby([hours, "log_type"])["is_anomalous"].mean().unstack().round(4)
+
+
+def window_phase(phases: list[str]) -> str | None:
+    """Name one phase for a window, for coloring: exfiltration only if nothing else is there."""
+    others = [phase for phase in phases if phase != EXFIL_PHASE]
+    return (others or phases or [None])[0]
+
+
+def embedding_inputs(
+    testbed: str, log_type: str, truth: pd.DataFrame, settings: Settings
+) -> tuple[np.ndarray, pd.Series]:
+    """Return the scaled eval windows of a log type and the phase of each, for plan 6.8.
+
+    Args:
+        testbed: Testbed name.
+        log_type: Log type with a scaler.
+        truth: Output of `window_truth`.
+        settings: Loaded settings.
+
+    Returns:
+        The feature matrix and one phase or None per row.
+    """
+    directory = settings.paths.processed_dir / testbed
+    windows = pd.read_parquet(directory / f"windows_{log_type}.parquet")
+    windows = windows[windows["period"] == "eval"].reset_index(drop=True)
+    scaler = FeatureScaler.load(directory / SCALER_DIR / f"{log_type}.json")
+    merged = windows[["host", "log_type", "window_start"]].merge(
+        truth, how="left", on=["host", "log_type", "window_start"]
+    )
+    named = merged["phases"].map(
+        lambda value: window_phase(list(value)) if isinstance(value, list | np.ndarray) else None
+    )
+    return scaler.transform(windows), named
