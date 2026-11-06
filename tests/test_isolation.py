@@ -118,12 +118,33 @@ def test_the_agent_code_opens_only_the_locked_connection() -> None:
     """A plain connection could read any file, so agents and rag may not open one."""
     plain = re.compile(r"duckdb\.connect|\bimport\s+connect\b|\bstore\.connect\(")
     found = []
-    for directory in ("agents", "rag"):
+    for directory in ("agents", "rag", "app"):
         for path in sorted((PACKAGE / directory).rglob("*.py")):
             found += [
                 path.name for line in path.read_text("utf-8").splitlines() if plain.search(line)
             ]
     assert found == []
+
+
+def test_the_interface_reads_nothing_beside_the_agent_database() -> None:
+    """Its tables are the whole data source: no file of `data/`, and no period boundary."""
+    other = re.compile(r"read_parquet|\.parquet|periods|logtriage\.data\.(?!store\b)")
+    found = []
+    for path in sorted((PACKAGE / "app").rglob("*.py")):
+        found += [
+            f"{path.name}: {line}"
+            for line in path.read_text("utf-8").splitlines()
+            if other.search(line)
+        ]
+    assert found == []
+
+
+def test_the_scan_covers_the_interface_pages_and_the_chat() -> None:
+    scanned = [path.relative_to(PACKAGE).as_posix() for path in PACKAGE.rglob("*")]
+    for name in ("app/views/chat.py", "app/views/detail.py", "agents/chat.py"):
+        assert name in scanned
+        assert name not in ALLOWED
+    assert "agents/prompts/chat.md" in scanned
 
 
 def test_the_allowed_modules_exist() -> None:
