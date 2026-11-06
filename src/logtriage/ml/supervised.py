@@ -52,6 +52,7 @@ ENSEMBLE = "ensemble"
 MODELS = ("rf", "xgb")
 PRIMARY = "calib_eval"
 ALL_PERIODS = "all_dev_periods"
+UNSEEN_PREFIXES = ("n_unseen_", "ratio_unseen_")
 TRAINED = "trained"
 NOT_TRAINABLE = "not_trainable"
 NO_MODEL_FOR_ALL_TYPES = "no_model_for_all_types"
@@ -82,6 +83,39 @@ def shared_features(dev_report: dict, test_report: dict, log_type: str) -> list[
     """
     kept = set(test_report[log_type]["features"])
     return [name for name in dev_report[log_type]["features"] if name in kept]
+
+
+def zero_features(report: dict, features: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Return the frozen features a test testbed lacks because they are 0 on all its windows.
+
+    An "unseen" feature is 0 on every fit window by construction, and a column is dropped only
+    if it has one value over all periods (plan 6.3), so such a column is 0 throughout. Any other
+    gap would need a value nobody saved, so it stops the run before it is recorded (D59).
+
+    Args:
+        report: `features_report.json` of the test testbed.
+        features: Frozen columns of the log types with a trained model.
+
+    Returns:
+        The columns to restore as 0, per log type.
+
+    Raises:
+        ValueError: If a log type has no baseline, or a column is missing for another reason.
+    """
+    zeros = {}
+    for log_type, names in features.items():
+        entry = report[log_type]
+        if not entry["baseline_capable"]:
+            raise ValueError(f"{log_type}: no baseline on this testbed")
+        zeros[log_type] = [name for name in names if name not in entry["features"]]
+        unknown = [
+            name
+            for name in zeros[log_type]
+            if name not in entry["dropped_constant"] or not name.startswith(UNSEEN_PREFIXES)
+        ]
+        if unknown:
+            raise ValueError(f"{log_type}: frozen features without a known value: {unknown}")
+    return zeros
 
 
 def minutes_since_start(times: pd.Series) -> np.ndarray:
@@ -617,8 +651,8 @@ def run_test(
         The results file.
 
     Raises:
-        ValueError: If the testbed is no test testbed, may not be scored now, or the config
-            changed after the dev stage.
+        ValueError: If the testbed is no test testbed, may not be scored now, the config
+            changed after the dev stage, or it lacks a frozen feature of a trained model.
     """
     if not guards.is_test_testbed(testbed, settings):
         raise ValueError(f"{testbed}: not a test testbed")
@@ -630,8 +664,15 @@ def run_test(
     dev_rows = pd.read_csv(results / OOF_FILE)
     if set(dev_rows["config_hash"]) != {config_hash(settings, features)}:
         raise ValueError("the config changed after the dev stage (D39)")
+    trained = set(dev_rows.loc[dev_rows["status"] == TRAINED, "log_type"])
+    zeros = zero_features(
+        feature_report(testbed, settings), {name: features[name] for name in trained}
+    )
     guards.record_run(guards.SUPERVISED, testbed, settings, rerun_reason)
-    test = labeled_windows(testbed, settings)
+    test = {
+        name: table.assign(**dict.fromkeys(zeros.get(name, []), 0.0))
+        for name, table in labeled_windows(testbed, settings).items()
+    }
     periods = eda.testbed_periods(testbed, settings)
     with eda.connect(testbed, settings) as con:
         context = truth_context(con, periods, log_types, settings)

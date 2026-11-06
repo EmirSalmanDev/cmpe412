@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import duckdb
+import pandas as pd
 import pytest
 from typer.testing import CliRunner
 
@@ -15,8 +16,16 @@ from logtriage.app.replay import check_live
 from logtriage.cli import app
 from logtriage.config import DEV_TESTBED, TEST_TESTBED, Settings, load_settings
 from logtriage.ml import detect as detect_module
+from logtriage.ml import supervised as supervised_module
 from logtriage.ml.detect import INCIDENTS_FILE, SCORES_FILE, run_detect
-from logtriage.ml.supervised import TEST_FILE_PATTERN, run_dev, run_test
+from logtriage.ml.supervised import (
+    OOF_FILE,
+    TEST_FILE_PATTERN,
+    TRAINED,
+    config_hash,
+    run_dev,
+    run_test,
+)
 from test_detect import ML, make_windows, write_testbed
 
 ROOT = Path(__file__).parents[1]
@@ -171,6 +180,25 @@ def test_supervised_results_refuse_a_run_even_without_a_ledger_row(
     (results / TEST_FILE_PATTERN.format(testbed=testbed)).touch()
     with pytest.raises(ValueError, match="rerun-reason"):
         run_test(settings, testbed=testbed)
+
+
+@pytest.mark.parametrize("testbed", NEW_TESTBEDS)
+def test_a_missing_frozen_feature_stops_supervised_before_the_run_is_recorded(
+    testbed: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = settings_at(tmp_path)
+    features = {"dns": ["n_queries"]}
+    entry = {"baseline_capable": True, "features": [], "dropped_constant": []}
+    monkeypatch.setattr(supervised_module, "inputs", lambda _: ({}, features, ["dns"]))
+    monkeypatch.setattr(supervised_module, "feature_report", lambda *_: {"dns": entry})
+    results = settings.paths.reports_dir / "results"
+    results.mkdir(parents=True)
+    pd.DataFrame(
+        {"log_type": ["dns"], "status": [TRAINED], "config_hash": [config_hash(settings, features)]}
+    ).to_csv(results / OOF_FILE, index=False)
+    with pytest.raises(ValueError, match="without a known value"):
+        run_test(settings, testbed=testbed)
+    assert guards.recorded_runs(settings) == []
 
 
 def test_supervised_scores_test_testbeds_only(tmp_path: Path) -> None:

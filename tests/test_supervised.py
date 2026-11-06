@@ -36,6 +36,7 @@ from logtriage.ml.supervised import (
     training_rows,
     with_thresholds,
     without_exfil_only,
+    zero_features,
 )
 
 CONFIG = SupervisedConfig(rf_trees=10, xgb_trees=10)
@@ -344,3 +345,34 @@ def test_santos_is_refused_a_second_run_without_a_reason(tmp_path) -> None:
     with pytest.raises(FileExistsError):
         refuse_rerun(path, None)
     refuse_rerun(path, "a logged reason")
+
+
+def feature_entry(kept: list[str], dropped: list[str], capable: bool = True) -> dict:
+    return {"baseline_capable": capable, "features": kept, "dropped_constant": dropped}
+
+
+def test_a_dropped_unseen_feature_is_restored_as_zero() -> None:
+    report = {"dns": feature_entry(["n_queries"], ["n_unseen_templates", "ratio_unseen_templates"])}
+    frozen = {"dns": ["n_queries", "n_unseen_templates", "ratio_unseen_templates"]}
+    assert zero_features(report, frozen) == {
+        "dns": ["n_unseen_templates", "ratio_unseen_templates"]
+    }
+
+
+def test_a_testbed_with_every_frozen_feature_restores_nothing() -> None:
+    assert zero_features({"dns": feature_entry(["a"], [])}, {"dns": ["a"]}) == {"dns": []}
+
+
+@pytest.mark.parametrize(
+    "dropped",
+    [["n_execve"], []],
+    ids=["constant, but its value is not known", "not dropped as constant"],
+)
+def test_a_frozen_feature_without_a_known_value_stops_the_run(dropped: list[str]) -> None:
+    with pytest.raises(ValueError, match="without a known value"):
+        zero_features({"dns": feature_entry([], dropped)}, {"dns": ["n_execve"]})
+
+
+def test_a_log_type_without_a_baseline_stops_the_run() -> None:
+    with pytest.raises(ValueError, match="no baseline"):
+        zero_features({"dns": feature_entry([], [], capable=False)}, {"dns": []})
