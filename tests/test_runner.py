@@ -7,11 +7,12 @@ from pathlib import Path
 import pytest
 
 from agent_fakes import FakeChat, draft, llm_config, open_tools, settings_for
+from logtriage import guards
 from logtriage.agents import runner
 from logtriage.agents.prompting import load_prompts
 from logtriage.agents.runner import RUN_FILE, run_incidents, run_name
 from logtriage.agents.tools import AgentTools
-from logtriage.config import TEST_TESTBED
+from logtriage.config import DEV_TESTBED, TEST_TESTBED
 
 DEV = "dev"
 
@@ -112,7 +113,7 @@ def test_the_container_refuses_the_test_testbed_even_with_a_reason(
 ) -> None:
     marker = tmp_path / "container"
     marker.touch()
-    monkeypatch.setattr(runner, "CONTAINER_MARKER", marker)
+    monkeypatch.setattr(guards, "CONTAINER_MARKER", marker)
     settings = settings_for(tmp_path, prompts_frozen=True)
     chat = FakeChat()
     with pytest.raises(ValueError, match="container"):
@@ -125,8 +126,8 @@ def test_the_container_still_runs_the_dev_testbed(
 ) -> None:
     marker = tmp_path / "container"
     marker.touch()
-    monkeypatch.setattr(runner, "CONTAINER_MARKER", marker)
-    runner.check_test_run(DEV, settings_for(tmp_path), tmp_path, None)
+    monkeypatch.setattr(guards, "CONTAINER_MARKER", marker)
+    runner.check_test_run(DEV_TESTBED, settings_for(tmp_path), tmp_path, None)
 
 
 def test_the_test_testbed_runs_once_without_a_reason(tmp_path: Path, tools: AgentTools) -> None:

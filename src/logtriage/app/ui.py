@@ -214,7 +214,7 @@ def run_live(options: AppOptions, settings: Settings, view: View) -> View:
     Returns:
         The view, with the new report if one came.
     """
-    check_live(options.testbed)
+    check_live(options.testbed, settings)
     if LIVE_STOP in st.session_state:
         st.sidebar.warning(st.session_state[LIVE_STOP])
         return view

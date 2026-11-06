@@ -9,19 +9,19 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from logtriage.config import TEST_TESTBED
+from logtriage.config import Settings
 
 
-def check_live(testbed: str) -> None:
-    """Refuse `--live` on the test testbed.
+def check_live(testbed: str, settings: Settings) -> None:
+    """Refuse `--live` on a test testbed.
 
-    Live replay runs the agent graph, and the test testbed runs once only (D47), so its dashboard
+    Live replay runs the agent graph, and a test testbed runs once only (D47), so its dashboard
     uses the saved reports alone.
 
     Raises:
-        ValueError: On the test testbed.
+        ValueError: On a test testbed.
     """
-    if testbed == TEST_TESTBED:
+    if testbed in settings.test_testbeds:
         raise ValueError(
             f"{testbed}: --live would run the agent graph again; it uses saved reports"
         )

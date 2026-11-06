@@ -1,6 +1,7 @@
 """Replay mode (plan 9.1) with a fake clock: what is visible depends on simulated time alone."""
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -14,7 +15,9 @@ from logtriage.app.replay import (
     needs_rerun,
     replay_bounds,
 )
+from logtriage.config import load_settings
 
+CONFIG = Path(__file__).parents[1] / "configs" / "default.yaml"
 T0 = datetime(2022, 1, 16, 8, 0, tzinfo=UTC)
 WINDOW = 60
 SPEED = 600
@@ -175,9 +178,11 @@ def test_a_testbed_without_incidents_replays_all_its_windows():
 
 
 def test_live_is_refused_on_the_test_testbed_only():
-    check_live("russellmitchell")
-    with pytest.raises(ValueError, match="santos"):
-        check_live("santos")
+    settings = load_settings(CONFIG, env_file=None)
+    check_live("russellmitchell", settings)
+    for testbed in settings.test_testbeds:
+        with pytest.raises(ValueError, match=testbed):
+            check_live(testbed, settings)
 
 
 def test_live_takes_closed_incidents_without_a_report_in_closing_order():

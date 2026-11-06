@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from logtriage.config import load_settings
+from logtriage.config import DEV_TESTBED, load_settings
 from logtriage.eval.metrics import attack_techniques, load_gold_mapping, unusable_gold_ids
 
 ROOT = Path(__file__).parents[1]
@@ -24,7 +24,9 @@ def phases_in_data() -> set[str]:
 
 
 def test_there_are_phases_files_to_check() -> None:
-    assert len(list((ROOT / "data_meta").glob("phases_*.csv"))) == 2
+    settings = load_settings(ROOT / "configs" / "default.yaml", env_file=None)
+    expected = {f"phases_{name}.csv" for name in [DEV_TESTBED, *settings.test_testbeds]}
+    assert {path.name for path in (ROOT / "data_meta").glob("phases_*.csv")} == expected
 
 
 def test_every_phase_of_the_phases_files_has_a_gold_entry() -> None:

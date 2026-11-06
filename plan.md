@@ -47,6 +47,7 @@ These were approved before development. Section references point to the full spe
 Further fixed choices:
 
 - Dev testbed: `russellmitchell`. Test testbed: `santos`. Tuning only on dev.
+- Extra test testbeds: `wardbeck` and `harrison`, drawn before any result was seen. All test testbeds are in `test_testbeds` in `configs/default.yaml`. They reuse the frozen config, prompts and retrieval, and each runs once (changed: see status.md D55, D56).
 - LLM: DeepSeek V4 Flash (`deepseek-v4-flash`) for every LLM role during development and evaluation (§7.1).
 - Labels are isolated from everything except evaluation and the supervised reference (§5.2).
 
@@ -109,6 +110,8 @@ For each testbed, from `dataset.yaml` (changed: see status.md D9) and the attack
   - **calib** = last 20%. Not used for fitting anything; used for percentile calibration (§6.5), so calibration sees "unseen" features the same way the eval period does.
 - **Evaluation period** = `[first_attack - 24h, sim_end)`. It contains normal traffic before the attack, so false positives can be measured.
 - `logtriage/data/periods.py` computes these boundaries once and writes `data/processed/<testbed>/periods.json`. All other code reads periods from this file and never from phases or labels.
+
+**Extra test testbeds (changed: see status.md D55, D56).** `wardbeck` and `harrison` follow this section unchanged. Periods, scalers, vocabularies and models are computed per testbed: results are combined across testbeds (§10.7), data never is. Nothing is tuned on them.
 
 ### 4.4 Log families in scope
 
@@ -325,7 +328,7 @@ Hyperparameter search (small grid) only on the dev testbed, choosing by phase re
 - Train on russellmitchell calib and eval windows (labels: window has ≥ 1 labeled line), without label-ambiguous windows, and test on the santos evaluation period. A variant trained on all dev periods is secondary (changed: see status.md D34, D35).
 - Report PR-AUC, F1 at the threshold that maximizes F1 on out-of-fold (time-blocked CV) predictions on dev, and feature importance. Blocks are cut per class: the windows of each class, in time order, form `cv_blocks` contiguous equal-count slices, fold i holds out slice i of both classes, and training rows within `purge_minutes` of a held-out span are purged. Folds without a held-out positive or without both classes in training are dropped. A type with fewer than `min_positives` dev positives is "not trainable" and reported n/a, with no fallback (changed: see status.md D37).
 - `pooled` keeps the §10.2 scope, so it is n/a for a model missing a type; `pooled_trained` compares all methods on the types that have a model. Pooled PR-AUC uses uncalibrated per-type probabilities (changed: see status.md D38).
-- Dev OOF first, then the frozen config scores santos once (changed: see status.md D39).
+- Dev OOF first, then the frozen config scores santos once (changed: see status.md D39). Each test testbed is scored once the same way, with the same models, thresholds and feature list, into `supervised_<testbed>.csv` (changed: see status.md D57). A frozen column of a trained model that a testbed lacks is restored as 0 only if it is an "unseen" feature dropped as constant, since that is its true value; any other gap stops the run before it is recorded (changed: see status.md D59).
 - On `dns` this threshold is uninformative, because negatives exist only in the last block of the dev timeline; thresholds stay as used (changed: see status.md D40).
 - Label it "supervised reference" (few positives, one attack instance). It is not guaranteed to be an upper bound.
 
@@ -438,18 +441,20 @@ The UI never shows labels except on an optional "Evaluation" page clearly marked
 - `Dockerfile` (python:3.11-slim, uv, CPU-only torch wheel for sentence-transformers), `docker-compose.yml` with service `app` (Streamlit on 8501, published on the host's loopback only), volumes `./data:/app/data`, `./configs:/app/configs`, env file `.env`, optional so that a clean clone starts (changed: see status.md D54). `.dockerignore` keeps `.env`, `data/` and `.git` out of the build context.
 - `docker compose up` MUST start the dashboard from existing processed data, for `LOGTRIAGE_TESTBED` (default santos). The container needs `LOGTRIAGE_APP__HOST=0.0.0.0`, as `app.host` is local by default (changed: see status.md D50). Building data runs via the CLI (`docker compose run app logtriage prepare ...` or locally).
 - The image holds the embedding model at `rag.embedding_revision` and sets offline mode, so `up` needs no network; only the chat needs it, to reach the LLM (changed: see status.md D52).
-- The container never runs the agents on the test testbed, even with `--rerun-reason`: `investigate` refuses it where `/etc/logtriage-container` exists (changed: see status.md D53).
+- The container never scores a test testbed, even with `--rerun-reason`: `detect`, the supervised test stage and `investigate` refuse every testbed but dev where `/etc/logtriage-container` exists (changed: see status.md D53, D57).
 - `agent.duckdb` holds tables, so it works from any working directory and mount point; `eval.duckdb` keeps paths relative to the repository root, and the dashboard does not open it (changed: see status.md D41).
 
 ### 9.3 CLI (`logtriage/cli.py`)
 
 `download`, `inventory`, `prepare` (parse + drain + labels + features), `detect` (fit + score + incidents), `index-attack`, `investigate` (agents over incidents), `evaluate`, `app`. Every command takes `--testbed` and `--config`. `app` also takes `--live` (changed: see status.md D51).
 
+Each test testbed runs `detect`, the supervised test stage and `investigate` once. A repeat needs `--rerun-reason`, and every run is written to `reports/results/test_runs.csv` by `logtriage/guards.py`. That ledger carries the guard because `prepare` deletes `scores.parquet` and `incidents.parquet` (changed: see status.md D57).
+
 ---
 
 ## 10. Evaluation (`logtriage/eval/`)
 
-All numbers on the **santos evaluation period** unless stated. Dev numbers are reported separately as "dev".
+All numbers on the **santos evaluation period** unless stated. Dev numbers are reported separately as "dev". §10.7 adds the extra test testbeds; §10.1–§10.6 and the targets stay as they are (changed: see status.md D56).
 
 ### 10.1 Ground truth derivations
 
@@ -497,6 +502,24 @@ Finalized in M3 and **frozen** in `reports/targets.md`, unchanged from the propo
 
 `reports/results/*.csv` + `reports/figures/*.png` (small, committed), a `reports/results.md` summary table generated by `logtriage evaluate`.
 
+### 10.7 Extra test testbeds (changed: see status.md D56)
+
+Fixed before any result of `wardbeck` or `harrison` exists. Metric definitions (§10.2) and targets (§10.5, `reports/targets.md`) do not change. The santos-only reading against the frozen targets stays the **primary** reading; everything below is additional.
+
+- **Per testbed, always:** every §10.2 metric is reported for each of santos, `wardbeck` and `harrison`. The testbed-specific denominators are in `reports/targets_extra.md`.
+- **Pooled summary row** over the three test testbeds; russellmitchell is never in it:
+
+| Metric | Pooled as |
+|---|---|
+| Phase recall | sum of detected phases / sum of denominators, primary and both secondary variants of §10.1, §10.2 |
+| Incidents/day, alert reduction | not pooled: per testbed, each against the budget of 25 |
+| ATT&CK top-1/top-3 | over all malicious incidents of the three |
+| Verdict | over all malicious incidents of the three; the benign column of the §10.2 confusion matrix adds the other incidents of the three, as F1 needs it |
+| Manual faithfulness | one sample of claims from the reports of the three, rated once |
+
+- Ablations (§10.4) and the LLM-only baseline (§10.3) stay on santos: each test testbed runs the agents once.
+- Data is never pooled: no model, scaler, vocabulary, percentile reference or threshold is shared between testbeds.
+
 ---
 
 ## 11. Gold ATT&CK mapping (initial) — `configs/gold_attack_mapping.yaml`
@@ -532,17 +555,17 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 ├── configs/        default.yaml  sources.yaml  gold_attack_mapping.yaml
 ├── data_meta/      phases_<testbed>.csv            # small, committed
 ├── src/logtriage/
-│   ├── config.py  cli.py  prepare.py
+│   ├── config.py  cli.py  prepare.py  guards.py (changed: see status.md D57)
 │   ├── data/       download.py inventory.py timeutil.py periods.py drain.py labels.py
 │   │               windows.py features.py store.py parsers/{common,apache,auth,dns,audit,vpn}.py
 │   ├── ml/         models.py ensemble.py incidents.py detect.py supervised.py
 │   ├── rag/        attack_index.py incident_store.py
 │   ├── agents/     llm.py cache.py schemas.py prompting.py sql_guard.py tools.py graph.py runner.py chat.py prompts/ (changed: see status.md D48)
-│   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py
+│   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py extra_testbeds.py (changed: see status.md D57)
 │   └── app/        streamlit_app.py replay.py data.py charts.py ui.py views/ (changed: see status.md D50)
 ├── notebooks/      01_eda.ipynb 02_preparation.ipynb 03_ml_models.ipynb 04_agents.ipynb 05_evaluation.ipynb
 ├── tests/          fixtures/ (tiny hand-made log snippets per type + label files) test_*.py
-├── reports/        targets.md results.md results/ figures/ human_eval/ inventory_<testbed>.md
+├── reports/        targets.md targets_extra.md results.md results/ figures/ human_eval/ inventory_<testbed>.md (changed: see status.md D56)
 └── data/           (gitignored) raw/ processed/ index/ cache/
 ```
 
@@ -607,6 +630,12 @@ Accept: `uv run logtriage app` shows all four pages on santos data; replay works
 ### M10 — Docker (`m10-docker`)
 Read: §9.2.
 Accept: on a clean clone with `data/` present, `docker compose up` serves the dashboard; README documents it.
+
+### M10b — Extra test testbeds (`m10b-testbeds`) (changed: see status.md D55, D56)
+Read: §2, §4, §5.2, §5.3, §6.3–§6.5, §10, §11, §14.
+Preparation only: no `detect`, supervised run, `investigate`, `evaluate`, scoring notebook or LLM call on any testbed. Tuning stays on russellmitchell.
+Tasks: draw two testbeds before any download, config list, pooling rules (§10.7), guards on all test testbeds, download, inventory, `prepare`, EDA, and the D28 exposure from window counts.
+Accept: draw committed before any download; parse rate ≥ 99% per file or reported; russellmitchell and santos processed files unchanged by sha256; a test per guard; `reports/targets_extra.md` committed, with its hash in status.md.
 
 ### M11 — Evaluation (`m11-eval`)
 Read: §10, §11.

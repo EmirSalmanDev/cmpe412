@@ -6,7 +6,7 @@ testbed and tests on the test testbed, in two stages run from the repository roo
     uv run python -m logtriage.ml.supervised dev
     uv run python -m logtriage.ml.supervised test
 
-The test stage scores the santos evaluation period once (D39).
+The test stage scores the evaluation period of each test testbed once (D39, D57).
 """
 
 import argparse
@@ -22,6 +22,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import average_precision_score, precision_recall_curve
 from xgboost import XGBClassifier
 
+from logtriage import guards
 from logtriage.config import (
     DEV_TESTBED,
     TEST_TESTBED,
@@ -38,16 +39,20 @@ from logtriage.ml.detect import SCORES_FILE
 logger = logging.getLogger(__name__)
 
 OOF_FILE = "supervised_dev_oof.csv"
-TEST_FILE = "supervised_santos.csv"
-PHASES_FILE = "supervised_santos_phases.csv"
+TEST_FILE_PATTERN = "supervised_{testbed}.csv"
+PHASES_FILE_PATTERN = "supervised_{testbed}_phases.csv"
+ERRORS_FILE_PATTERN = "supervised_{testbed}_errors.csv"
+TEST_FILE = TEST_FILE_PATTERN.format(testbed=TEST_TESTBED)
+PHASES_FILE = PHASES_FILE_PATTERN.format(testbed=TEST_TESTBED)
 IMPORTANCE_FILE = "supervised_importance.csv"
-ERRORS_FILE = "supervised_santos_errors.csv"
+ERRORS_FILE = ERRORS_FILE_PATTERN.format(testbed=TEST_TESTBED)
 ERROR_FEATURES = ["n_queries", "max_label_len", "max_label_entropy", "mean_qname_len"]
 
 ENSEMBLE = "ensemble"
 MODELS = ("rf", "xgb")
 PRIMARY = "calib_eval"
 ALL_PERIODS = "all_dev_periods"
+UNSEEN_PREFIXES = ("n_unseen_", "ratio_unseen_")
 TRAINED = "trained"
 NOT_TRAINABLE = "not_trainable"
 NO_MODEL_FOR_ALL_TYPES = "no_model_for_all_types"
@@ -78,6 +83,39 @@ def shared_features(dev_report: dict, test_report: dict, log_type: str) -> list[
     """
     kept = set(test_report[log_type]["features"])
     return [name for name in dev_report[log_type]["features"] if name in kept]
+
+
+def zero_features(report: dict, features: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Return the frozen features a test testbed lacks because they are 0 on all its windows.
+
+    An "unseen" feature is 0 on every fit window by construction, and a column is dropped only
+    if it has one value over all periods (plan 6.3), so such a column is 0 throughout. Any other
+    gap would need a value nobody saved, so it stops the run before it is recorded (D59).
+
+    Args:
+        report: `features_report.json` of the test testbed.
+        features: Frozen columns of the log types with a trained model.
+
+    Returns:
+        The columns to restore as 0, per log type.
+
+    Raises:
+        ValueError: If a log type has no baseline, or a column is missing for another reason.
+    """
+    zeros = {}
+    for log_type, names in features.items():
+        entry = report[log_type]
+        if not entry["baseline_capable"]:
+            raise ValueError(f"{log_type}: no baseline on this testbed")
+        zeros[log_type] = [name for name in names if name not in entry["features"]]
+        unknown = [
+            name
+            for name in zeros[log_type]
+            if name not in entry["dropped_constant"] or not name.startswith(UNSEEN_PREFIXES)
+        ]
+        if unknown:
+            raise ValueError(f"{log_type}: frozen features without a known value: {unknown}")
+    return zeros
 
 
 def minutes_since_start(times: pd.Series) -> np.ndarray:
@@ -546,19 +584,19 @@ def config_hash(settings: Settings, features: dict[str, list[str]]) -> str:
 
 
 def refuse_rerun(path: Path, reason: str | None) -> None:
-    """Stop a second santos run, or a dev run after it, unless a reason is given (D39).
+    """Stop a dev run after a test testbed was scored, unless a reason is given (D39).
 
     Args:
-        path: The santos results file.
+        path: The results file of a test testbed.
         reason: Why the run must be repeated. It also needs an entry in status.md.
 
     Raises:
-        FileExistsError: If santos was scored and no reason is given.
+        FileExistsError: If that testbed was scored and no reason is given.
     """
     if path.exists() and not reason:
-        raise FileExistsError(f"{path} exists; santos is scored once (D39)")
+        raise FileExistsError(f"{path} exists; a test testbed is scored once (D39)")
     if path.exists():
-        logger.warning("re-run after santos: %s", reason)
+        logger.warning("re-run after a test run: %s", reason)
 
 
 def inputs(
@@ -574,17 +612,18 @@ def inputs(
 
 
 def run_dev(settings: Settings, rerun_reason: str | None = None) -> Path:
-    """Write the dev OOF thresholds and the feature importance. Santos windows are not read.
+    """Write the dev OOF thresholds and the feature importance. Test windows are not read.
 
     Args:
         settings: Loaded settings.
-        rerun_reason: Required once santos has been scored.
+        rerun_reason: Required once any test testbed has been scored.
 
     Returns:
         The OOF results file.
     """
     results = settings.paths.reports_dir / "results"
-    refuse_rerun(results / TEST_FILE, rerun_reason)
+    for testbed in settings.test_testbeds:
+        refuse_rerun(results / TEST_FILE_PATTERN.format(testbed=testbed), rerun_reason)
     results.mkdir(parents=True, exist_ok=True)
     config = settings.ml.supervised
     tables, features, _ = inputs(settings)
@@ -596,31 +635,48 @@ def run_dev(settings: Settings, rerun_reason: str | None = None) -> Path:
     return results / OOF_FILE
 
 
-def run_test(settings: Settings, rerun_reason: str | None = None) -> Path:
-    """Score the santos evaluation period with the frozen models and thresholds, once.
+def run_test(
+    settings: Settings, rerun_reason: str | None = None, testbed: str = TEST_TESTBED
+) -> Path:
+    """Score the evaluation period of a test testbed with the frozen models, once.
+
+    The feature list stays the one the thresholds came from, dev and santos (D33, D39).
 
     Args:
         settings: Loaded settings.
-        rerun_reason: Required if santos was already scored.
+        rerun_reason: Required if the testbed was already scored.
+        testbed: One of `test_testbeds`.
 
     Returns:
         The results file.
 
     Raises:
-        ValueError: If the config changed after the dev stage.
+        ValueError: If the testbed is no test testbed, may not be scored now, the config
+            changed after the dev stage, or it lacks a frozen feature of a trained model.
     """
+    if not guards.is_test_testbed(testbed, settings):
+        raise ValueError(f"{testbed}: not a test testbed")
     results = settings.paths.reports_dir / "results"
-    refuse_rerun(results / TEST_FILE, rerun_reason)
+    test_file = results / TEST_FILE_PATTERN.format(testbed=testbed)
+    guards.check_run(guards.SUPERVISED, testbed, settings, [test_file], rerun_reason)
     config = settings.ml.supervised
     dev, features, log_types = inputs(settings)
     dev_rows = pd.read_csv(results / OOF_FILE)
     if set(dev_rows["config_hash"]) != {config_hash(settings, features)}:
         raise ValueError("the config changed after the dev stage (D39)")
-    test = labeled_windows(TEST_TESTBED, settings)
-    periods = eda.testbed_periods(TEST_TESTBED, settings)
-    with eda.connect(TEST_TESTBED, settings) as con:
+    trained = set(dev_rows.loc[dev_rows["status"] == TRAINED, "log_type"])
+    zeros = zero_features(
+        feature_report(testbed, settings), {name: features[name] for name in trained}
+    )
+    guards.record_run(guards.SUPERVISED, testbed, settings, rerun_reason)
+    test = {
+        name: table.assign(**dict.fromkeys(zeros.get(name, []), 0.0))
+        for name, table in labeled_windows(testbed, settings).items()
+    }
+    periods = eda.testbed_periods(testbed, settings)
+    with eda.connect(testbed, settings) as con:
         context = truth_context(con, periods, log_types, settings)
-    scores = pd.read_parquet(settings.paths.processed_dir / TEST_TESTBED / SCORES_FILE)
+    scores = pd.read_parquet(settings.paths.processed_dir / testbed / SCORES_FILE)
     ensemble = with_truth(scores, context.truth)
     primary = model_tables(
         dev_rows, PRIMARY, config.training_periods, dev, test, features, config, settings.seed
@@ -655,15 +711,17 @@ def run_test(settings: Settings, rerun_reason: str | None = None) -> Path:
         ignore_index=True,
     )
     table.loc[table["method"] == ENSEMBLE, "threshold"] = settings.ml.q
-    table.to_csv(results / TEST_FILE, index=False)
+    table.to_csv(test_file, index=False)
     covered = sorted({name for part in primary.values() for name in part["log_type"]})
     methods = {(ENSEMBLE, " ".join(log_types)): ensemble}
     methods[(ENSEMBLE, " ".join(covered))] = ensemble[ensemble["log_type"].isin(covered)]
     methods |= {(name, " ".join(covered)): part for name, part in primary.items()}
-    phase_rows(methods, context.counted).to_csv(results / PHASES_FILE, index=False)
+    phases_file = results / PHASES_FILE_PATTERN.format(testbed=testbed)
+    phase_rows(methods, context.counted).to_csv(phases_file, index=False)
     if primary:
-        error_windows(primary).to_csv(results / ERRORS_FILE, index=False)
-    return results / TEST_FILE
+        errors_file = results / ERRORS_FILE_PATTERN.format(testbed=testbed)
+        error_windows(primary).to_csv(errors_file, index=False)
+    return test_file
 
 
 def main() -> None:
@@ -671,10 +729,14 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("stage", choices=["dev", "test"])
-    parser.add_argument("--rerun-reason", help="Why santos is scored again; log it in status.md.")
+    parser.add_argument("--testbed", default=TEST_TESTBED, help="Test testbed of the test stage.")
+    parser.add_argument("--rerun-reason", help="Why it is scored again; log it in status.md.")
     arguments = parser.parse_args()
-    run = run_dev if arguments.stage == "dev" else run_test
-    print(run(load_settings(), arguments.rerun_reason))
+    settings = load_settings()
+    if arguments.stage == "dev":
+        print(run_dev(settings, arguments.rerun_reason))
+    else:
+        print(run_test(settings, arguments.rerun_reason, arguments.testbed))
 
 
 if __name__ == "__main__":

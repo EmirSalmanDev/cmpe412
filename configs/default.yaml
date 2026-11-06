@@ -5,6 +5,10 @@
 
 seed: 42
 
+# Test testbeds, none of them tuned on. santos keeps the frozen targets of reports/targets.md;
+# every guard treats all of them alike (plan 4.3, D56).
+test_testbeds: [santos, wardbeck, harrison]
+
 # LLM policy (plan 7.1). Model, prices and parameters verified on 2026-11-06 (status.md).
 llm:
   model: deepseek-flash
@@ -207,11 +211,17 @@ download:
     santos:
       record: 5789064
       files: [santos.zip]
+    wardbeck:
+      record: 5789064
+      files: [wardbeck.zip]
+    harrison:
+      record: 5789064
+      files: [harrison.zip]
     ait_ads:
       record: 8263181
       files: [ait_ads.zip, labels.csv]
-      # Only the alerts of the two testbeds in use; the zip holds all eight scenarios.
-      extract: [russellmitchell_*.json, santos_*.json]
+      # Only the alerts of the testbeds in use; the zip holds all eight scenarios.
+      extract: [russellmitchell_*.json, santos_*.json, wardbeck_*.json, harrison_*.json]
   max_retries: 3
   backoff_seconds: 10
   timeout_seconds: 60

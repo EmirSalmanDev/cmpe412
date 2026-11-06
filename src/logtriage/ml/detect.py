@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from logtriage import guards
 from logtriage.config import Settings
 from logtriage.data.features import REPORT_FILE, SCALER_DIR, FeatureScaler
 from logtriage.ml.ensemble import apply_threshold, calibrate, ensemble_score
@@ -131,17 +132,24 @@ def detect(
     return scores.assign(incident_id=ids.reindex(scores.index)), incidents
 
 
-def run_detect(testbed: str, settings: Settings) -> Path:
+def run_detect(testbed: str, settings: Settings, rerun_reason: str | None = None) -> Path:
     """Write `scores.parquet`, `incidents.parquet` and `detect_report.json`.
 
     Args:
         testbed: Testbed name.
         settings: Loaded settings, with the tuned `ml.q` and `ml.gap_minutes`.
+        rerun_reason: Required to score a test testbed again (D57).
 
     Returns:
         The output directory.
+
+    Raises:
+        ValueError: If a test testbed may not be scored now.
     """
     directory = settings.paths.processed_dir / testbed
+    outputs = [directory / SCORES_FILE, directory / INCIDENTS_FILE]
+    guards.check_run(guards.DETECT, testbed, settings, outputs, rerun_reason)
+    guards.record_run(guards.DETECT, testbed, settings, rerun_reason)
     scored = score_testbed(testbed, settings)
     window_seconds = settings.features.window_seconds
     scores, incidents = detect(scored, settings.ml.q, settings.ml.gap_minutes, window_seconds)

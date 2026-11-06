@@ -30,7 +30,7 @@ def main() -> None:
     view = ui.current_view(options, settings, dataset, moment)
     if options.live and st.session_state.get("replay_on"):
         try:
-            check_live(options.testbed)
+            check_live(options.testbed, settings)
         except ValueError as error:
             st.sidebar.error(str(error))
         else:
