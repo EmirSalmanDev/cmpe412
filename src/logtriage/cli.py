@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 
+from logtriage.agents.runner import run_incidents
 from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, load_settings
 from logtriage.data.download import InsufficientDiskError, run_download
 from logtriage.data.inventory import run_inventory
@@ -98,10 +99,35 @@ def index_attack(
 
 @app.command()
 def investigate(
-    testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
+    testbed: TestbedOption = DEV_TESTBED,
+    config: ConfigOption = DEFAULT_CONFIG_PATH,
+    incident: Annotated[
+        list[str] | None, typer.Option("--incident", help="Only this incident; repeatable.")
+    ] = None,
+    no_cache: Annotated[bool, typer.Option("--no-cache", help="Bypass the LLM cache.")] = False,
+    rerun_reason: Annotated[
+        str | None, typer.Option("--rerun-reason", help="Why the test testbed runs again.")
+    ] = None,
 ) -> None:
-    """Run the agents over incidents."""
-    _not_implemented("investigate", testbed, config)
+    """Run the agents over incidents, highest priority first."""
+    try:
+        summary = run_incidents(
+            testbed,
+            load_settings(config),
+            incident_ids=incident,
+            use_cache=not no_cache,
+            rerun_reason=rerun_reason,
+        )
+    except (ValueError, FileNotFoundError, KeyError) as error:
+        typer.echo(f"investigate failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(
+        f"{len(summary.finished)} reports, {len(summary.failed)} failed, "
+        f"{summary.spent_usd:.4f} USD this run, {summary.total_spent_usd:.4f} USD in total"
+    )
+    if summary.aborted:
+        typer.echo(f"stopped: {summary.aborted}", err=True)
+        raise typer.Exit(code=2)
 
 
 @app.command()

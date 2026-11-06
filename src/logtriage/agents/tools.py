@@ -17,7 +17,7 @@ from logtriage.agents.sql_guard import SqlRejected, agent_tables, run_guarded
 from logtriage.config import Settings, ToolsConfig
 from logtriage.data.store import connect_agent
 from logtriage.rag.attack_index import AttackIndex, BgeEmbedder, cosine_collection, open_client
-from logtriage.rag.incident_store import IncidentStore
+from logtriage.rag.incident_store import DEFAULT_RUN, IncidentStore
 
 MORE = "... {count} more not shown"
 NO_USER = "UNDEF"
@@ -97,6 +97,8 @@ class AgentTools:
         self.tables = agent_tables(connection)
         # Start of the incident under investigation: `similar_incidents` sees only earlier ones.
         self.before: datetime | None = None
+        # The run of the agent graph: `similar_incidents` sees only reports of the same run.
+        self.run = DEFAULT_RUN
 
     @classmethod
     def open(cls, testbed: str, settings: Settings) -> AgentTools:
@@ -346,7 +348,7 @@ class AgentTools:
         if self.incidents is None:
             return ToolResult("error: the incident memory is not available")
         count = max(1, min(k, self.config.incidents_k))
-        hits = self.incidents.search(text, count, self.testbed, self.before)
+        hits = self.incidents.search(text, count, self.testbed, self.before, self.run)
         rows = [
             (
                 f"{hit['incident_id']} [{hit['verdict']}] "

@@ -5,10 +5,46 @@
 
 seed: 42
 
-# Filled in when the agent layer is built (plan 7.1). The model string must be verified first.
+# LLM policy (plan 7.1). Model, prices and parameters verified on 2026-11-06 (status.md).
 llm:
-  model: null
-  base_url: null
+  model: deepseek-flash
+  base_url: https://api.deepseek.com
+  temperature: 0
+  # Thinking mode ignores temperature, and it is the API default, so it is set explicitly (D44).
+  thinking: disabled
+  max_tokens: 8192
+  timeout_seconds: 120
+  http_retries: 2
+  # Retries after an answer that fails validation (plan 7.1).
+  json_retries: 2
+  max_usd_per_run: 5
+  # Cumulative spend over all runs, from the ledger in the cache file (D45).
+  max_usd_total: 10
+  pricing_usd_per_1m:
+    off_peak: {input: 0.15, cached_input: 0.003, output: 0.6}
+    peak: {input: 0.3, cached_input: 0.006, output: 1.2}
+  # Monday to Friday, UTC, start and end hour (D45).
+  peak_hours_utc: [[1, 4], [6, 10]]
+
+# Agent graph (plan 7.2, 7.4).
+agents:
+  max_tool_calls: 8
+  max_evidence: 30
+  # Characters of one evidence line kept in a report (plan 5.7).
+  evidence_chars: 500
+  max_rewrites: 2
+  # Techniques retrieved for the Mapper, and the most it may pick.
+  mapper_k: 10
+  max_techniques: 3
+  candidate_chars: 400
+  # Most window scores listed in the Investigator's first message.
+  context_windows: 40
+  # Ablation switches (plan 10.4). M8 runs only this default condition.
+  verifier: true
+  rag: true
+  few_shot: false
+  # Set once prompts are final on the dev testbed; the test testbed needs it (M8).
+  prompts_frozen: false
 
 # Anomaly detection (plan 6.3-6.6).
 ml:
@@ -66,7 +102,8 @@ tools:
 rag:
   embedding_model: BAAI/bge-small-en-v1.5
   query_prefix: "Represent this sentence for searching relevant passages: "
-  # The pinned bundle, version 20.1; `index-attack` refuses any other file.
+  # The pinned bundle; `index-attack` refuses any other file.
+  attack_version: "20.1"
   attack_sha256: 539a843a7b53ed9749740b2123dddae3726b1a4831841c32aca740b011b910b5
   attack_collection: attack
   incidents_collection: incidents
