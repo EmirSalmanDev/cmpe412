@@ -1,0 +1,52 @@
+{
+  "type": "bundle",
+  "objects": [
+    {"type": "x-mitre-collection", "x_mitre_version": "20.1", "name": "Enterprise ATT&CK"},
+    {
+      "type": "attack-pattern",
+      "name": "Exfiltration Over Alternative Protocol",
+      "description": "Adversaries may steal data over a <code>DNS</code> tunnel [protocol](https://attack.mitre.org/x).(Citation: Some Report 2020)\n\nLong random subdomains.",
+      "external_references": [{"source_name": "mitre-attack", "external_id": "T1048"}],
+      "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "exfiltration"}]
+    },
+    {
+      "type": "attack-pattern",
+      "name": "Exfiltration Over Unencrypted Non-C2 Protocol",
+      "description": "Adversaries may send data over dns queries.",
+      "x_mitre_is_subtechnique": true,
+      "external_references": [{"source_name": "mitre-attack", "external_id": "T1048.003"}],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "exfiltration"},
+        {"kill_chain_name": "mitre-attack", "phase_name": "command-and-control"}
+      ]
+    },
+    {
+      "type": "attack-pattern",
+      "name": "Brute Force",
+      "description": "Adversaries may guess passwords.",
+      "external_references": [{"source_name": "mitre-attack", "external_id": "T1110"}],
+      "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": "credential-access"}]
+    },
+    {
+      "type": "attack-pattern",
+      "name": "Revoked Technique",
+      "description": "Gone.",
+      "revoked": true,
+      "external_references": [{"source_name": "mitre-attack", "external_id": "T9001"}]
+    },
+    {
+      "type": "attack-pattern",
+      "name": "Deprecated Technique",
+      "description": "Old.",
+      "x_mitre_deprecated": true,
+      "external_references": [{"source_name": "mitre-attack", "external_id": "T9002"}]
+    },
+    {
+      "type": "attack-pattern",
+      "name": "No ATT&CK Identifier",
+      "description": "Other catalog.",
+      "external_references": [{"source_name": "capec", "external_id": "CAPEC-1"}]
+    },
+    {"type": "malware", "name": "Not a technique"}
+  ]
+}

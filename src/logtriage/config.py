@@ -70,6 +70,32 @@ class MLConfig(PlaceholderSection):
     supervised: SupervisedConfig = Field(default_factory=SupervisedConfig)
 
 
+class ToolsConfig(BaseModel):
+    """Limits of the agent tools (plan 7.2, 7.3)."""
+
+    output_chars: int = 4000
+    line_chars: int = 300
+    sql_rows: int = 200
+    sql_timeout_seconds: float = 10.0
+    log_search_limit: int = 50
+    top_templates: int = 3
+    attack_k: int = 5
+    incidents_k: int = 3
+
+
+class RagConfig(BaseModel):
+    """ATT&CK index and incident memory settings (plan 8)."""
+
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    query_prefix: str = "Represent this sentence for searching relevant passages: "
+    attack_sha256: str = ""
+    attack_collection: str = "attack"
+    incidents_collection: str = "incidents"
+    bm25_k1: float = 1.5
+    bm25_b: float = 0.75
+    rrf_k: int = 60
+
+
 class FeaturesConfig(BaseModel):
     """Window and feature settings (plan 5.4, 6.3)."""
 
@@ -171,6 +197,8 @@ class Settings(BaseSettings):
     seed: int = 42
     llm: LLMConfig = Field(default_factory=LLMConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
+    tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    rag: RagConfig = Field(default_factory=RagConfig)
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
     periods: PeriodsConfig = Field(default_factory=PeriodsConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
