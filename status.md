@@ -44,6 +44,11 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 - M11 must report in `reports/results.md`: the unused incident budget, about 15% used on russellmitchell and 4% on santos (`q` decision in the Decision log)
 - M8 and M11 note: exfiltration retrieval reaches T1071.004 but ranks T1048 24 and T1048.003 55 (D43), which may cost ATT&CK top-3 on the `dnsteal` phases. Do not tune retrieval on santos reports
 - M11 must also state in `reports/results.md`, next to the freeze note: santos was scored three times by the frozen supervised models (D40); the committed CSVs are run 1; the error file and the reading of the results were chosen after seeing santos numbers, while no model, feature, threshold, config or definition was; the `dns` thresholds are uninformative
+- M7 summary, details in D41–D43: agent data is tables only in `agent.duckdb`, opened `read_only`, `enable_external_access=false`, `lock_configuration=true`, with a SQL guard on the parse tree; 85 of 85 attack statements rejected, 12 of 12 normal queries work, and both layers are needed. The isolation scan skips only the STIX key `kill_chain_phases`. Retrieval is hybrid BM25 + dense, RRF `k` 60
+- Retrieval caveat (M8, M11): the sanity check passes only through T1071.004 (rank 2); T1048 is rank 24 and T1048.003 rank 55; the check covers 5 queries only. T1071.004 is in the `dnsteal` gold set. Retrieval must not change after santos results are seen
+- Agent tables have no `period` column, but unseen, rarity and score features still reflect the fit boundary (the documented §4.3 exception, D41)
+- Embedding model: `BAAI/bge-small-en-v1.5`, revision `5c38ec7c405ec4b44b94cc5a9bb96e735b38267a`, about 130 MB in the Hugging Face cache. M10 Docker must provide it
+- Unexplained: a nanobind "leaked" message at exit when the embedding model and DuckDB run together; tests are unaffected
 - Frozen targets: the reference is tag `targets-frozen` (`3684424`), not `m3-done`; M11 must repeat the freeze reference note from the Decision log in `reports/results.md`
 
 ## Key results
@@ -165,6 +170,9 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 (Things that need a human decision. Keep working on other parts meanwhile.)
 - M5, calibration and DNS baseline: decided, see D27 and D29. Kept here because the frozen `reports/targets.md` points to this section.
 - M10: `eval.duckdb` views still use paths relative to the repository root, so the evaluation page must run from there or rebuild them. `agent.duckdb` no longer has this issue (D41).
+- GitHub Actions (Ubuntu) on the M6 and M7 merges: not verified from here, because `gh` is not installed. Human check pending. The M6 session log records a green run as reported by the user, but nobody viewed it from this repo.
+- M11, small denominators, needs a human decision, targets unchanged: santos has only 3 incidents. With 3 malicious incidents, ATT&CK top-3 ≥ 70% needs 3 of 3 (2 of 3 is 66.7%), and the manual faithfulness sample of ≥ 100 claims is probably out of reach on 3 reports. Option: M8 also generates russellmitchell reports, and M11 decides on pooling with a logged reason.
+- M11: do not re-execute notebooks that re-score santos (`03_ml_models.ipynb` cell 13 re-scored the M5 unclipped secondary, D40); read saved results instead.
 - Other labeled log types: only `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log` (49 labeled lines on russellmitchell, 44 on santos, raw labels include `crack_passwords` and `escalate`), left unprocessed. Syslog and Suricata files exist but have no label files.
 
 ## Session log
