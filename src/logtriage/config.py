@@ -41,6 +41,17 @@ class MLConfig(PlaceholderSection):
     min_fit_lines: int = 200
     min_calib_lines: int = 50
     incidents_per_day_budget: int = 25
+    if_estimators: int = 300
+    lof_neighbors: int = 35
+    lof_max_windows: int = 50_000
+    pca_variance: float = 0.95
+    min_calib_windows: int = 200
+    oof_folds: int = 5
+    q: float = 0.99
+    gap_minutes: int = 10
+    q_grid: list[float] = Field(default_factory=lambda: [0.95, 0.97, 0.98, 0.99, 0.995, 0.999])
+    gap_grid: list[int] = Field(default_factory=lambda: [5, 10, 15, 30])
+    common_entity_share: float = 0.5
 
 
 class FeaturesConfig(BaseModel):
