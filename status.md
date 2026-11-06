@@ -4,9 +4,9 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** M6 — Supervised reference (not started)
-- **Branch:** —
-- **Next step:** Create branch `m6-supervised` and read plan §6.7. One decision is open for a human: the `q` grid (Open questions).
+- **Current milestone:** M6 — Supervised reference (in progress)
+- **Branch:** `m6-supervised`
+- **Next step:** Read-only audit, then log D32+ before any training.
 - **Blockers:** none
 
 ## Milestones
@@ -76,6 +76,7 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 
 ## Decision log
 Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the approved design decisions in plan §2.
+- 2026-11-06 · M6 · `q` grid decided (user decision): the §6.5 grid stays unchanged · The chosen `q` 0.999 uses about 15% of the budget on russellmitchell and 4% on santos, and the grid has nothing between 0.995 and 0.999. Santos has been scored, so a change now would not be a clean selection. The unused budget is reported as a finding in `reports/results.md` (M11). Any finer grid would be a disclosed exploratory second pass, selected on dev only · `reports/results/tuning_dev.csv`; 3.73 and 1.11 incidents per day against a budget of 25
 - 2026-11-06 · M5 · Measured: the `dnsteal_exfil` expectation held on both testbeds · It is missed, no DNS window passes `q`, and exfiltration windows rank worse than chance: DNS PR-AUC is below the attack share, and their median score is below that of other DNS windows, 0.473 against 0.811 on russellmitchell and 0.534 against 0.811 on santos. The target and the denominator are unchanged · `03_ml_models.ipynb` §5
 - 2026-11-06 · M5 · Measured: the D29 risk is real · Without the clip santos reaches 7 of 9, but the 2 extra phases come only from DNS windows flagged after the tunnel stops: all 1,012 flagged `inet-firewall` windows come after 07:16 on 01-16, and 5 hold a labeled line. This was not used for any choice; `q` and the gap were fixed on russellmitchell before santos was scored · `03_ml_models.ipynb` §6
 - 2026-11-06 · M5 · Chose `q` 0.999 and `gap_minutes` 30 on russellmitchell by the §6.5 rule and reused them unchanged on santos · Only `q` 0.999 fits 25 incidents per day; the next value, 0.995, gives 53–57. All four gaps tie at 6 of 10 phases, and 30 gives the fewest incidents · `reports/results/tuning_dev.csv`
@@ -137,7 +138,6 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 ## Open questions
 (Things that need a human decision. Keep working on other parts meanwhile.)
 - M7, label isolation: a read-only connection to `agent.duckdb` can still read `labels.parquet` and `phases_*.csv` with `read_parquet` and `read_csv` (61,813 and 47,323 rows returned). The planned SQL guard list does not stop a plain `SELECT` from a table function. Nothing leaks yet because no agent exists. Decide the guard before M7 tools are written, e.g. block file-reading functions or allow only the views.
-- `q` grid: the chosen point uses about 15% of the budget on russellmitchell and 4% on santos, because the §6.5 grid has nothing between 0.995 (53–57 incidents per day on dev) and 0.999 (3.7–4.8). A finer grid might recover phases, but santos has now been scored, so changing it needs a human decision. Nothing was changed.
 - M5, calibration and DNS baseline: decided, see D27 and D29. Kept here because the frozen `reports/targets.md` points to this section.
 - M10: DuckDB views use paths relative to the repository root, so Docker and the app must run from there or rebuild the views.
 - Other labeled log types: only `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log` (49 labeled lines on russellmitchell, 44 on santos, raw labels include `crack_passwords` and `escalate`), left unprocessed. Syslog and Suricata files exist but have no label files.
