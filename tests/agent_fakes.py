@@ -34,6 +34,7 @@ ROLE_MARKS = {
     "You map observed behavior": "mapper",
     "You write an incident report": "reporter",
     "You check whether claims": "verifier",
+    "You answer an analyst": "chat",
 }
 Reply = str | AIMessage | Callable[[list[BaseMessage]], AIMessage | str]
 
@@ -188,6 +189,11 @@ def verdicts(messages: list[BaseMessage], bad: tuple[str, ...] = ()) -> str:
     return json.dumps({"results": results})
 
 
+def chat_answer(text: str = "a login page was requested", eids: tuple[str, ...] = ("E1",)) -> str:
+    """Return a final answer of the chat agent, with one claim."""
+    return json.dumps({"claims": [{"text": text, "evidence": eids}], "remark": ""})
+
+
 class FakeChat:
     """Scripted chat model. Each role has a list of replies, and the last one repeats."""
 
@@ -197,6 +203,7 @@ class FakeChat:
             "mapper": [mapper_answer()],
             "reporter": [draft()],
             "verifier": [verdicts],
+            "chat": [chat_answer()],
         } | (script or {})
         self.calls: list[dict[str, Any]] = []
         self.positions: dict[str, int] = {}

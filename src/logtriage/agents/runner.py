@@ -94,6 +94,14 @@ def report_row(report: IncidentReport) -> dict[str, Any]:
     }
 
 
+def load_report(reports_dir: Path, incident_id: str) -> IncidentReport | None:
+    """Return the saved report of an incident, or None if it has none."""
+    path = reports_dir / f"{incident_id}.json"
+    if not path.is_file():
+        return None
+    return IncidentReport.model_validate_json(path.read_text(encoding="utf-8"))
+
+
 def write_run_table(reports_dir: Path, path: Path) -> list[dict[str, Any]]:
     """Write one row per saved report.
 

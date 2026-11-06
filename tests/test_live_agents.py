@@ -1,16 +1,20 @@
 """Live smoke tests (plan 7.1, M8): the real API, on dev data. Nothing is read from the cache."""
 
 import json
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from logtriage.agents.cache import LlmCache
+from logtriage.agents.chat import ChatAgent
 from logtriage.agents.graph import AgentRuntime, IncidentState, build_graph, tool_schemas
 from logtriage.agents.llm import LLMClient, build_chat_model
 from logtriage.agents.prompting import load_prompts
+from logtriage.agents.runner import REPORTS_DIR
 from logtriage.agents.schemas import report_claims
 from logtriage.agents.tools import AgentTools
 from logtriage.config import DEV_TESTBED, Settings, load_settings
@@ -119,3 +123,25 @@ def test_one_full_incident(
     assert len(report.meta["retrieved_techniques"]) == settings.agents.mapper_k
     assert report.meta["draft_claims"] >= 1
     assert (tmp_path / f"{INCIDENT}.json").is_file()
+
+
+def test_the_chat_answers_a_follow_up_with_citations(
+    settings: Settings, tools: AgentTools, client: LLMClient, tmp_path: Path
+) -> None:
+    """Dev data only; `chat-1` is not iterated on the test testbed."""
+    saver = SqliteSaver(sqlite3.connect(tmp_path / "chat.sqlite", check_same_thread=False))
+    reports = settings.paths.processed_dir / DEV_TESTBED / REPORTS_DIR
+    agent = ChatAgent(tools, client, settings, saver, reports)
+    first = agent.ask(INCIDENT, "Which source addresses does this incident involve?")
+    follow_up = agent.ask(
+        INCIDENT, "Look in the raw logs: what else did the first of those addresses do that day?"
+    )
+    print(json.dumps([first, follow_up], indent=1))
+    for turn in (first, follow_up):
+        assert turn["answered"]
+        assert turn["claims"]
+        for claim in turn["claims"]:
+            assert claim["citations"]
+            assert all(item["line_id"].count("|") == 2 for item in claim["citations"])
+    assert follow_up["tools"]
+    assert len(agent.turns(INCIDENT)) == 2

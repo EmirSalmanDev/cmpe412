@@ -101,17 +101,26 @@ class AgentTools:
         self.run = DEFAULT_RUN
 
     @classmethod
-    def open(cls, testbed: str, settings: Settings) -> AgentTools:
+    def open(
+        cls,
+        testbed: str,
+        settings: Settings,
+        connection: duckdb.DuckDBPyConnection | None = None,
+    ) -> AgentTools:
         """Open the tools of a testbed.
 
         Args:
             testbed: Testbed name.
             settings: Loaded settings.
+            connection: An open locked connection. A process can hold only one per file, because
+                the lock covers the whole database; opened here if None.
 
         Returns:
             The tools, on a locked connection and the persistent Chroma store.
         """
-        connection = connect_agent(settings.paths.processed_dir / testbed / "agent.duckdb")
+        connection = connection or connect_agent(
+            settings.paths.processed_dir / testbed / "agent.duckdb"
+        )
         client = open_client(settings.paths.index_dir)
         embedder = BgeEmbedder(settings.rag)
         rag = settings.rag

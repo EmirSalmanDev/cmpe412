@@ -1,13 +1,18 @@
 """Typer command line interface (plan 9.3). Commands are stubs until their milestones."""
 
 import logging
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from logtriage.agents.runner import run_incidents
-from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, load_settings
+from logtriage.app.data import AppOptions, database_path
+from logtriage.app.replay import check_live
+from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, Settings, load_settings
 from logtriage.data.download import InsufficientDiskError, run_download
 from logtriage.data.inventory import run_inventory
 from logtriage.ml.detect import run_detect
@@ -15,6 +20,8 @@ from logtriage.prepare import refresh_databases, run_prepare
 from logtriage.rag.attack_index import run_index_attack
 
 app = typer.Typer(no_args_is_help=True, help="LogTriage Agent command line interface.")
+
+STREAMLIT_SCRIPT = Path(__file__).parent / "app" / "streamlit_app.py"
 
 TestbedOption = Annotated[str, typer.Option("--testbed", help="Testbed name.")]
 ConfigOption = Annotated[Path, typer.Option("--config", help="Path to the YAML config file.")]
@@ -138,9 +145,48 @@ def evaluate(
     _not_implemented("evaluate", testbed, config)
 
 
+def streamlit_command(settings: Settings) -> list[str]:
+    """Return the command that starts the dashboard (plan 9.1).
+
+    Args:
+        settings: Loaded settings.
+
+    Returns:
+        The command. It sends no usage statistics and watches no files, because the watcher walks
+        the modules of `torch` and fails on them.
+    """
+    return [
+        sys.executable, "-m", "streamlit", "run", str(STREAMLIT_SCRIPT),
+        "--server.address", settings.app.host,
+        "--server.port", str(settings.app.port),
+        "--server.fileWatcherType", "none",
+        "--browser.gatherUsageStats", "false",
+        "--theme.base", "light",
+    ]  # fmt: skip
+
+
 @app.command("app")
 def run_app(
-    testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
+    testbed: TestbedOption = DEV_TESTBED,
+    config: ConfigOption = DEFAULT_CONFIG_PATH,
+    live: Annotated[
+        bool,
+        typer.Option(
+            "--live", help="Replay computes missing reports. Refused on the test testbed."
+        ),
+    ] = False,
 ) -> None:
     """Start the Streamlit interface."""
-    _not_implemented("app", testbed, config)
+    settings = load_settings(config)
+    try:
+        if live:
+            check_live(testbed)
+        if not database_path(settings, testbed).is_file():
+            raise ValueError(f"{testbed}: no agent database, run `logtriage prepare` first")
+    except ValueError as error:
+        typer.echo(f"app failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    options = AppOptions(testbed, config, live)
+    env = {**os.environ, **options.to_env()}
+    result = subprocess.run(streamlit_command(settings), env=env, check=False)
+    raise typer.Exit(code=result.returncode)

@@ -13,7 +13,6 @@ from logtriage.config import load_settings
 CONFIG = Path(__file__).parents[1] / "configs" / "default.yaml"
 STUB_COMMANDS = [
     "evaluate",
-    "app",
 ]
 COMMANDS = [
     "download",

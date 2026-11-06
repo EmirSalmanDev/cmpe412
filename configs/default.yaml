@@ -46,6 +46,20 @@ agents:
   # Set once prompts are final on the dev testbed; the test testbed needs it (M8).
   prompts_frozen: true
 
+# Dashboard and replay (plan 9.1).
+app:
+  # Local only by default: the dashboard shows logs and spends API money.
+  host: 127.0.0.1
+  port: 8501
+  # Replay speed factors, simulated seconds per wall second.
+  speeds: [60, 600, 3600]
+  default_speed: 600
+  tick_seconds: 2
+  # The replay starts this long before the earliest incident.
+  replay_lead_minutes: 60
+  # Windows shown on each side of an incident in its timeline.
+  timeline_context_minutes: 60
+
 # Anomaly detection (plan 6.3-6.6).
 ml:
   # A (testbed, log_type) with fewer parsed fit-period lines loses its vocabulary features (plan 6.3).

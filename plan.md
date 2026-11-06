@@ -56,7 +56,7 @@ Further fixed choices:
 
 - Python 3.11, managed with **uv** (`uv sync`, `uv run ...`). If uv is missing: `pip install uv`.
 - Packaging: `pyproject.toml`, package `logtriage` in `src/logtriage/`, CLI entry point `logtriage` (Typer).
-- Core libs: pandas, pyarrow, duckdb, drain3, scikit-learn, xgboost, matplotlib, plotly, langgraph, langchain-core, langchain-openai, chromadb, sentence-transformers, pydantic v2, pyyaml, python-dotenv, streamlit, typer, tqdm.
+- Core libs: pandas, pyarrow, duckdb, drain3, scikit-learn, xgboost, matplotlib, plotly, langgraph, langgraph-checkpoint-sqlite (changed: see status.md D49), langchain-core, langchain-openai, chromadb, sentence-transformers, pydantic v2, pyyaml, python-dotenv, streamlit, typer, tqdm.
   Dev: pytest, ruff, nbstripout (optional), jupyter. Optional: torch (LSTM stretch goal, M12).
 - Lint/format: ruff (line length 100). Type hints everywhere; no mypy gate.
 - Config: `configs/default.yaml` loaded by `logtriage.config` into a Pydantic settings object; env overrides via `.env` (see `.env.example`).
@@ -397,6 +397,8 @@ Prompts are Markdown files with a `prompt_version` header; the version is stored
 
 ReAct agent with the same tools plus the current report in context. Memory via LangGraph `SqliteSaver` checkpointer (`data/cache/chat.sqlite`), one thread per incident. Answers must cite eids or line_ids for factual claims.
 
+The loop is a small LangGraph on `LLMClient`, not `create_react_agent`, so every call keeps the cache, ledger and budget guards. The final answer is JSON: `claims` (each a `Claim`, ≥ 1 citation) and an uncited `remark` for what is not a fact about the incident. Code rejects a citation of a line the thread never showed, and after `llm.json_retries` the turn ends with no answer. It checks that a line exists, not that it shows the claim. Report eids keep their meaning, and new lines number after the highest one. The model sees only named report fields, never `meta` or removed claims. `chat-1` loads apart from the frozen roles. The chat writes no report and nothing to the incident memory (changed: see status.md D49).
+
 ---
 
 ## 8. RAG
@@ -425,19 +427,21 @@ Pages:
 3. **Chat**: chat agent for the selected incident.
 4. **Monitoring**: per-incident cost, latency, tokens, verifier rounds; totals.
 
-**Replay mode**: a simulated clock (start time, speed factor, e.g. 60× or 600×). Only windows/incidents with `end ≤ clock` are shown; reports appear when their incident closes (precomputed reports are revealed, or computed live if `--live`).
+**Replay mode**: a simulated clock (start time, speed factor, e.g. 60× or 600×). Only windows/incidents with `end ≤ clock` are shown; reports appear when their incident closes (precomputed reports are revealed, or computed live if `--live`). A window ends `features.window_seconds` after `window_start`. The default start is `app.replay_lead_minutes` before the earliest incident, from detection output, never from `periods.json` (changed: see status.md D50). `--live` computes only reports that are missing, and it is refused on the test testbed, which uses saved reports alone (changed: see status.md D51).
+
+The pages live in `app/views/`: a folder named `pages` beside the entry script turns on Streamlit's legacy routing, which can run a page without the entry script. The app opens only `agent.duckdb`, on one `store.connect_agent` connection per process, and binds to `app.host`, local by default (changed: see status.md D50).
 
 The UI never shows labels except on an optional "Evaluation" page clearly marked as ground truth.
 
 ### 9.2 Docker
 
 - `Dockerfile` (python:3.11-slim, uv, CPU-only torch wheel for sentence-transformers), `docker-compose.yml` with service `app` (Streamlit on 8501), volumes `./data:/app/data`, `./configs:/app/configs`, env file `.env`.
-- `docker compose up` MUST start the dashboard from existing processed data. Building data runs via the CLI (`docker compose run app logtriage prepare ...` or locally).
+- `docker compose up` MUST start the dashboard from existing processed data. The container needs `LOGTRIAGE_APP__HOST=0.0.0.0`, as `app.host` is local by default (changed: see status.md D50). Building data runs via the CLI (`docker compose run app logtriage prepare ...` or locally).
 - `agent.duckdb` holds tables, so it works from any working directory and mount point; `eval.duckdb` keeps paths relative to the repository root (changed: see status.md D41).
 
 ### 9.3 CLI (`logtriage/cli.py`)
 
-`download`, `inventory`, `prepare` (parse + drain + labels + features), `detect` (fit + score + incidents), `index-attack`, `investigate` (agents over incidents), `evaluate`, `app`. Every command takes `--testbed` and `--config`.
+`download`, `inventory`, `prepare` (parse + drain + labels + features), `detect` (fit + score + incidents), `index-attack`, `investigate` (agents over incidents), `evaluate`, `app`. Every command takes `--testbed` and `--config`. `app` also takes `--live` (changed: see status.md D51).
 
 ---
 
@@ -533,7 +537,7 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 │   ├── rag/        attack_index.py incident_store.py
 │   ├── agents/     llm.py cache.py schemas.py prompting.py sql_guard.py tools.py graph.py runner.py chat.py prompts/ (changed: see status.md D48)
 │   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py
-│   └── app/        streamlit_app.py replay.py pages/
+│   └── app/        streamlit_app.py replay.py data.py charts.py ui.py views/ (changed: see status.md D50)
 ├── notebooks/      01_eda.ipynb 02_preparation.ipynb 03_ml_models.ipynb 04_agents.ipynb 05_evaluation.ipynb
 ├── tests/          fixtures/ (tiny hand-made log snippets per type + label files) test_*.py
 ├── reports/        targets.md results.md results/ figures/ human_eval/ inventory_<testbed>.md

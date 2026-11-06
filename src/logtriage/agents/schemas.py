@@ -8,7 +8,7 @@ unsupported claim (plan 10.2).
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import AfterValidator, BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field, model_validator
 
 
 def as_utc(moment: datetime) -> datetime:
@@ -131,6 +131,21 @@ class UnsupportedClaim(BaseModel):
     key: str
     text: str
     reason: str
+
+
+class ChatAnswer(BaseModel):
+    """Final answer of the chat agent. Every factual statement is a claim with its citations."""
+
+    claims: list[Claim] = Field(default_factory=list)
+    # What is not a fact about the incident: limits of the answer, or a next step.
+    remark: str = ""
+
+    @model_validator(mode="after")
+    def says_something(self) -> "ChatAnswer":
+        """Refuse an empty answer."""
+        if not self.claims and not self.remark.strip():
+            raise ValueError("give at least one claim or a remark")
+        return self
 
 
 def draft_claims(draft: ReportDraft) -> list[tuple[str, Claim, str]]:
