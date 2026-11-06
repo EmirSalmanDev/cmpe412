@@ -321,8 +321,11 @@ Hyperparameter search (small grid) only on the dev testbed, choosing by phase re
 
 ### 6.7 Supervised reference (`logtriage/ml/supervised.py`)
 
-- Per log type, RandomForest (`class_weight="balanced"`) and XGBoost (`scale_pos_weight`) on window features.
-- Train on russellmitchell windows (labels: window has ≥ 1 labeled line), test on santos evaluation period. Report PR-AUC, F1 at the threshold that maximizes F1 on out-of-fold (time-blocked CV) predictions on dev, and feature importance.
+- Per baseline-capable log type, RandomForest (`class_weight="balanced_subsample"`) and XGBoost (`scale_pos_weight` = n_neg/n_pos) on window features, with the fixed values of `ml.supervised` and no search. Features are the columns kept on both testbeds, as raw window values, without identity columns. `apache_error` is not evaluated (changed: see status.md D32, D33, D36).
+- Train on russellmitchell calib and eval windows (labels: window has ≥ 1 labeled line), without label-ambiguous windows, and test on the santos evaluation period. A variant trained on all dev periods is secondary (changed: see status.md D34, D35).
+- Report PR-AUC, F1 at the threshold that maximizes F1 on out-of-fold (time-blocked CV) predictions on dev, and feature importance. Blocks are cut per class: the windows of each class, in time order, form `cv_blocks` contiguous equal-count slices, fold i holds out slice i of both classes, and training rows within `purge_minutes` of a held-out span are purged. Folds without a held-out positive or without both classes in training are dropped. A type with fewer than `min_positives` dev positives is "not trainable" and reported n/a, with no fallback (changed: see status.md D37).
+- `pooled` keeps the §10.2 scope, so it is n/a for a model missing a type; `pooled_trained` compares all methods on the types that have a model. Pooled PR-AUC uses uncalibrated per-type probabilities (changed: see status.md D38).
+- Dev OOF first, then the frozen config scores santos once (changed: see status.md D39).
 - Label it "supervised reference" (few positives, one attack instance). It is not guaranteed to be an upper bound.
 
 ### 6.8 Visualization (`logtriage/eval/viz.py`)

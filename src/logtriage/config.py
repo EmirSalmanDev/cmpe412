@@ -35,6 +35,21 @@ class LLMConfig(PlaceholderSection):
     base_url: str | None = None
 
 
+class SupervisedConfig(BaseModel):
+    """Supervised reference settings, fixed and never searched (plan 6.7)."""
+
+    rf_trees: int = 300
+    rf_class_weight: str = "balanced_subsample"
+    xgb_trees: int = 300
+    xgb_max_depth: int = 4
+    xgb_learning_rate: float = 0.1
+    cv_blocks: int = 5
+    purge_minutes: int = 30
+    min_positives: int = 5
+    training_periods: list[str] = Field(default_factory=lambda: ["calib", "eval"])
+    all_periods: list[str] = Field(default_factory=lambda: ["fit", "calib", "eval"])
+
+
 class MLConfig(PlaceholderSection):
     """Anomaly detection settings (plan 6.3-6.6)."""
 
@@ -52,6 +67,7 @@ class MLConfig(PlaceholderSection):
     q_grid: list[float] = Field(default_factory=lambda: [0.95, 0.97, 0.98, 0.99, 0.995, 0.999])
     gap_grid: list[int] = Field(default_factory=lambda: [5, 10, 15, 30])
     common_entity_share: float = 0.5
+    supervised: SupervisedConfig = Field(default_factory=SupervisedConfig)
 
 
 class FeaturesConfig(BaseModel):
