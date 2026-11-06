@@ -312,7 +312,7 @@ Hyperparameter search (small grid) only on the dev testbed, choosing by phase re
 
 ### 6.6 Incident grouping (`logtriage/ml/incidents.py`)
 
-- Nodes = anomalous windows (all log types), sorted by `window_start`.
+- Nodes = anomalous windows of the evaluation period (all log types), sorted by `window_start`. Fit and calib windows only build the baseline (changed: see status.md D30).
 - Link two windows if `|Δt| ≤ gap_minutes` (default 10, tunable on dev from {5, 10, 15, 30}) **and** (same host **or** they share a `src_ip` or `user`).
 - "Common" entities do not link: an IP or user that appears in > 50% of the fit-period windows of its log type (e.g. a DNS forwarder, a monitoring host) is ignored for linking. This prevents one busy entity from chaining unrelated windows together.
 - Connected components (union-find) = incidents.
@@ -523,10 +523,10 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 │   ├── config.py  cli.py  prepare.py
 │   ├── data/       download.py inventory.py timeutil.py periods.py drain.py labels.py
 │   │               windows.py features.py store.py parsers/{common,apache,auth,dns,audit,vpn}.py
-│   ├── ml/         models.py ensemble.py incidents.py supervised.py
+│   ├── ml/         models.py ensemble.py incidents.py detect.py supervised.py
 │   ├── rag/        attack_index.py incident_store.py
 │   ├── agents/     llm.py cache.py schemas.py tools.py graph.py runner.py chat.py prompts/
-│   ├── eval/       metrics.py tuning.py viz.py baselines.py ablations.py human_eval.py report.py
+│   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py
 │   └── app/        streamlit_app.py replay.py pages/
 ├── notebooks/      01_eda.ipynb 02_preparation.ipynb 03_ml_models.ipynb 04_agents.ipynb 05_evaluation.ipynb
 ├── tests/          fixtures/ (tiny hand-made log snippets per type + label files) test_*.py

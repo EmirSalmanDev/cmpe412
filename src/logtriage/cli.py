@@ -9,7 +9,8 @@ import typer
 from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, load_settings
 from logtriage.data.download import InsufficientDiskError, run_download
 from logtriage.data.inventory import run_inventory
-from logtriage.prepare import run_prepare
+from logtriage.ml.detect import run_detect
+from logtriage.prepare import refresh_databases, run_prepare
 
 app = typer.Typer(no_args_is_help=True, help="LogTriage Agent command line interface.")
 
@@ -71,7 +72,14 @@ def detect(
     testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
 ) -> None:
     """Fit anomaly models, score windows and build incidents."""
-    _not_implemented("detect", testbed, config)
+    settings = load_settings(config)
+    try:
+        out_dir = run_detect(testbed, settings)
+        refresh_databases(testbed, settings)
+    except (ValueError, FileNotFoundError) as error:
+        typer.echo(f"detect failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(f"wrote {out_dir}")
 
 
 @app.command("index-attack")

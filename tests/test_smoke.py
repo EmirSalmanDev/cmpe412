@@ -10,7 +10,6 @@ from logtriage.config import load_settings
 
 CONFIG = Path(__file__).parents[1] / "configs" / "default.yaml"
 STUB_COMMANDS = [
-    "detect",
     "index-attack",
     "investigate",
     "evaluate",
@@ -81,6 +80,14 @@ def test_stub_commands_accept_options(command: str) -> None:
     result = runner.invoke(app, [command, "--testbed", "santos", "--config", str(CONFIG)])
     assert result.exit_code == 0
     assert "not implemented yet" in result.output
+
+
+def test_detect_reports_a_testbed_without_features(tmp_path: Path) -> None:
+    config = tmp_path / "config.yaml"
+    config.write_text(f"paths:\n  processed_dir: {tmp_path}\n", encoding="utf-8")
+    result = runner.invoke(app, ["detect", "--testbed", "nope", "--config", str(config)])
+    assert result.exit_code == 1
+    assert "detect failed" in result.output
 
 
 def test_download_rejects_unknown_source() -> None:
