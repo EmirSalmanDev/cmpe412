@@ -28,8 +28,8 @@ ml:
   min_calib_windows: 200
   oof_folds: 5
   # Chosen on russellmitchell by logtriage.eval.tuning and reused unchanged on santos.
-  q: 0.99
-  gap_minutes: 10
+  q: 0.999
+  gap_minutes: 30
   q_grid: [0.95, 0.97, 0.98, 0.99, 0.995, 0.999]
   gap_grid: [5, 10, 15, 30]
   # An entity in more than this share of the fit windows of its log type does not link (plan 6.6).
