@@ -10,7 +10,7 @@ ML anomaly detection on AIT-LDS security logs + a LangGraph agent (DeepSeek V4 F
 ## Hard rules
 - Labels (`labels.parquet`, phases, window/incident ground truth) are read only by the modules allowed in plan §5.2 (eval, tuning on dev, supervised reference, EDA). Never in features, unsupervised models, agent tools, prompts or the agent/chat context. Period boundaries come from `periods.json` (plan §4.3).
 - Every log line keeps `line_id = host|file|line_no` (1-based line number in the original file) from parsing to the report. Never renumber.
-- All timestamps are tz-aware UTC. Dev testbed = `russellmitchell`, test = `santos`. Tune only on dev.
+- All timestamps are tz-aware UTC. Dev testbed = `russellmitchell`, test = `santos`, extra test = `wardbeck`, `harrison` (`test_testbeds` in the config). Tune only on dev.
 - Never commit `data/`, `.env`, secrets or files > 5 MB. The API key comes only from env `DEEPSEEK_API_KEY`.
 - Unit tests use `tests/fixtures/`, no network, no real LLM (use fakes). Mark tests needing the real API `@pytest.mark.live`, tests needing `data/` or downloaded models `@pytest.mark.data`.
 - If a plan decision is wrong, follow plan §14.3: change it, log it in status.md, update plan.md in the same commit. Never deviate silently. Never change evaluation definitions or frozen targets to improve results.

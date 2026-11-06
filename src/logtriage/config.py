@@ -19,6 +19,7 @@ from pydantic_settings import (
 DEFAULT_CONFIG_PATH = Path("configs/default.yaml")
 DEFAULT_ENV_FILE = Path(".env")
 DEV_TESTBED = "russellmitchell"
+# The test testbed of the frozen targets. All test testbeds are in `Settings.test_testbeds` (D56).
 TEST_TESTBED = "santos"
 
 
@@ -261,6 +262,7 @@ class Settings(BaseSettings):
     )
 
     seed: int = 42
+    test_testbeds: list[str] = Field(default_factory=lambda: [TEST_TESTBED])
     llm: LLMConfig = Field(default_factory=LLMConfig)
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
     app: AppConfig = Field(default_factory=AppConfig)
