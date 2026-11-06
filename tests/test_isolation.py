@@ -17,7 +17,11 @@ ALLOWED = {
 }
 FORBIDDEN = re.compile(
     r"labels|phases|eval\.duckdb|label_report|first_attack"
-    r"|logtriage\.(?:eval|prepare)\b"
+    r"|logtriage\.(?:eval|prepare|ml\.supervised)\b"
+    r"|from\s+logtriage\.ml\s+import\s+.*\bsupervised\b"
+    r"|from\s+\.+\s*(?:ml\s+)?import\s+.*\bsupervised\b"
+    r"|from\s+\.+(?:ml\.)?supervised\b"
+    r"|supervised_(?:santos|dev_oof|importance)"
     r"|from\s+logtriage\s+import\s+.*\b(?:eval|prepare)\b"
     r"|from\s+\.+(?:eval|prepare)\b"
     r"|from\s+\.+\s+import\s+.*\b(?:eval|prepare)\b",
@@ -60,6 +64,11 @@ def test_no_module_outside_the_allow_list_refers_to_ground_truth() -> None:
         "from ..prepare import run_prepare",
         "path = out_dir / 'label_report.json'",
         "cutoff = periods.first_attack",
+        "from logtriage.ml.supervised import run_test",
+        "from logtriage.ml import models, supervised",
+        "from . import supervised",
+        "from .supervised import run_dev",
+        "path = 'reports/results/supervised_santos.csv'",
     ],
 )
 def test_the_scan_catches_a_planted_reference(tmp_path: Path, line: str) -> None:
@@ -76,6 +85,7 @@ def test_the_scan_catches_a_planted_reference(tmp_path: Path, line: str) -> None
         "from logtriage.config import Settings",
         "max_label_len = 63",
         "evaluate = model.score(prepared)",
+        "# scores of the unsupervised models",
     ],
 )
 def test_the_scan_accepts_a_harmless_line(tmp_path: Path, line: str) -> None:
