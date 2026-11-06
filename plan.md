@@ -391,7 +391,7 @@ Prompts are Markdown files with a `prompt_version` header; the version is stored
 - **Verifier**:
   1. Code check: each claim's eids exist in the evidence.
   2. LLM check, in one call per round: for each claim, given only the cited lines → `supported` / `unsupported` + reason.
-  Unsupported claims go back to the Reporter with reasons.
+  Unsupported claims go back to the Reporter with reasons. "The evidence" is the list the Investigator selected, which is all the Reporter sees, so an eid that was only shown in tool output counts as unknown (changed: see status.md D48).
 
 ### 7.5 Chat agent (`logtriage/agents/chat.py`)
 
@@ -531,7 +531,7 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 │   │               windows.py features.py store.py parsers/{common,apache,auth,dns,audit,vpn}.py
 │   ├── ml/         models.py ensemble.py incidents.py detect.py supervised.py
 │   ├── rag/        attack_index.py incident_store.py
-│   ├── agents/     llm.py cache.py schemas.py sql_guard.py tools.py graph.py runner.py chat.py prompts/
+│   ├── agents/     llm.py cache.py schemas.py prompting.py sql_guard.py tools.py graph.py runner.py chat.py prompts/ (changed: see status.md D48)
 │   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py
 │   └── app/        streamlit_app.py replay.py pages/
 ├── notebooks/      01_eda.ipynb 02_preparation.ipynb 03_ml_models.ipynb 04_agents.ipynb 05_evaluation.ipynb

@@ -4,9 +4,9 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** M8 — Agent graph (in progress)
-- **Branch:** `m8-agents`
-- **Next step:** Build the LLM client, graph and runner; iterate prompts on russellmitchell only; freeze; generate santos reports once.
+- **Current milestone:** M9 — Chat, dashboard, replay (not started)
+- **Branch:** —
+- **Next step:** Create branch `m9-ui` and read the plan sections listed in §13.
 - **Blockers:** none
 
 ## Milestones
@@ -18,7 +18,7 @@ Format rules: newest entries first in the logs; numbers with their testbed; link
 - [x] M5 Anomaly detection and incidents
 - [x] M6 Supervised reference
 - [x] M7 ATT&CK index and agent tools
-- [ ] M8 Agent graph
+- [x] M8 Agent graph
 - [ ] M9 Chat, dashboard, replay
 - [ ] M10 Docker
 - [ ] M11 Evaluation
@@ -47,6 +47,8 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 - Labeled files (8 per testbed): `inet-firewall/logs/dnsmasq.log`, `intranet_server/logs/auth.log`, `intranet_server/logs/audit/audit.log`, `internal_share/logs/audit/audit.log`, `vpn/logs/openvpn.log`, `intranet_server/logs/apache2/intranet.smith.<testbed>.com-{access,error}.log` (with suffix `.2` on russellmitchell, none on santos), `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log`
 - Git remote: origin, https://github.com/EmirSalmanDev/cmpe412.git
 - macOS: XGBoost needs `brew install libomp` (in the README). scikit-learn's bundled copy cannot stand in, its install name differs. CI runs on Ubuntu and is not affected
+- Cumulative LLM spend through M8: 0.2943 USD in the ledger (`data/cache/llm.sqlite`), plus about 0.035 USD unledgered: two earlier live smoke runs, about 0.0172 each as measured on the third, and the API probes. About 0.33 USD in all, against the 10 USD stop. M8 ran partly in peak hours, and cost counts any weekday hour in the peak range as peak (D45)
+- Embedding model load contacts huggingface.co at every start, although the files are cached (seen in `investigate` logs). M10 Docker needs offline mode or network
 - M11 must report in `reports/results.md`: the unused incident budget, about 15% used on russellmitchell and 4% on santos (`q` decision in the Decision log)
 - M8 and M11 note: exfiltration retrieval reaches T1071.004 but ranks T1048 24 and T1048.003 55 (D43), which may cost ATT&CK top-3 on the `dnsteal` phases. Do not tune retrieval on santos reports
 - M11 must also state in `reports/results.md`, next to the freeze note: santos was scored three times by the frozen supervised models (D40); the committed CSVs are run 1; the error file and the reading of the results were chosen after seeing santos numbers, while no model, feature, threshold, config or definition was; the `dns` thresholds are uninformative
@@ -59,6 +61,10 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 
 ## Key results
 (Add headline numbers per milestone, e.g. "M5 santos: phase recall 7/9, 18 incidents/day".)
+- M8 russellmitchell: 7 reports, 0 failed; 101 claims, per report 17, 14, 12, 24, 10, 12, 12; first drafts 101 claims, 0 citing unknown eids; 0 removed, 3 reports needed 1 rewrite; verdicts 5 uncertain, 2 malicious, 0 benign; 8.7 LLM calls per incident; cost 0.0944 USD, mean 0.0135, p90 0.0189; latency mean 26.1 s, p90 35.6 s
+- M8 santos: 3 reports, 0 failed; 45 claims, per report 12, 17, 16; first drafts 45 claims, 0 citing unknown eids; 0 removed, 0 rewrites; verdicts 2 malicious, 1 uncertain, not compared with any ground truth; 8 LLM calls per incident; cost 0.0436 USD, mean 0.0145, p90 0.0152; latency mean 37.4 s, p90 53.9 s (one Verifier call took 41 s; a p90 of 3 is close to the maximum)
+- M8 reading of dev reports: all 35 summary and technique claims of the final reports were read against their cited lines and hold up; the 66 timeline claims were checked only by time (0 off by more than 1 s) and by wording. This is a developer check for prompt iteration, not the blind §10.2 annotation
+- M8 dev candidate recall (`reports/results/dev_candidate_recall.csv`, not used for any choice, computed after santos ran): 2 of 7 incidents have a gold set. russellmitchell-0006, `privilege_escalation`: yes, T1548.003 at rank 10 of 10. russellmitchell-0004, `cracking dirb service_scans webshell wpscan`: no, none of 6 gold IDs in the top 10. The other 5 have no phases. Retrieval unchanged
 - M7 guard on real `agent.duckdb`, both testbeds: 85 of 85 attack statements rejected, 12 of 12 normal queries work (D41). Size 227.8 MB russellmitchell, 338.2 MB santos
 - M7 ATT&CK index: 706 techniques of 867 attack patterns, all gold IDs present, ATT&CK 20.1, Chroma 10 MB
 - M7 retrieval check: T1071.004 rank 2 of 706 by hybrid search (D43); dense alone rank 7. T1048 24, T1048.003 55
@@ -100,6 +106,7 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 
 ## Decision log
 Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the approved design decisions in plan §2.
+- 2026-11-06 · M8 · D48 · Choices the plan left open; §7.4 and §12 updated. `agents/prompting.py` holds the prompt loader and the delimiters. The Reporter's JSON leaves out what code fills in, and keeps techniques so a review can fix a justification; code rejects a technique that was not mapped, and rejects a first draft that drops one. `verifier_rounds` counts rewrites, at most 2, so at most 3 Verifier passes. "The evidence" for the code check is the Investigator's selected list, so an eid only shown in tool output is unknown. A timeline claim is judged with its time. With `verifier` off nothing is removed, so a claim with an unknown eid stays, for the ablation. RAG off also removes `attack_search` from the Investigator, or the ablation would leak retrieval. `similar_incidents` passes `run`, and a run is named by condition and prompt versions, so prompt iterations share no memory. A line with an unreliable time gets no eid (D14). A failed incident is recorded and the queue goes on; a spending limit stops the run. `few_shot` needs `prompts/reporter_examples.md`, which M11 writes, and fails loudly until then · The plan does not define these, and each one touches a §10 metric or the isolation of a condition · `tests/test_graph.py`, `tests/test_runner.py`
 - 2026-11-06 · M8 · D47 · **Santos reports came from an accidental run, not a planned one.** `tests/test_smoke.py` invoked every stub command with `--testbed santos`, and `investigate` was no longer a stub. The freeze guard had been refusing it; setting `agents.prompts_frozen` removed the refusal, so `pytest` ran a real investigation at 2026-11-06 08:59–09:01 UTC, 4 s before the freeze commit `d9bfa62` landed. The output was cut by `tail`, so the failing test went unseen and that commit was made on a failing suite, on the branch only. The planned command was then refused by the once-only guard. The reports are kept and santos was **not** re-run: it ran exactly once, with the frozen prompts and code, so a second run would be the real breach of the brief. No prompt, retrieval, config or code changed because of its output. Fixed: `investigate` left the stub list, and `tests/conftest.py` fails any test without `@pytest.mark.live` that reaches the model · A unit test broke the CLAUDE.md rule of no real LLM, and spent real money · Prompts last changed in `ce62544`, before the freeze; `d9bfa62` touches no file under `agents/`; ledger holds 24 calls after 08:59:30 UTC = 3 incidents × 8, 0 cached, 0.0436 USD; every report meta shows investigator-1, mapper-1, reporter-2, verifier-3
 - 2026-11-06 · M8 · D46 · `connect_agent` sets `threads=1` before locking the configuration; §7.3 updated. The guard itself is unchanged · Parallel execution orders ties and groups differently between runs, so the same `run_sql` gave different text, the request changed and the LLM cache missed. A replay of russellmitchell diverged on 3 of 7 incidents, so M11 ablations would not have compared like with like. Found because the Investigator was expected to replay in full and did not · 52 recorded tool calls, 12 repeats each: 4 unstable with default threads, 0 with one; slowest call 0.02 s and 0.04 s; 127 guard and agent database tests pass
 - 2026-11-06 · M8 · D45 · `llm.pricing_usd_per_1m` holds two rate sets, `off_peak` and `peak`, chosen per call from the UTC time and `llm.peak_hours_utc`. Chinese public holidays are not in any config, so a weekday hour in the peak range is priced as peak: the logged cost can only be too high. Added `llm.max_usd_total` (10), a guard on cumulative spend over all runs, read from a ledger in the cache file; §7.1 updated · §7.1 has one rate per token type, and DeepSeek now charges double in peak hours. The user set the 10 USD stop in the M8 brief · https://api-docs.deepseek.com/quick_start/pricing, read 2026-11-06
@@ -188,11 +195,15 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 - M10: `eval.duckdb` views still use paths relative to the repository root, so the evaluation page must run from there or rebuild them. `agent.duckdb` no longer has this issue (D41).
 - GitHub Actions (Ubuntu) on the M6 and M7 merges: not verified from here, because `gh` is not installed. Human check pending. The M6 session log records a green run as reported by the user, but nobody viewed it from this repo.
 - M11, small denominators, needs a human decision, targets unchanged: santos has only 3 incidents. With 3 malicious incidents, ATT&CK top-3 ≥ 70% needs 3 of 3 (2 of 3 is 66.7%), and the manual faithfulness sample of ≥ 100 claims is probably out of reach on 3 reports. Option: M8 also generates russellmitchell reports, and M11 decides on pooling with a logged reason.
+- M11: `deepseek-flash` is a rolling alias. Every M8 report shows `system_fingerprint` `bc19ba97cbe016479903222bb1578db6`; compare it before mixing M11 runs with these reports (D44).
+- M11, human decision: the santos reports came from an accidental run with the frozen prompts (D47). They are kept. Say in `reports/results.md` how they were produced.
+- M11: dev has no `benign` verdict after reporter-2, so verdict F1 rests on `uncertain` counting as non-benign; report it, do not tune it.
 - M11: do not re-execute notebooks that re-score santos (`03_ml_models.ipynb` cell 13 re-scored the M5 unclipped secondary, D40); read saved results instead.
 - Other labeled log types: only `monitoring/logs/logstash/intranet-server/<date>-system.cpu.log` (49 labeled lines on russellmitchell, 44 on santos, raw labels include `crack_passwords` and `escalate`), left unprocessed. Syslog and Suricata files exist but have no label files.
 
 ## Session log
 Format: `YYYY-MM-DD · milestone · what was done · next`.
+- 2026-11-06 · M8 · M7 findings recorded; DeepSeek facts verified live (D44, D45); LLM client, cache, budget guards, schemas, prompts, graph, runner, `investigate`, `04_agents.ipynb`; prompts iterated on russellmitchell for faithfulness only, then frozen; agent connection pinned to one thread (D46); santos ran once, by accident from a stub test, with the frozen prompts, kept and not re-run (D47); dev candidate recall reported, retrieval unchanged; plan changed by D44–D46, D48. Acceptance: fake-LLM graph tests, budget guard, live smoke test, isolation test, model and price and ATT&CK logs, santos reports and total cost all done. Not verified: GitHub Actions on the M8 merge (`gh` not installed); no injection test on the real model · Start M9 on `m9-ui`
 - 2026-11-06 · M7 · Label guard verified and decided (D41); index, five tools, incident store, `index-attack` done (D42); retrieval check failed on dense search, then passed on one declared hybrid design (D43) · Start M8 on `m8-agents`
 - 2026-11-06 · M6 close-out · Read-only: run history, fold sizes, FP query names and wording recorded in D40; no fit, no santos scoring, no CSV change; notebook edited in markdown only; the plan changed by D40; the distinct XGB score count was left uncounted by user decision (D40); GitHub Actions on the M6 merge reported green by the user, not viewed here because `gh` is not installed; the same commands pass in a clean clone on macOS, 441 tests · Start M7 on `m7-tools`
 - 2026-11-06 · M6 · `q` grid decided; read-only audit (`reports/audit_m6.md`); D32–D40 logged, D32–D39 before training; `ml/supervised.py`, dev OOF, one official santos run, importance, errors, `03_ml_models.ipynb` finished; `brew install libomp` on this machine; plan changed by D32–D39 · Start M7 on `m7-tools`
