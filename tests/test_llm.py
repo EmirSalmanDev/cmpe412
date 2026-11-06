@@ -194,6 +194,20 @@ def test_the_payload_echoes_reasoning_and_uses_max_tokens() -> None:
     assert "max_completion_tokens" not in payload
 
 
+def test_json_mode_travels_in_the_extra_body_so_tools_need_not_be_strict() -> None:
+    chat = DeepSeekChat(
+        model="m", api_key="k", base_url="http://localhost", extra_body={"thinking": {"type": "x"}}
+    )
+    payload = chat._get_request_payload(
+        [HumanMessage("a")], response_format={"type": "json_object"}
+    )
+    assert "response_format" not in payload
+    assert payload["extra_body"] == {
+        "thinking": {"type": "x"},
+        "response_format": {"type": "json_object"},
+    }
+
+
 def test_the_result_keeps_reasoning_from_the_raw_answer() -> None:
     raw = {
         "id": "r",

@@ -42,10 +42,17 @@ class DeepSeekChat(ChatOpenAI):
     def _get_request_payload(
         self, input_: Any, *, stop: list[str] | None = None, **kwargs: Any
     ) -> dict:
-        """Send `max_tokens` by its DeepSeek name, and echo the reasoning of earlier turns."""
+        """Adapt the request to DeepSeek, and echo the reasoning of earlier turns.
+
+        `max_tokens` goes by that name. `response_format` goes in the extra body, because with it
+        as a parameter `ChatOpenAI` calls the SDK's `parse`, which refuses non-strict tools.
+        """
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
         if "max_completion_tokens" in payload:
             payload["max_tokens"] = payload.pop("max_completion_tokens")
+        if "response_format" in payload:
+            extra = payload.get("extra_body") or {}
+            payload["extra_body"] = {**extra, "response_format": payload.pop("response_format")}
         messages = self._convert_input(input_).to_messages()
         for sent, message in zip(payload["messages"], messages, strict=True):
             if isinstance(message, AIMessage) and message.additional_kwargs.get(REASONING):
