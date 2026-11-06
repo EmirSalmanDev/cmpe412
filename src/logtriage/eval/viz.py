@@ -14,6 +14,8 @@ import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap, LogNorm
 from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter, PercentFormatter
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 from logtriage.data.periods import Periods
 
@@ -35,6 +37,20 @@ LOG_TYPE_STYLE = {
 SEQUENTIAL = LinearSegmentedColormap.from_list(
     "blue", ["#cde2fb", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"]
 )
+# Fixed slot per phase, so a phase keeps its color and marker. The reference palette has eight
+# slots, so the small phases share the last one.
+PHASE_STYLE = {
+    "dnsteal_exfil": ("#2a78d6", "o"),
+    "network_scans": ("#eb6834", "s"),
+    "service_scans": ("#1baf7a", "^"),
+    "dirb": ("#eda100", "D"),
+    "wpscan": ("#e87ba4", "v"),
+    "webshell": ("#008300", "P"),
+    "cracking": ("#6250d6", "X"),
+}
+OTHER_PHASES = "other phases"
+OTHER_STYLE = ("#e34948", "*")
+NORMAL_POINT = "#c9c8c3"
 LINE_POINTS = 1.5
 
 
@@ -263,4 +279,143 @@ def plot_dns_contamination(
         color=INK,
     )
     figure.tight_layout(rect=(0, 0, 1, 0.97))
+    return _finish(figure, path)
+
+
+def plot_score_timeline(
+    scores: pd.DataFrame,
+    intervals: pd.DataFrame,
+    q: float,
+    title: str,
+    path: Path | None = None,
+    bin_minutes: int = 10,
+) -> Figure:
+    """Draw the highest score per host over the evaluation period, one panel per host.
+
+    Args:
+        scores: Evaluation windows with `host`, `window_start` and `score`.
+        intervals: Phases with `phase`, `start`, `end` and `source`.
+        q: Threshold, drawn in every panel.
+        title: Figure title.
+        path: Where to save the figure, if anywhere.
+        bin_minutes: Bin width of the line.
+
+    Returns:
+        The figure. Shaded bands are the published attack phases, and the bar over the first
+        panel is the exfiltration interval.
+    """
+    hosts = sorted(scores["host"].unique())
+    start, end = scores["window_start"].min(), scores["window_start"].max()
+    figure, axes = plt.subplots(
+        len(hosts), 1, figsize=(10.5, 0.62 * len(hosts) + 1.0), sharex=True, squeeze=False
+    )
+    published = intervals[intervals["source"].str.startswith("ait_ads")]
+    exfil = intervals[~intervals["source"].str.startswith("ait_ads")]
+    for row, host in enumerate(hosts):
+        panel = axes[row, 0]
+        _style(panel, "")
+        for item in published.itertuples():
+            panel.axvspan(item.start, item.end, color=BAND, linewidth=0, zorder=0)
+        part = scores[scores["host"] == host]
+        line = part.groupby(part["window_start"].dt.floor(f"{bin_minutes}min"))["score"].max()
+        panel.plot(line.index, line.to_numpy(), color=SERIES, linewidth=LINE_POINTS * 0.6)
+        panel.axhline(q, color=INK_SECONDARY, linewidth=0.7, linestyle=(0, (4, 3)))
+        flagged = part[part["score"] >= q]
+        panel.scatter(flagged["window_start"], flagged["score"], color=INK, s=14, zorder=3)
+        panel.set_ylim(0, 1.08)
+        panel.set_yticks([0, 1])
+        panel.set_ylabel(host, rotation=0, ha="right", va="center", fontsize=8, color=INK_SECONDARY)
+    for item in exfil.itertuples():
+        low, high = max(item.start, start), min(item.end, end)
+        if low < high:
+            axes[0, 0].plot(
+                [low, high], [1.16, 1.16], color=INK_SECONDARY, linewidth=2, clip_on=False
+            )
+            axes[0, 0].text(
+                low, 1.24, "exfiltration", fontsize=7, color=INK_SECONDARY, clip_on=False
+            )
+    axes[-1, 0].set_xlim(start, end)
+    axes[-1, 0].xaxis.set_major_formatter(mdates.DateFormatter("%d %b %H:%M"))
+    figure.suptitle(title, x=0.02, ha="left", fontsize=11, color=INK)
+    figure.tight_layout(rect=(0, 0, 1, 0.97))
+    return _finish(figure, path)
+
+
+def plot_window_embedding(
+    matrix: np.ndarray,
+    phases: pd.Series,
+    title: str,
+    seed: int,
+    path: Path | None = None,
+    max_normal: int = 5000,
+) -> Figure:
+    """Draw windows in two dimensions with PCA and t-SNE, colored by phase (plan 6.8).
+
+    Args:
+        matrix: Scaled features of the windows of one log type.
+        phases: Phase of each row, or None for a normal window.
+        title: Figure title.
+        seed: Random seed of the sample and of t-SNE.
+        path: Where to save the figure, if anywhere.
+        max_normal: Most normal windows to draw. Every attack window is drawn.
+
+    Returns:
+        The figure.
+    """
+    phases = phases.reset_index(drop=True)
+    normal = np.flatnonzero(phases.isna().to_numpy())
+    if len(normal) > max_normal:
+        normal = np.random.default_rng(seed).choice(normal, max_normal, replace=False)
+    rows = np.sort(np.concatenate([normal, np.flatnonzero(phases.notna().to_numpy())]))
+    sample, names = matrix[rows], phases.iloc[rows]
+    embeddings = {
+        "PCA": PCA(n_components=2, random_state=seed).fit_transform(sample),
+        "t-SNE": TSNE(n_components=2, init="pca", random_state=seed).fit_transform(sample),
+    }
+    figure, axes = plt.subplots(1, 2, figsize=(10.5, 4.6))
+    shown = [name for name in PHASE_STYLE if (names == name).any()]
+    others = names.notna() & ~names.isin(PHASE_STYLE)
+    for panel, (name, points) in zip(axes, embeddings.items(), strict=True):
+        _style(panel, "")
+        panel.set_xticks([])
+        panel.set_yticks([])
+        is_normal = names.isna().to_numpy()
+        panel.scatter(*points[is_normal].T, s=5, color=NORMAL_POINT, linewidths=0, label="normal")
+        for phase in shown:
+            color, marker = PHASE_STYLE[phase]
+            part = points[(names == phase).to_numpy()]
+            panel.scatter(
+                *part.T,
+                s=34,
+                color=color,
+                marker=marker,
+                edgecolors=SURFACE,
+                linewidths=0.6,
+                label=phase,
+            )
+        if others.any():
+            color, marker = OTHER_STYLE
+            panel.scatter(
+                *points[others.to_numpy()].T,
+                s=46,
+                color=color,
+                marker=marker,
+                edgecolors=SURFACE,
+                linewidths=0.6,
+                label=OTHER_PHASES,
+            )
+        panel.set_title(name, loc="left", fontsize=9, color=INK)
+    handles, texts = axes[0].get_legend_handles_labels()
+    figure.legend(
+        handles,
+        texts,
+        loc="lower center",
+        ncols=min(len(texts), 5),
+        frameon=False,
+        fontsize=8,
+        labelcolor=INK_SECONDARY,
+        markerscale=1.2,
+    )
+    figure.suptitle(title, x=0.02, ha="left", fontsize=11, color=INK)
+    figure.tight_layout(rect=(0, 0.1, 1, 0.97))
     return _finish(figure, path)

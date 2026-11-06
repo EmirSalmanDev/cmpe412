@@ -540,13 +540,38 @@ def test_scaler_handles_a_feature_that_is_zero_on_every_fit_window() -> None:
     assert scaler.transform(windows)[2, 0] == pytest.approx(np.log1p(3.0))
 
 
+def test_one_sided_features_are_clipped_at_zero_only_when_asked() -> None:
+    windows = pd.DataFrame(
+        {
+            "period": ["fit", "fit", "fit", "eval", "eval"],
+            "max_label_len": [60.0, 61.0, 62.0, 10.0, 70.0],
+            "ratio_x": [0.0, 0.5, 1.0, -9.0, 9.0],
+        }
+    )
+    scaler = fit_scaler(windows, ["max_label_len", "not_in_this_table"])
+    assert scaler.one_sided == ["max_label_len"]
+    clipped = scaler.transform(windows)
+    unclipped = scaler.transform(windows, clip=False)
+    assert clipped[3, 0] == 0.0
+    assert unclipped[3, 0] == pytest.approx(-51.0)
+    assert clipped[4, 0] == unclipped[4, 0] == pytest.approx(9.0)
+    # The other column keeps its low values.
+    assert clipped[3, 1] == unclipped[3, 1] < 0
+
+
+def test_one_sided_does_not_change_center_or_scale() -> None:
+    windows = pd.DataFrame({"period": ["fit"] * 3, "max_label_len": [60.0, 61.0, 62.0]})
+    plain, one_sided = fit_scaler(windows), fit_scaler(windows, ["max_label_len"])
+    assert (plain.center, plain.scale) == (one_sided.center, one_sided.scale)
+
+
 def test_scaler_needs_fit_windows() -> None:
     with pytest.raises(ValueError, match="no fit windows"):
         fit_scaler(pd.DataFrame({"period": ["eval"], "n_lines": [1.0]}))
 
 
 def test_scaler_survives_a_round_trip(tmp_path: Path) -> None:
-    scaler = FeatureScaler(["n_lines"], ["n_lines"], [1.0], [2.0])
+    scaler = FeatureScaler(["n_lines"], ["n_lines"], [1.0], [2.0], ["n_lines"])
     scaler.save(tmp_path / "scalers" / "x.json")
     assert FeatureScaler.load(tmp_path / "scalers" / "x.json") == scaler
 

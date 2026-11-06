@@ -94,7 +94,8 @@ def test_scaled_fit_windows_have_median_zero(testbed: str) -> None:
         if entry["baseline_capable"]:
             scaler = FeatureScaler.load(processed(testbed) / SCALER_DIR / f"{log_type}.json")
             windows = windows_of(testbed, log_type)
-            scaled = scaler.transform(windows[windows["period"] == "fit"])
+            # The clip comes after the scaler, and a median over an even count can straddle it.
+            scaled = scaler.transform(windows[windows["period"] == "fit"], clip=False)
             assert np.median(scaled, axis=0) == pytest.approx(0, abs=1e-9)
 
 

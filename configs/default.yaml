@@ -10,7 +10,7 @@ llm:
   model: null
   base_url: null
 
-# Filled in at M5 (plan 6.4-6.6).
+# Anomaly detection (plan 6.3-6.6).
 ml:
   # A (testbed, log_type) with fewer parsed fit-period lines loses its vocabulary features (plan 6.3).
   min_fit_lines: 200
@@ -18,6 +18,22 @@ ml:
   min_calib_lines: 50
   # Fixed in M3 (reports/targets.md); the threshold q is chosen under it (plan 6.5).
   incidents_per_day_budget: 25
+  # Models (plan 6.4).
+  if_estimators: 300
+  lof_neighbors: 35
+  # LOF fits on a sample of at most this many windows.
+  lof_max_windows: 50000
+  pca_variance: 0.95
+  # A stream or log type with fewer calib windows borrows a wider reference (plan 6.5, D28).
+  min_calib_windows: 200
+  oof_folds: 5
+  # Chosen on russellmitchell by logtriage.eval.tuning and reused unchanged on santos.
+  q: 0.999
+  gap_minutes: 30
+  q_grid: [0.95, 0.97, 0.98, 0.99, 0.995, 0.999]
+  gap_grid: [5, 10, 15, 30]
+  # An entity in more than this share of the fit windows of its log type does not link (plan 6.6).
+  common_entity_share: 0.5
 
 # Windows and features (plan 5.4, 6.3).
 features:
@@ -27,6 +43,14 @@ features:
   top_entities: 10
   # Second-level names that are public suffixes under a two-letter TLD, as in co.uk or com.cn.
   second_level_suffixes: [ac, co, com, edu, go, gov, ne, net, or, org]
+  # Negative scaled values of these features are clipped at 0 (D29).
+  one_sided_features:
+    - mean_qname_len
+    - max_label_len
+    - mean_label_entropy
+    - max_label_entropy
+    - ratio_unique_qnames
+    - top_domain_share
 
 # Training and evaluation boundaries (plan 4.3). The computed values go to periods.json.
 periods:

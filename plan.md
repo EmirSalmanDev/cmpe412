@@ -289,13 +289,14 @@ Features that turn out to be constant or missing in the real data are dropped pe
 
 Vocabulary, rarity and "unseen" features (`n_unseen_templates`, `ratio_unseen_templates`, `mean_template_rarity`, `max_template_rarity`, and every `*_unseen_*` feature in the table) are dropped for a `(testbed, log_type)` whose fit period has fewer than `ml.min_fit_lines` parsed lines (`configs/default.yaml`, default 200) (changed: see status.md D15).
 Transform: `log1p` on counts (features named `n_*`), then `RobustScaler` fit on the `fit` windows of a log type, pooled across hosts. Windows keep raw values; the scaler is saved to `data/processed/<testbed>/scalers/<log_type>.json` for M5, and only for baseline-capable types (§6.4). Vocabularies go to `vocabularies/<log_type>.parquet` (changed: see status.md D26).
+The DNS features `mean_qname_len`, `max_label_len`, `mean_label_entropy`, `max_label_entropy`, `ratio_unique_qnames` and `top_domain_share` are one-sided: negative scaled values are clipped at 0 (`features.one_sided_features`), on every testbed. They rise with an attack by nature, and the baseline holds the tunnel, so a value below it only means the tunnel stopped. Raw window values are not clipped. Unclipped DNS numbers are reported as a secondary variant and used for no selection (changed: see status.md D29).
 
 ### 6.4 Anomaly models (`logtriage/ml/models.py`)
 
 Per `(testbed, log_type)`, fit on **fit-period windows** only:
 
 - `IsolationForest(n_estimators=300, contamination="auto", random_state=seed)`
-- `LocalOutlierFactor(n_neighbors=35, novelty=True)` (subsample to ≤ 50k training windows if needed)
+- `LocalOutlierFactor(n_neighbors=35, novelty=True)` (subsample to ≤ 50k training windows if needed), fit on the distinct rows of the fit windows, with `n_neighbors` capped at their number minus one (changed: see status.md D31)
 - PCA reconstruction error with `n_components` explaining 95% variance
 
 Higher score = more anomalous for all three (negate sklearn scores where needed).
@@ -305,12 +306,13 @@ Hyperparameter search (small grid) only on the dev testbed, choosing by phase re
 ### 6.5 Calibration, ensemble, threshold (`logtriage/ml/ensemble.py`)
 
 - For each model, `pct_m(x)` = empirical CDF of the model's scores on the calibration slice. Calibrate per `(host, log_type)` when that stream has ≥ 200 calibration windows, otherwise per `log_type`.
+- A log type with fewer than `ml.min_calib_windows` (200) calibration windows adds out-of-fold scores of its fit windows to its reference: `ml.oof_folds` contiguous time blocks, each scored by models fit on the other blocks. The final models stay fit on all fit windows, and baseline capability (§6.4) does not change (changed: see status.md D28).
 - `score = mean(pct_if, pct_lof, pct_pca)`.
 - `is_anomalous = score ≥ q`. `q` is chosen on dev (in `eval/tuning.py`) from {0.95, 0.97, 0.98, 0.99, 0.995, 0.999} to maximize phase recall subject to incidents/day ≤ the budget fixed in M3 (default 25); ties → fewer incidents. The same `q` is used on test.
 
 ### 6.6 Incident grouping (`logtriage/ml/incidents.py`)
 
-- Nodes = anomalous windows (all log types), sorted by `window_start`.
+- Nodes = anomalous windows of the evaluation period (all log types), sorted by `window_start`. Fit and calib windows only build the baseline (changed: see status.md D30).
 - Link two windows if `|Δt| ≤ gap_minutes` (default 10, tunable on dev from {5, 10, 15, 30}) **and** (same host **or** they share a `src_ip` or `user`).
 - "Common" entities do not link: an IP or user that appears in > 50% of the fit-period windows of its log type (e.g. a DNS forwarder, a monitoring host) is ignored for linking. This prevents one busy entity from chaining unrelated windows together.
 - Connected components (union-find) = incidents.
@@ -521,10 +523,10 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 │   ├── config.py  cli.py  prepare.py
 │   ├── data/       download.py inventory.py timeutil.py periods.py drain.py labels.py
 │   │               windows.py features.py store.py parsers/{common,apache,auth,dns,audit,vpn}.py
-│   ├── ml/         models.py ensemble.py incidents.py supervised.py
+│   ├── ml/         models.py ensemble.py incidents.py detect.py supervised.py
 │   ├── rag/        attack_index.py incident_store.py
 │   ├── agents/     llm.py cache.py schemas.py tools.py graph.py runner.py chat.py prompts/
-│   ├── eval/       metrics.py tuning.py viz.py baselines.py ablations.py human_eval.py report.py
+│   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py
 │   └── app/        streamlit_app.py replay.py pages/
 ├── notebooks/      01_eda.ipynb 02_preparation.ipynb 03_ml_models.ipynb 04_agents.ipynb 05_evaluation.ipynb
 ├── tests/          fixtures/ (tiny hand-made log snippets per type + label files) test_*.py

@@ -31,6 +31,9 @@ LINES_SCHEMA = pa.schema(
 )
 
 
+DETECTION_TABLES = ("scores", "incidents")
+
+
 def connect(path: Path | str = ":memory:", read_only: bool = False) -> duckdb.DuckDBPyConnection:
     """Open a DuckDB connection whose session time zone is UTC (plan 5.1).
 
@@ -77,8 +80,13 @@ def _family_views(directory: Path, family: str) -> dict[str, str]:
 
 
 def data_views(directory: Path) -> dict[str, str]:
-    """Return view name to SQL for the line and window tables of a testbed."""
-    return {**_family_views(directory, "lines"), **_family_views(directory, "windows")}
+    """Return view name to SQL for the line, window and detection tables of a testbed."""
+    views = {**_family_views(directory, "lines"), **_family_views(directory, "windows")}
+    for name in DETECTION_TABLES:
+        path = directory / f"{name}.parquet"
+        if path.is_file():
+            views[name] = f"SELECT * FROM read_parquet('{path}')"
+    return views
 
 
 def create_views(db_path: Path, views: dict[str, str]) -> None:
@@ -93,5 +101,5 @@ def create_views(db_path: Path, views: dict[str, str]) -> None:
 
 
 def build_agent_db(directory: Path) -> None:
-    """Create `agent.duckdb`, which exposes the line and window tables only (plan 5)."""
+    """Create `agent.duckdb`, which exposes no ground truth (plan 5)."""
     create_views(directory / "agent.duckdb", data_views(directory))

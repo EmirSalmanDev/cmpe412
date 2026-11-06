@@ -24,7 +24,12 @@ from logtriage.data.periods import (
     read_simulation_interval,
     write_periods,
 )
-from logtriage.data.store import build_agent_db, template_digest, write_lines
+from logtriage.data.store import (
+    DETECTION_TABLES,
+    build_agent_db,
+    template_digest,
+    write_lines,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +69,16 @@ def _prepare_lines(
     return timestamps, report
 
 
+def refresh_databases(testbed: str, settings: Settings) -> None:
+    """Rebuild `agent.duckdb` and `eval.duckdb` so that they show every table on disk.
+
+    `detect` calls this through the CLI, because `logtriage.ml` may not touch ground truth.
+    """
+    out_dir = settings.paths.processed_dir / testbed
+    build_agent_db(out_dir)
+    build_eval_db(out_dir, settings.paths.data_meta_dir / f"phases_{testbed}.csv")
+
+
 def run_prepare(testbed: str, settings: Settings) -> Path:
     """Build everything under `data/processed/<testbed>/`.
 
@@ -93,6 +108,8 @@ def run_prepare(testbed: str, settings: Settings) -> Path:
     timestamps, report = _prepare_lines(testbed, testbed_dir, out_dir, periods, settings)
     text = json.dumps(report, indent=2, sort_keys=True) + "\n"
     (out_dir / "prepare_report.json").write_text(text, encoding="utf-8")
+    for name in DETECTION_TABLES:  # they describe the windows that are about to be replaced
+        (out_dir / f"{name}.parquet").unlink(missing_ok=True)
     build_windows(out_dir, periods, settings)
     build_agent_db(out_dir)
 

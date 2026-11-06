@@ -385,17 +385,31 @@ def write_windows(
 
 @dataclass(frozen=True)
 class FeatureScaler:
-    """`log1p` on counts, then the center and scale of a `RobustScaler` (plan 6.3)."""
+    """`log1p` on counts, the center and scale of a `RobustScaler`, one-sided clip (plan 6.3)."""
 
     columns: list[str]
     count_columns: list[str]
     center: list[float]
     scale: list[float]
+    one_sided: list[str] = field(default_factory=list)
 
-    def transform(self, windows: pd.DataFrame) -> np.ndarray:
-        """Return the scaled feature matrix of the given windows."""
+    def transform(self, windows: pd.DataFrame, clip: bool = True) -> np.ndarray:
+        """Return the scaled feature matrix of the given windows.
+
+        Args:
+            windows: Windows with the feature columns.
+            clip: Clip the negative values of the one-sided features at 0 (D29). False gives
+                the unclipped secondary variant.
+
+        Returns:
+            One row per window, one column per entry of `columns`.
+        """
         matrix = log_counts(windows, self.columns, self.count_columns)
-        return (matrix - np.array(self.center)) / np.array(self.scale)
+        scaled = (matrix - np.array(self.center)) / np.array(self.scale)
+        if clip:
+            positions = [self.columns.index(name) for name in self.one_sided]
+            scaled[:, positions] = np.maximum(scaled[:, positions], 0.0)
+        return scaled
 
     def save(self, path: Path) -> None:
         """Write the scaler as JSON."""
@@ -421,11 +435,12 @@ def feature_columns(windows: pd.DataFrame) -> list[str]:
     return [name for name in windows.columns if name not in NOT_FEATURES]
 
 
-def fit_scaler(windows: pd.DataFrame) -> FeatureScaler:
+def fit_scaler(windows: pd.DataFrame, one_sided: Iterable[str] = ()) -> FeatureScaler:
     """Fit a scaler on the `fit` windows of a log type.
 
     Args:
         windows: Windows of every period. Rows of other periods are ignored.
+        one_sided: Features to clip at 0 after scaling. Names the table lacks are ignored.
 
     Returns:
         The fitted scaler.
@@ -439,7 +454,8 @@ def fit_scaler(windows: pd.DataFrame) -> FeatureScaler:
     columns = feature_columns(windows)
     counts = [name for name in columns if name.startswith("n_")]
     robust = RobustScaler().fit(log_counts(fit, columns, counts))
-    return FeatureScaler(columns, counts, robust.center_.tolist(), robust.scale_.tolist())
+    clipped = [name for name in columns if name in set(one_sided)]
+    return FeatureScaler(columns, counts, robust.center_.tolist(), robust.scale_.tolist(), clipped)
 
 
 def build_log_type(
@@ -489,7 +505,8 @@ def build_log_type(
     windows = pd.read_parquet(windows_path)
     capable = is_baseline_capable(fit_lines, calib_lines, settings.ml)
     if capable:
-        fit_scaler(windows).save(directory / SCALER_DIR / f"{log_type}.json")
+        scaler = fit_scaler(windows, config.one_sided_features)
+        scaler.save(directory / SCALER_DIR / f"{log_type}.json")
     return {
         "fit_lines": fit_lines,
         "calib_lines": calib_lines,
