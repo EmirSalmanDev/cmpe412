@@ -1,0 +1,20 @@
+# `docker compose up` serves the dashboard from existing processed data (plan 9.2).
+services:
+  app:
+    build: .
+    image: logtriage-app
+    command: ["logtriage", "app", "--testbed", "${LOGTRIAGE_TESTBED:-santos}"]
+    # Loopback of the host only: the dashboard shows logs and spends API money (D50, D54).
+    ports:
+      - "127.0.0.1:8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./configs:/app/configs
+    # Optional, so a clean clone starts; without a key the chat only shows its history (D54).
+    env_file:
+      - path: .env
+        required: false
+    # Set here as well as in the image, because `environment` wins over `.env`.
+    environment:
+      LOGTRIAGE_APP__HOST: 0.0.0.0
+    init: true
