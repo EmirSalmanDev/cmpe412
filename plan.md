@@ -369,7 +369,7 @@ Limits (config): investigator ≤ 8 tool calls, evidence ≤ 30 lines, each tool
 
 ### 7.3 Tools (`logtriage/agents/tools.py`)
 
-All tools read only `agent.duckdb`, through `store.connect_agent`: `read_only=True`, `enable_external_access=false`, `lock_configuration=true`, no label tables (changed: see status.md D41). Each returns compact text and the line_ids it surfaced. Lines shown to the LLM get eids registered in state.
+All tools read only `agent.duckdb`, through `store.connect_agent`: `read_only=True`, `enable_external_access=false`, `lock_configuration=true`, no label tables (changed: see status.md D41), one thread so that results repeat (changed: see status.md D46). Each returns compact text and the line_ids it surfaced. Lines shown to the LLM get eids registered in state.
 
 | tool | behavior |
 |---|---|

@@ -1,0 +1,8 @@
+incident_id,verdict,confidence,claims,summary_claims,timeline_claims,technique_claims,removed_claims,draft_claims,draft_unknown_eid_claims,verifier_rounds,evidence_lines,tool_calls,techniques,llm_calls,retries,tokens_in,tokens_cached,tokens_out,cost_usd,latency_s
+russellmitchell-0001,uncertain,0.4,15,4,10,1,1,16,0,2,12,6,T1110.001,11,0,41794,24320,7281,0.014125,34.91
+russellmitchell-0002,uncertain,0.4,14,4,10,0,0,14,0,0,16,8,,8,0,35231,13696,3558,0.010812,21.1
+russellmitchell-0003,uncertain,0.4,12,4,7,1,0,12,0,0,19,8,T1021.004,8,0,45279,16768,3222,0.01252,19.86
+russellmitchell-0004,malicious,0.85,25,4,19,2,0,25,0,1,29,8,T1021 T1590.002,10,0,73622,34176,9386,0.023302,43.1
+russellmitchell-0005,uncertain,0.4,19,3,15,1,1,20,0,2,18,6,T1021.004,11,0,50043,24192,8122,0.017647,37.71
+russellmitchell-0006,malicious,0.9,22,4,17,1,0,22,0,0,19,8,T1548.003,8,0,52928,17920,4335,0.015812,24.0
+russellmitchell-0007,uncertain,0.4,12,4,8,0,0,12,0,0,19,8,,8,0,35333,12288,3415,0.011085,20.14

@@ -115,8 +115,8 @@ class ClaimJudgment(BaseModel):
     """The Verifier's decision on one claim."""
 
     id: str
-    verdict: Literal["supported", "unsupported"]
     reason: str
+    verdict: Literal["supported", "unsupported"]
 
 
 class VerifierOutput(BaseModel):
