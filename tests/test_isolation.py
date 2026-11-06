@@ -21,7 +21,7 @@ FORBIDDEN = re.compile(
     r"|from\s+logtriage\.ml\s+import\s+.*\bsupervised\b"
     r"|from\s+\.+\s*(?:ml\s+)?import\s+.*\bsupervised\b"
     r"|from\s+\.+(?:ml\.)?supervised\b"
-    r"|supervised_(?:santos|dev_oof|importance)"
+    r"|supervised_(?:santos|wardbeck|harrison|dev_oof|importance)"
     r"|from\s+logtriage\s+import\s+.*\b(?:eval|prepare)\b"
     r"|from\s+\.+(?:eval|prepare)\b"
     r"|from\s+\.+\s+import\s+.*\b(?:eval|prepare)\b",

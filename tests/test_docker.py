@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 import yaml
 
-from logtriage.agents import runner
+from logtriage import guards
 from logtriage.config import load_settings
 
 ROOT = Path(__file__).parents[1]
@@ -38,7 +38,7 @@ def test_the_image_is_offline_and_listens_outside_the_container() -> None:
 
 
 def test_the_image_writes_the_marker_that_stops_santos_runs() -> None:
-    assert f"touch {runner.CONTAINER_MARKER}" in DOCKERFILE
+    assert f"touch {guards.CONTAINER_MARKER}" in DOCKERFILE
 
 
 def test_the_image_copies_no_data_and_no_secret() -> None:

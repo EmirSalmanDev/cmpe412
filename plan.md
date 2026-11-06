@@ -328,7 +328,7 @@ Hyperparameter search (small grid) only on the dev testbed, choosing by phase re
 - Train on russellmitchell calib and eval windows (labels: window has ≥ 1 labeled line), without label-ambiguous windows, and test on the santos evaluation period. A variant trained on all dev periods is secondary (changed: see status.md D34, D35).
 - Report PR-AUC, F1 at the threshold that maximizes F1 on out-of-fold (time-blocked CV) predictions on dev, and feature importance. Blocks are cut per class: the windows of each class, in time order, form `cv_blocks` contiguous equal-count slices, fold i holds out slice i of both classes, and training rows within `purge_minutes` of a held-out span are purged. Folds without a held-out positive or without both classes in training are dropped. A type with fewer than `min_positives` dev positives is "not trainable" and reported n/a, with no fallback (changed: see status.md D37).
 - `pooled` keeps the §10.2 scope, so it is n/a for a model missing a type; `pooled_trained` compares all methods on the types that have a model. Pooled PR-AUC uses uncalibrated per-type probabilities (changed: see status.md D38).
-- Dev OOF first, then the frozen config scores santos once (changed: see status.md D39).
+- Dev OOF first, then the frozen config scores santos once (changed: see status.md D39). Each test testbed is scored once the same way, with the same models, thresholds and feature list, into `supervised_<testbed>.csv` (changed: see status.md D57).
 - On `dns` this threshold is uninformative, because negatives exist only in the last block of the dev timeline; thresholds stay as used (changed: see status.md D40).
 - Label it "supervised reference" (few positives, one attack instance). It is not guaranteed to be an upper bound.
 
@@ -441,12 +441,14 @@ The UI never shows labels except on an optional "Evaluation" page clearly marked
 - `Dockerfile` (python:3.11-slim, uv, CPU-only torch wheel for sentence-transformers), `docker-compose.yml` with service `app` (Streamlit on 8501, published on the host's loopback only), volumes `./data:/app/data`, `./configs:/app/configs`, env file `.env`, optional so that a clean clone starts (changed: see status.md D54). `.dockerignore` keeps `.env`, `data/` and `.git` out of the build context.
 - `docker compose up` MUST start the dashboard from existing processed data, for `LOGTRIAGE_TESTBED` (default santos). The container needs `LOGTRIAGE_APP__HOST=0.0.0.0`, as `app.host` is local by default (changed: see status.md D50). Building data runs via the CLI (`docker compose run app logtriage prepare ...` or locally).
 - The image holds the embedding model at `rag.embedding_revision` and sets offline mode, so `up` needs no network; only the chat needs it, to reach the LLM (changed: see status.md D52).
-- The container never runs the agents on the test testbed, even with `--rerun-reason`: `investigate` refuses it where `/etc/logtriage-container` exists (changed: see status.md D53).
+- The container never scores a test testbed, even with `--rerun-reason`: `detect`, the supervised test stage and `investigate` refuse every testbed but dev where `/etc/logtriage-container` exists (changed: see status.md D53, D57).
 - `agent.duckdb` holds tables, so it works from any working directory and mount point; `eval.duckdb` keeps paths relative to the repository root, and the dashboard does not open it (changed: see status.md D41).
 
 ### 9.3 CLI (`logtriage/cli.py`)
 
 `download`, `inventory`, `prepare` (parse + drain + labels + features), `detect` (fit + score + incidents), `index-attack`, `investigate` (agents over incidents), `evaluate`, `app`. Every command takes `--testbed` and `--config`. `app` also takes `--live` (changed: see status.md D51).
+
+Each test testbed runs `detect`, the supervised test stage and `investigate` once. A repeat needs `--rerun-reason`, and every run is written to `reports/results/test_runs.csv` by `logtriage/guards.py`. That ledger carries the guard because `prepare` deletes `scores.parquet` and `incidents.parquet` (changed: see status.md D57).
 
 ---
 

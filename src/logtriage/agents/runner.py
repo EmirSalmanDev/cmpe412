@@ -10,6 +10,7 @@ from typing import Any
 
 import openai
 
+from logtriage import guards
 from logtriage.agents.cache import LlmCache
 from logtriage.agents.graph import AgentRuntime, IncidentState, build_graph
 from logtriage.agents.llm import (
@@ -22,14 +23,12 @@ from logtriage.agents.llm import (
 from logtriage.agents.prompting import Prompt, load_prompts
 from logtriage.agents.schemas import IncidentReport, report_claims
 from logtriage.agents.tools import AgentTools
-from logtriage.config import TEST_TESTBED, Settings
+from logtriage.config import Settings
 
 logger = logging.getLogger(__name__)
 
 REPORTS_DIR = "reports"
 RUN_FILE = "run_summary.json"
-# Written by the Dockerfile. A file, because an environment variable can be set by hand (D51, D53).
-CONTAINER_MARKER = Path("/etc/logtriage-container")
 RECURSION_LIMIT = 50
 ROW_FIELDS = (
     "incident_id", "verdict", "confidence", "claims", "summary_claims", "timeline_claims",
@@ -130,22 +129,18 @@ def write_run_table(reports_dir: Path, path: Path) -> list[dict[str, Any]]:
 def check_test_run(
     testbed: str, settings: Settings, reports_dir: Path, rerun_reason: str | None
 ) -> None:
-    """Allow a run on the test testbed only with frozen prompts, and once (status.md, M8).
+    """Allow a run on a test testbed only with frozen prompts, and once (status.md, M8, D57).
 
     Raises:
         ValueError: In the container, whatever the reason given (D53). Elsewhere, if the prompts
             are not frozen, or the run would repeat without a reason.
     """
-    if testbed != TEST_TESTBED:
+    guards.check_container(testbed)
+    if not guards.is_test_testbed(testbed, settings):
         return
-    if CONTAINER_MARKER.exists():
-        raise ValueError(f"{testbed}: the container never runs the agents on the test testbed")
     if not settings.agents.prompts_frozen:
         raise ValueError(f"{testbed}: freeze the prompts first (agents.prompts_frozen)")
-    if (reports_dir / RUN_FILE).exists() and not rerun_reason:
-        raise ValueError(
-            f"{testbed}: reports exist; a re-run needs --rerun-reason, logged in status"
-        )
+    guards.check_run(guards.INVESTIGATE, testbed, settings, [reports_dir / RUN_FILE], rerun_reason)
 
 
 def run_incidents(
@@ -176,6 +171,7 @@ def run_incidents(
     """
     reports_dir = settings.paths.processed_dir / testbed / REPORTS_DIR
     check_test_run(testbed, settings, reports_dir, rerun_reason)
+    guards.record_run(guards.INVESTIGATE, testbed, settings, rerun_reason)
     prompts = load_prompts(settings.agents.few_shot)
     run = run_name(settings, prompts)
     owned = tools is None

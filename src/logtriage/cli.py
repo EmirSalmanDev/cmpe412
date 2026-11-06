@@ -78,12 +78,16 @@ def prepare(
 
 @app.command()
 def detect(
-    testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
+    testbed: TestbedOption = DEV_TESTBED,
+    config: ConfigOption = DEFAULT_CONFIG_PATH,
+    rerun_reason: Annotated[
+        str | None, typer.Option("--rerun-reason", help="Why a test testbed is scored again.")
+    ] = None,
 ) -> None:
     """Fit anomaly models, score windows and build incidents."""
     settings = load_settings(config)
     try:
-        out_dir = run_detect(testbed, settings)
+        out_dir = run_detect(testbed, settings, rerun_reason)
         refresh_databases(testbed, settings)
     except (ValueError, FileNotFoundError) as error:
         typer.echo(f"detect failed: {error}", err=True)
@@ -113,7 +117,7 @@ def investigate(
     ] = None,
     no_cache: Annotated[bool, typer.Option("--no-cache", help="Bypass the LLM cache.")] = False,
     rerun_reason: Annotated[
-        str | None, typer.Option("--rerun-reason", help="Why the test testbed runs again.")
+        str | None, typer.Option("--rerun-reason", help="Why a test testbed runs again.")
     ] = None,
 ) -> None:
     """Run the agents over incidents, highest priority first."""
@@ -171,16 +175,14 @@ def run_app(
     config: ConfigOption = DEFAULT_CONFIG_PATH,
     live: Annotated[
         bool,
-        typer.Option(
-            "--live", help="Replay computes missing reports. Refused on the test testbed."
-        ),
+        typer.Option("--live", help="Replay computes missing reports. Refused on test testbeds."),
     ] = False,
 ) -> None:
     """Start the Streamlit interface."""
     settings = load_settings(config)
     try:
         if live:
-            check_live(testbed)
+            check_live(testbed, settings)
         if not database_path(settings, testbed).is_file():
             raise ValueError(f"{testbed}: no agent database, run `logtriage prepare` first")
     except ValueError as error:
