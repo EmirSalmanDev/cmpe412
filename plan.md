@@ -326,6 +326,7 @@ Hyperparameter search (small grid) only on the dev testbed, choosing by phase re
 - Report PR-AUC, F1 at the threshold that maximizes F1 on out-of-fold (time-blocked CV) predictions on dev, and feature importance. Blocks are cut per class: the windows of each class, in time order, form `cv_blocks` contiguous equal-count slices, fold i holds out slice i of both classes, and training rows within `purge_minutes` of a held-out span are purged. Folds without a held-out positive or without both classes in training are dropped. A type with fewer than `min_positives` dev positives is "not trainable" and reported n/a, with no fallback (changed: see status.md D37).
 - `pooled` keeps the §10.2 scope, so it is n/a for a model missing a type; `pooled_trained` compares all methods on the types that have a model. Pooled PR-AUC uses uncalibrated per-type probabilities (changed: see status.md D38).
 - Dev OOF first, then the frozen config scores santos once (changed: see status.md D39).
+- On `dns` this threshold is uninformative, because negatives exist only in the last block of the dev timeline; thresholds stay as used (changed: see status.md D40).
 - Label it "supervised reference" (few positives, one attack instance). It is not guaranteed to be an upper bound.
 
 ### 6.8 Visualization (`logtriage/eval/viz.py`)
