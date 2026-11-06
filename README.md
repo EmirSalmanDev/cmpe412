@@ -2,7 +2,7 @@
 
 LogTriage detects anomalies in AIT-LDS security logs with machine learning. A LangGraph agent then investigates each incident and writes a report that cites its log evidence and maps findings to MITRE ATT&CK.
 
-`download`, `inventory`, `prepare` and `detect` work; the other CLI commands are still stubs. See `status.md` for progress and `plan.md` for the design.
+`download`, `inventory`, `prepare`, `detect`, `index-attack` and `investigate` work; `evaluate` and `app` are still stubs. See `status.md` for progress and `plan.md` for the design.
 
 ## Setup
 

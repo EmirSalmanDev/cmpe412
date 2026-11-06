@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 NOTEBOOKS = Path(__file__).parents[1] / "notebooks"
-NAMES = ["01_eda.ipynb", "02_preparation.ipynb", "03_ml_models.ipynb"]
+NAMES = ["01_eda.ipynb", "02_preparation.ipynb", "03_ml_models.ipynb", "04_agents.ipynb"]
 MAX_TABLE_ROWS = 100
 MAX_BYTES = 5_000_000
 

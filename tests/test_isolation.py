@@ -105,6 +105,15 @@ def test_the_preparation_notebook_refers_to_no_ground_truth() -> None:
     assert [line for text in source for line in text.splitlines() if FORBIDDEN.search(line)] == []
 
 
+def test_the_agents_notebook_opens_no_ground_truth_and_calls_no_llm() -> None:
+    """M8 computes no label-based score on santos. The dev diagnostic comes from its saved CSV."""
+    path = PACKAGE.parents[1] / "notebooks" / "04_agents.ipynb"
+    cells = json.loads(path.read_text(encoding="utf-8"))["cells"]
+    source = "\n".join("".join(cell["source"]) for cell in cells if cell["cell_type"] == "code")
+    for word in ("labels.parquet", "eval.duckdb", "logtriage.eval", "run_incidents", "LLMClient"):
+        assert word not in source
+
+
 def test_the_agent_code_opens_only_the_locked_connection() -> None:
     """A plain connection could read any file, so agents and rag may not open one."""
     plain = re.compile(r"duckdb\.connect|\bimport\s+connect\b|\bstore\.connect\(")

@@ -59,6 +59,7 @@ def connect_agent(path: Path | str) -> duckdb.DuckDBPyConnection:
 
     Everything an agent may read is a table inside the file, so it needs no external access.
     Once the configuration is locked, a query can neither widen these settings nor reach a file.
+    One thread keeps query results identical between runs, so that LLM cache keys repeat.
 
     Args:
         path: The database file.
@@ -70,6 +71,8 @@ def connect_agent(path: Path | str) -> duckdb.DuckDBPyConnection:
         str(path), read_only=True, config={"enable_external_access": "false"}
     )
     connection.execute("SET TimeZone='UTC'")
+    # Parallel execution breaks ties and orders groups differently from run to run (D46).
+    connection.execute("SET threads=1")
     connection.execute("SET lock_configuration=true")
     return connection
 

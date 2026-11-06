@@ -339,13 +339,13 @@ Lives in `eval/` because the plots are colored by ground truth. PCA and t-SNE of
 
 ### 7.1 LLM policy (`logtriage/agents/llm.py`)
 
-- OpenAI-compatible client via `langchain_openai.ChatOpenAI(base_url=cfg.llm.base_url, model=cfg.llm.model, api_key=env)`. Defaults: `base_url=https://api.deepseek.com`, `model=deepseek-v4-flash`, `temperature=0` for evaluation runs.
+- OpenAI-compatible client via `langchain_openai.ChatOpenAI(base_url=cfg.llm.base_url, model=cfg.llm.model, api_key=env)`. Defaults: `base_url=https://api.deepseek.com`, `model=deepseek-flash`, `temperature=0` for evaluation runs, and `thinking: disabled`, because thinking mode ignores `temperature` (changed: see status.md D44).
 - Verify the model string and parameters against DeepSeek's API docs in M8. Record the result in status.md.
-- One model for all roles. A switch to `deepseek-v4-pro` (if ever) is a config change, and it **requires re-running the full LLM evaluation (M11)** so reported numbers match the demo model.
+- One model for all roles. `deepseek-flash` is a rolling alias, so each report records `system_fingerprint` (changed: see status.md D44). A switch to `deepseek-v4-pro` (if ever) is a config change, and it **requires re-running the full LLM evaluation (M11)** so reported numbers match the demo model.
 - Structured outputs: request JSON (`response_format={"type": "json_object"}`; the prompt must contain the word "json" and the schema), parse with Pydantic. On validation failure retry up to 2 times, feeding the validation error back.
 - Tool calling: native function calling. M8 MUST include a live smoke test (`@pytest.mark.live`) proving a full tool-call round trip works with the configured model. If the model returns reasoning fields that must be echoed back in multi-turn tool use, handle it in `llm.py`.
 - **Cache**: SQLite cache in `data/cache/llm.sqlite` keyed by `sha256(model, messages, tools, params)`. Evaluation reruns hit the cache. A `--no-cache` flag bypasses it.
-- **Cost**: record `tokens_in`, `tokens_out`, cache-hit tokens per call. Price table in `configs/default.yaml` (`llm.pricing_usd_per_1m: {input, cached_input, output}`). Verify the prices on DeepSeek's pricing page in M8. Budget guard `llm.max_usd_per_run` (default 5) aborts a run cleanly when exceeded.
+- **Cost**: record `tokens_in`, `tokens_out`, cache-hit tokens per call. Price table in `configs/default.yaml` (`llm.pricing_usd_per_1m: {off_peak, peak}`, each `{input, cached_input, output}`, chosen by `llm.peak_hours_utc`) (changed: see status.md D45). Verify the prices on DeepSeek's pricing page in M8. Budget guard `llm.max_usd_per_run` (default 5) aborts a run cleanly when exceeded, and `llm.max_usd_total` (10) does the same for cumulative spend (changed: see status.md D45).
 
 ### 7.2 Graph (`logtriage/agents/graph.py`)
 
@@ -369,7 +369,7 @@ Limits (config): investigator ≤ 8 tool calls, evidence ≤ 30 lines, each tool
 
 ### 7.3 Tools (`logtriage/agents/tools.py`)
 
-All tools read only `agent.duckdb`, through `store.connect_agent`: `read_only=True`, `enable_external_access=false`, `lock_configuration=true`, no label tables (changed: see status.md D41). Each returns compact text and the line_ids it surfaced. Lines shown to the LLM get eids registered in state.
+All tools read only `agent.duckdb`, through `store.connect_agent`: `read_only=True`, `enable_external_access=false`, `lock_configuration=true`, no label tables (changed: see status.md D41), one thread so that results repeat (changed: see status.md D46). Each returns compact text and the line_ids it surfaced. Lines shown to the LLM get eids registered in state.
 
 | tool | behavior |
 |---|---|
@@ -391,7 +391,7 @@ Prompts are Markdown files with a `prompt_version` header; the version is stored
 - **Verifier**:
   1. Code check: each claim's eids exist in the evidence.
   2. LLM check, in one call per round: for each claim, given only the cited lines → `supported` / `unsupported` + reason.
-  Unsupported claims go back to the Reporter with reasons.
+  Unsupported claims go back to the Reporter with reasons. "The evidence" is the list the Investigator selected, which is all the Reporter sees, so an eid that was only shown in tool output counts as unknown (changed: see status.md D48).
 
 ### 7.5 Chat agent (`logtriage/agents/chat.py`)
 
@@ -531,7 +531,7 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 │   │               windows.py features.py store.py parsers/{common,apache,auth,dns,audit,vpn}.py
 │   ├── ml/         models.py ensemble.py incidents.py detect.py supervised.py
 │   ├── rag/        attack_index.py incident_store.py
-│   ├── agents/     llm.py cache.py schemas.py sql_guard.py tools.py graph.py runner.py chat.py prompts/
+│   ├── agents/     llm.py cache.py schemas.py prompting.py sql_guard.py tools.py graph.py runner.py chat.py prompts/ (changed: see status.md D48)
 │   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py
 │   └── app/        streamlit_app.py replay.py pages/
 ├── notebooks/      01_eda.ipynb 02_preparation.ipynb 03_ml_models.ipynb 04_agents.ipynb 05_evaluation.ipynb

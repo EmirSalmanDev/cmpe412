@@ -6,7 +6,7 @@ Precedence, highest first: environment variables, `.env`, YAML file, field defau
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
@@ -28,11 +28,58 @@ class PlaceholderSection(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-class LLMConfig(PlaceholderSection):
-    """LLM endpoint settings (plan 7.1). The API key is not part of this section."""
+class TokenPrices(BaseModel):
+    """USD per million tokens."""
 
-    model: str | None = None
-    base_url: str | None = None
+    input: float = 0.0
+    cached_input: float = 0.0
+    output: float = 0.0
+
+
+class PricingConfig(BaseModel):
+    """Rates of the two daily bands (plan 7.1, D45)."""
+
+    off_peak: TokenPrices = Field(default_factory=TokenPrices)
+    peak: TokenPrices = Field(default_factory=TokenPrices)
+
+
+class LLMConfig(BaseModel):
+    """LLM endpoint and spending settings (plan 7.1). The API key is not part of this section."""
+
+    model: str = "deepseek-flash"
+    base_url: str = "https://api.deepseek.com"
+    temperature: float = 0.0
+    thinking: Literal["enabled", "disabled"] = "disabled"
+    max_tokens: int = 8192
+    timeout_seconds: float = 120.0
+    http_retries: int = 2
+    json_retries: int = 2
+    max_usd_per_run: float = 5.0
+    max_usd_total: float = 10.0
+    pricing_usd_per_1m: PricingConfig = Field(default_factory=PricingConfig)
+    peak_hours_utc: list[tuple[int, int]] = Field(default_factory=list)
+
+
+class AgentsConfig(BaseModel):
+    """Limits and ablation switches of the agent graph (plan 7.2, 7.4, 10.4)."""
+
+    max_tool_calls: int = 8
+    max_evidence: int = 30
+    evidence_chars: int = 500
+    max_rewrites: int = 2
+    mapper_k: int = 10
+    max_techniques: int = 3
+    candidate_chars: int = 400
+    context_windows: int = 40
+    verifier: bool = True
+    rag: bool = True
+    few_shot: bool = False
+    prompts_frozen: bool = False
+
+    @property
+    def condition(self) -> dict[str, bool]:
+        """Return the ablation switches, as stored in report meta and in the cache key."""
+        return {"verifier": self.verifier, "rag": self.rag, "few_shot": self.few_shot}
 
 
 class SupervisedConfig(BaseModel):
@@ -89,6 +136,7 @@ class RagConfig(BaseModel):
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     query_prefix: str = "Represent this sentence for searching relevant passages: "
     attack_sha256: str = ""
+    attack_version: str = ""
     attack_collection: str = "attack"
     incidents_collection: str = "incidents"
     bm25_k1: float = 1.5
@@ -196,6 +244,7 @@ class Settings(BaseSettings):
 
     seed: int = 42
     llm: LLMConfig = Field(default_factory=LLMConfig)
+    agents: AgentsConfig = Field(default_factory=AgentsConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     rag: RagConfig = Field(default_factory=RagConfig)

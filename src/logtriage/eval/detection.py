@@ -1,19 +1,23 @@
 """Detection results of one run against ground truth (plan 10.2, 13 M5)."""
 
+import json
 from dataclasses import dataclass
 
 import duckdb
 import numpy as np
 import pandas as pd
 
-from logtriage.config import Settings
+from logtriage.config import DEV_TESTBED, Settings
 from logtriage.data.features import SCALER_DIR, FeatureScaler
 from logtriage.data.periods import Periods
 from logtriage.eval import eda
 from logtriage.eval.metrics import (
     EXFIL_PHASE,
+    candidate_recall,
     detected_phases,
+    incident_phases,
     incidents_per_day,
+    load_gold_mapping,
     phase_credit,
     phase_recall,
     window_metrics,
@@ -137,3 +141,32 @@ def embedding_inputs(
         lambda value: window_phase(list(value)) if isinstance(value, list | np.ndarray) else None
     )
     return scaler.transform(windows), named
+
+
+def dev_candidate_recall(settings: Settings, testbed: str = DEV_TESTBED) -> pd.DataFrame:
+    """Compute the candidate recall diagnostic of M8, on the dev testbed only.
+
+    Santos is scored in M11 and nowhere else, so this refuses any other testbed.
+
+    Args:
+        settings: Loaded settings.
+        testbed: Must be the dev testbed.
+
+    Returns:
+        The table of `metrics.candidate_recall`.
+
+    Raises:
+        ValueError: If `testbed` is not the dev testbed.
+    """
+    if testbed != DEV_TESTBED:
+        raise ValueError(f"{testbed}: this diagnostic runs on {DEV_TESTBED} only")
+    directory = settings.paths.processed_dir / testbed
+    with eda.connect(testbed, settings) as con:
+        truth = window_truth(con, settings.features.window_seconds)
+    scores = pd.read_parquet(directory / "scores.parquet")
+    reports = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted((directory / "reports").glob(f"{testbed}-*.json"))
+    ]
+    gold = load_gold_mapping(settings.paths.gold_mapping_file)
+    return candidate_recall(reports, incident_phases(with_truth(scores, truth)), gold)
