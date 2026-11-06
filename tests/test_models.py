@@ -50,9 +50,31 @@ def test_lof_neighbors_shrink_for_few_windows() -> None:
     assert fit_models(matrix, CONFIG, 1).lof.n_neighbors_ == 7
 
 
+def test_lof_fits_on_distinct_rows() -> None:
+    matrix = np.repeat(np.random.default_rng(0).normal(size=(12, 3)), 10, axis=0)
+    assert fit_models(matrix, CONFIG, 1).lof.n_samples_fit_ == 12
+
+
 def test_lof_fits_on_a_sample_above_the_cap(normal: np.ndarray) -> None:
     config = CONFIG.model_copy(update={"lof_max_windows": 50})
     assert fit_models(normal, config, 1).lof.n_samples_fit_ == 50
+
+
+def test_lof_stays_finite_next_to_duplicated_windows() -> None:
+    rng = np.random.default_rng(0)
+    quiet = np.zeros((500, 3))
+    matrix = np.vstack([quiet, rng.normal(scale=0.5, size=(60, 3))])
+    models = fit_models(matrix, CONFIG, 1)
+    near, far = np.array([[0.01, 0.0, 0.0]]), np.array([[30.0, 30.0, 30.0]])
+    near_score = score_models(models, near)["lof"][0]
+    far_score = score_models(models, far)["lof"][0]
+    assert near_score < 10
+    assert far_score > near_score
+
+
+def test_lof_handles_a_matrix_with_one_distinct_row() -> None:
+    models = fit_models(np.zeros((20, 3)), CONFIG, 1)
+    assert np.isfinite(score_models(models, np.zeros((2, 3)))["if"]).all()
 
 
 def test_out_of_fold_scores_cover_every_window(normal: np.ndarray) -> None:

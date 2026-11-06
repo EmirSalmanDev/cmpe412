@@ -1,0 +1,25 @@
+q,gap_minutes,anomalous_windows,incidents,incidents_per_day,phases_detected,phases,phase_recall,missed
+0.95,5,1388,436,232.61948869951834,9,10,0.9,network_scans
+0.95,10,1388,154,82.16376435716933,9,10,0.9,network_scans
+0.95,15,1388,84,44.81659874027418,9,10,0.9,network_scans
+0.95,30,1388,61,32.5453871804372,9,10,0.9,network_scans
+0.97,5,621,430,229.41830307521306,9,10,0.9,network_scans
+0.97,10,621,361,192.60466839570213,9,10,0.9,network_scans
+0.97,15,621,167,89.09966654316413,9,10,0.9,network_scans
+0.97,30,621,103,54.95368655057429,9,10,0.9,network_scans
+0.98,5,428,357,190.47054464616525,2,10,0.2,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, webshell, wpscan"
+0.98,10,428,332,177.13227121155984,2,10,0.2,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, webshell, wpscan"
+0.98,15,428,149,79.49610967024825,2,10,0.2,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, webshell, wpscan"
+0.98,30,428,115,61.35605779918489,2,10,0.2,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, webshell, wpscan"
+0.99,5,171,144,76.82845498332716,2,10,0.2,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, webshell, wpscan"
+0.99,10,171,137,73.09373842163765,2,10,0.2,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, webshell, wpscan"
+0.99,15,171,135,72.02667654686921,2,10,0.2,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, webshell, wpscan"
+0.99,30,171,114,60.82252686180067,2,10,0.2,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, webshell, wpscan"
+0.995,5,59,48,25.609484994442386,1,10,0.1,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, service_stop, webshell, wpscan"
+0.995,10,59,44,23.47536124490552,1,10,0.1,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, service_stop, webshell, wpscan"
+0.995,15,59,43,22.941830307521304,1,10,0.1,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, service_stop, webshell, wpscan"
+0.995,30,59,29,15.472397184142276,1,10,0.1,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, service_stop, webshell, wpscan"
+0.999,5,7,3,1.6005928121526491,1,10,0.1,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, service_stop, webshell, wpscan"
+0.999,10,7,3,1.6005928121526491,1,10,0.1,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, service_stop, webshell, wpscan"
+0.999,15,7,3,1.6005928121526491,1,10,0.1,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, service_stop, webshell, wpscan"
+0.999,30,7,3,1.6005928121526491,1,10,0.1,"cracking, dirb, dnsteal, dnsteal_exfil, network_scans, service_scans, service_stop, webshell, wpscan"

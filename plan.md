@@ -296,7 +296,7 @@ The DNS features `mean_qname_len`, `max_label_len`, `mean_label_entropy`, `max_l
 Per `(testbed, log_type)`, fit on **fit-period windows** only:
 
 - `IsolationForest(n_estimators=300, contamination="auto", random_state=seed)`
-- `LocalOutlierFactor(n_neighbors=35, novelty=True)` (subsample to ≤ 50k training windows if needed)
+- `LocalOutlierFactor(n_neighbors=35, novelty=True)` (subsample to ≤ 50k training windows if needed), fit on the distinct rows of the fit windows, with `n_neighbors` capped at their number minus one (changed: see status.md D31)
 - PCA reconstruction error with `n_components` explaining 95% variance
 
 Higher score = more anomalous for all three (negate sklearn scores where needed).

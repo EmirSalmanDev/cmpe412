@@ -13,6 +13,7 @@ from sklearn.neighbors import LocalOutlierFactor
 from logtriage.config import MLConfig
 
 MODEL_NAMES = ("if", "lof", "pca")
+MIN_LOF_ROWS = 2
 
 
 @dataclass(frozen=True)
@@ -38,16 +39,27 @@ def fit_models(matrix: np.ndarray, config: MLConfig, seed: int) -> FittedModels:
     forest = IsolationForest(
         n_estimators=config.if_estimators, contamination="auto", random_state=seed
     ).fit(matrix)
-    sample = matrix
-    if len(matrix) > config.lof_max_windows:
-        rows = np.random.default_rng(seed).choice(
-            len(matrix), config.lof_max_windows, replace=False
-        )
-        sample = matrix[np.sort(rows)]
-    neighbors = min(config.lof_neighbors, len(sample) - 1)
-    lof = LocalOutlierFactor(n_neighbors=neighbors, novelty=True).fit(sample)
+    lof = _fit_lof(matrix, config, seed)
     pca = PCA(n_components=config.pca_variance, svd_solver="full", random_state=seed).fit(matrix)
     return FittedModels(forest, lof, pca)
+
+
+def _fit_lof(matrix: np.ndarray, config: MLConfig, seed: int) -> LocalOutlierFactor:
+    """Fit LOF on the distinct rows of the matrix (D31).
+
+    Quiet minutes give identical windows. With more copies of a row than neighbors, its k-distance
+    is 0 and its density is near infinite, so ordinary windows next to it score around 1e10.
+    """
+    sample = np.unique(matrix, axis=0)
+    if len(sample) < MIN_LOF_ROWS:
+        sample = matrix
+    if len(sample) > config.lof_max_windows:
+        rows = np.random.default_rng(seed).choice(
+            len(sample), config.lof_max_windows, replace=False
+        )
+        sample = sample[np.sort(rows)]
+    neighbors = min(config.lof_neighbors, len(sample) - 1)
+    return LocalOutlierFactor(n_neighbors=neighbors, novelty=True).fit(sample)
 
 
 def score_models(models: FittedModels, matrix: np.ndarray) -> dict[str, np.ndarray]:
