@@ -127,7 +127,7 @@ The exact path patterns → log_type mapping lives in `configs/sources.yaml` and
 
 ## 5. Data contracts
 
-All tables are Parquet under `data/processed/<testbed>/`, exposed through DuckDB views in `data/processed/<testbed>/agent.duckdb` (agent-facing, **no label tables**) and `eval.duckdb` (everything).
+All tables are Parquet under `data/processed/<testbed>/`. `data/processed/<testbed>/agent.duckdb` (agent-facing, **no label tables**) holds them as tables, without the column `period` and with no reference to any file; `eval.duckdb` (everything) exposes them through views (changed: see status.md D41).
 
 ### 5.1 `lines_<log_type>.parquet`
 
@@ -369,12 +369,12 @@ Limits (config): investigator ≤ 8 tool calls, evidence ≤ 30 lines, each tool
 
 ### 7.3 Tools (`logtriage/agents/tools.py`)
 
-All tools read only `agent.duckdb` (read-only connection, no label tables). Each returns compact text and the line_ids it surfaced. Lines shown to the LLM get eids registered in state.
+All tools read only `agent.duckdb`, through `store.connect_agent`: `read_only=True`, `enable_external_access=false`, `lock_configuration=true`, no label tables (changed: see status.md D41). Each returns compact text and the line_ids it surfaced. Lines shown to the LLM get eids registered in state.
 
 | tool | behavior |
 |---|---|
 | `log_search(host, start, end, log_type=None, contains=None, limit=50)` | Raw lines in the range. Dedup by `template_id` (show 1 example + count per template), unseen templates first, then by rarity. |
-| `run_sql(query)` | `SELECT`/`WITH` only (parse and reject everything else), auto `LIMIT 200`, 10 s timeout, read-only connection. Schema description in the tool docstring. |
+| `run_sql(query)` | One `SELECT`/`WITH` statement only, checked on DuckDB's parse tree by `agents/sql_guard.py`: table functions, file paths and unknown tables are rejected (changed: see status.md D41). Auto `LIMIT 200`, 10 s timeout, read-only connection. Schema description in the tool docstring. |
 | `ip_profile(ip)` | Per log type and host: first/last seen, counts, top templates. For VPN-internal IPs also returns the external IP and VPN user from VPN session logs (and vice versa). |
 | `attack_search(text, k=5)` | Vector search over the ATT&CK index (§8.1). |
 | `similar_incidents(text, k=3)` | Vector search over finalized reports (§8.2). |
@@ -432,6 +432,7 @@ The UI never shows labels except on an optional "Evaluation" page clearly marked
 
 - `Dockerfile` (python:3.11-slim, uv, CPU-only torch wheel for sentence-transformers), `docker-compose.yml` with service `app` (Streamlit on 8501), volumes `./data:/app/data`, `./configs:/app/configs`, env file `.env`.
 - `docker compose up` MUST start the dashboard from existing processed data. Building data runs via the CLI (`docker compose run app logtriage prepare ...` or locally).
+- `agent.duckdb` holds tables, so it works from any working directory and mount point; `eval.duckdb` keeps paths relative to the repository root (changed: see status.md D41).
 
 ### 9.3 CLI (`logtriage/cli.py`)
 
@@ -529,7 +530,7 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 │   │               windows.py features.py store.py parsers/{common,apache,auth,dns,audit,vpn}.py
 │   ├── ml/         models.py ensemble.py incidents.py detect.py supervised.py
 │   ├── rag/        attack_index.py incident_store.py
-│   ├── agents/     llm.py cache.py schemas.py tools.py graph.py runner.py chat.py prompts/
+│   ├── agents/     llm.py cache.py schemas.py sql_guard.py tools.py graph.py runner.py chat.py prompts/
 │   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py
 │   └── app/        streamlit_app.py replay.py pages/
 ├── notebooks/      01_eda.ipynb 02_preparation.ipynb 03_ml_models.ipynb 04_agents.ipynb 05_evaluation.ipynb

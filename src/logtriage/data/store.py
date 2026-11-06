@@ -32,6 +32,8 @@ LINES_SCHEMA = pa.schema(
 
 
 DETECTION_TABLES = ("scores", "incidents")
+# `period` gives away the evaluation boundary, which sits a fixed time before the attack.
+AGENT_HIDDEN_COLUMNS = ("period",)
 
 
 def connect(path: Path | str = ":memory:", read_only: bool = False) -> duckdb.DuckDBPyConnection:
@@ -49,6 +51,26 @@ def connect(path: Path | str = ":memory:", read_only: bool = False) -> duckdb.Du
     """
     connection = duckdb.connect(str(path), read_only=read_only)
     connection.execute("SET TimeZone='UTC'")
+    return connection
+
+
+def connect_agent(path: Path | str) -> duckdb.DuckDBPyConnection:
+    """Open `agent.duckdb` for an agent: read-only, no file access, configuration locked.
+
+    Everything an agent may read is a table inside the file, so it needs no external access.
+    Once the configuration is locked, a query can neither widen these settings nor reach a file.
+
+    Args:
+        path: The database file.
+
+    Returns:
+        The open connection, in UTC.
+    """
+    connection = duckdb.connect(
+        str(path), read_only=True, config={"enable_external_access": "false"}
+    )
+    connection.execute("SET TimeZone='UTC'")
+    connection.execute("SET lock_configuration=true")
     return connection
 
 
@@ -100,6 +122,26 @@ def create_views(db_path: Path, views: dict[str, str]) -> None:
             connection.execute(f'CREATE VIEW "{name}" AS {query}')
 
 
+def create_tables(db_path: Path, sources: dict[str, str]) -> None:
+    """Recreate a DuckDB file holding a table per source, without the hidden columns.
+
+    The file keeps no reference to the Parquet files, so it opens from any directory and needs
+    no file access at query time.
+
+    Args:
+        db_path: Database file to replace.
+        sources: Table name to the SQL that fills it. A source may read an earlier table.
+    """
+    db_path.unlink(missing_ok=True)
+    with connect(db_path) as connection:
+        for name, query in sources.items():
+            connection.execute(f'CREATE TABLE "{name}" AS {query}')
+            columns = {row[0] for row in connection.execute(f'DESCRIBE "{name}"').fetchall()}
+            for column in AGENT_HIDDEN_COLUMNS:
+                if column in columns:
+                    connection.execute(f'ALTER TABLE "{name}" DROP COLUMN "{column}"')
+
+
 def build_agent_db(directory: Path) -> None:
-    """Create `agent.duckdb`, which exposes no ground truth (plan 5)."""
-    create_views(directory / "agent.duckdb", data_views(directory))
+    """Create `agent.duckdb`: tables only, and no ground truth (plan 5)."""
+    create_tables(directory / "agent.duckdb", data_views(directory))
