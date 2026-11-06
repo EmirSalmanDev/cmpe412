@@ -328,7 +328,7 @@ Hyperparameter search (small grid) only on the dev testbed, choosing by phase re
 - Train on russellmitchell calib and eval windows (labels: window has ≥ 1 labeled line), without label-ambiguous windows, and test on the santos evaluation period. A variant trained on all dev periods is secondary (changed: see status.md D34, D35).
 - Report PR-AUC, F1 at the threshold that maximizes F1 on out-of-fold (time-blocked CV) predictions on dev, and feature importance. Blocks are cut per class: the windows of each class, in time order, form `cv_blocks` contiguous equal-count slices, fold i holds out slice i of both classes, and training rows within `purge_minutes` of a held-out span are purged. Folds without a held-out positive or without both classes in training are dropped. A type with fewer than `min_positives` dev positives is "not trainable" and reported n/a, with no fallback (changed: see status.md D37).
 - `pooled` keeps the §10.2 scope, so it is n/a for a model missing a type; `pooled_trained` compares all methods on the types that have a model. Pooled PR-AUC uses uncalibrated per-type probabilities (changed: see status.md D38).
-- Dev OOF first, then the frozen config scores santos once (changed: see status.md D39). Each test testbed is scored once the same way, with the same models, thresholds and feature list, into `supervised_<testbed>.csv` (changed: see status.md D57).
+- Dev OOF first, then the frozen config scores santos once (changed: see status.md D39). Each test testbed is scored once the same way, with the same models, thresholds and feature list, into `supervised_<testbed>.csv` (changed: see status.md D57). A frozen column of a trained model that a testbed lacks is restored as 0 only if it is an "unseen" feature dropped as constant, since that is its true value; any other gap stops the run before it is recorded (changed: see status.md D59).
 - On `dns` this threshold is uninformative, because negatives exist only in the last block of the dev timeline; thresholds stay as used (changed: see status.md D40).
 - Label it "supervised reference" (few positives, one attack instance). It is not guaranteed to be an upper bound.
 
@@ -561,7 +561,7 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 │   ├── ml/         models.py ensemble.py incidents.py detect.py supervised.py
 │   ├── rag/        attack_index.py incident_store.py
 │   ├── agents/     llm.py cache.py schemas.py prompting.py sql_guard.py tools.py graph.py runner.py chat.py prompts/ (changed: see status.md D48)
-│   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py
+│   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py extra_testbeds.py (changed: see status.md D57)
 │   └── app/        streamlit_app.py replay.py data.py charts.py ui.py views/ (changed: see status.md D50)
 ├── notebooks/      01_eda.ipynb 02_preparation.ipynb 03_ml_models.ipynb 04_agents.ipynb 05_evaluation.ipynb
 ├── tests/          fixtures/ (tiny hand-made log snippets per type + label files) test_*.py

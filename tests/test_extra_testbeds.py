@@ -7,8 +7,11 @@ import pytest
 
 from logtriage.config import MLConfig, load_settings
 from logtriage.eval.extra_testbeds import (
+    audit_check,
     ceiling_after,
+    ceiling_text,
     exposure_verdict,
+    frozen_feature_section,
     log_type_exposure,
     read_windows,
     steps_allowed,
@@ -102,3 +105,28 @@ def test_the_real_counts_reproduce_the_references_of_the_audit(
     assert set(table.loc[table["log_type"] == "vpn", "reference"]) == {143}
     assert set(table.loc[table["log_type"] == "audit", "reference"]) == {209}
     assert set(table.loc[table["log_type"] == "auth", "reference"]) == {272}
+
+
+def test_a_reference_without_oof_scores_has_no_d28_cap() -> None:
+    row = pd.Series({"source": "log_type", "steps_allowed": 0, "ceiling_past_allowed": 0.99})
+    assert ceiling_text(row) == "1 (no D28 cap)"
+
+
+def test_a_ceiling_that_needs_scores_is_marked_unverified() -> None:
+    row = pd.Series({"source": "log_type+oof", "steps_allowed": 0, "ceiling_past_allowed": 0.99})
+    assert ceiling_text(row) == "UNVERIFIED: at most 0.990000 if k >= 1"
+
+
+def test_the_formula_gives_the_santos_ceilings_of_the_audit() -> None:
+    rows = [
+        line.split(" | ") for line in audit_check() if line.startswith("| auth") or "vpn" in line
+    ]
+    assert len(rows) == 2
+    assert all(row[3] == row[4].rstrip(" |") for row in rows)
+
+
+@pytest.mark.data
+def test_every_new_testbed_can_feed_the_frozen_supervised_models() -> None:
+    settings = load_settings(ROOT / "configs" / "default.yaml", env_file=None)
+    new = [name for name in settings.test_testbeds if name != "santos"]
+    assert "`dns`" in " ".join(frozen_feature_section(new, settings))

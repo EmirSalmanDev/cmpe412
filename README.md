@@ -30,7 +30,7 @@ uv run logtriage prepare --testbed russellmitchell
 uv run logtriage detect --testbed russellmitchell
 ```
 
-`download` fetches into `data/raw/zips/` and extracts only the files the project needs. The archives take about 7 GB for russellmitchell and 10 GB for santos. Rerunning it skips whatever is already in place. `inventory` needs AIT-ADS as well as the testbed; it writes `reports/inventory_<testbed>.md` and `data_meta/phases_<testbed>.csv`. `prepare` parses the logs and writes tables and DuckDB files to `data/processed/<testbed>/`; it takes about 20 seconds per testbed. `detect` fits the anomaly models and writes `scores.parquet` and `incidents.parquet`; it reads no ground truth.
+`download` fetches into `data/raw/zips/` and extracts only the files the project needs. The archives take about 7 GB for russellmitchell, 10 GB for santos, and 17 GB each for wardbeck and harrison. Rerunning it skips whatever is already in place. `inventory` needs AIT-ADS as well as the testbed; it writes `reports/inventory_<testbed>.md` and `data_meta/phases_<testbed>.csv`. `prepare` parses the logs and writes tables and DuckDB files to `data/processed/<testbed>/`; it takes about 20 seconds per testbed. `detect` fits the anomaly models and writes `scores.parquet` and `incidents.parquet`; it reads no ground truth. On a test testbed (santos, wardbeck, harrison) `detect`, the supervised test stage and `investigate` run once: a repeat is refused without `--rerun-reason`, and every run is written to `reports/results/test_runs.csv`.
 
 The commands are `download`, `inventory`, `prepare`, `detect`, `index-attack`, `investigate`, `evaluate` and `app`. Each takes `--testbed` and `--config`.
 
@@ -57,7 +57,7 @@ The first run builds the image, about 3.8 GB, which needs network. Then open htt
 - **Network:** a running container needs none, except the chat to reach the LLM. The embedding model is in the image and Hugging Face offline mode is on.
 - **Writes:** the chat writes to `data/cache/`, so on Linux that folder must be writable by user id 1000, which the container runs as.
 - **Building data** stays a command-line job: `docker compose run --rm app logtriage prepare --testbed russellmitchell`, or run it locally.
-- **Santos:** the container never runs the agents on it. `investigate` refuses, even with `--rerun-reason`, and so does `app --live`.
+- **Test testbeds:** the container never runs `detect`, the supervised test stage or the agents on santos, wardbeck or harrison. They refuse, even with `--rerun-reason`, and so does `app --live`.
 
 ## Settings
 
