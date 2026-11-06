@@ -2,7 +2,7 @@
 
 LogTriage detects anomalies in AIT-LDS security logs with machine learning. A LangGraph agent then investigates each incident and writes a report that cites its log evidence and maps findings to MITRE ATT&CK.
 
-`download`, `inventory`, `prepare`, `detect`, `index-attack` and `investigate` work; `evaluate` and `app` are still stubs. See `status.md` for progress and `plan.md` for the design.
+`download`, `inventory`, `prepare`, `detect`, `index-attack`, `investigate` and `app` work; `evaluate` is still a stub. See `status.md` for progress and `plan.md` for the design.
 
 ## Setup
 
@@ -33,6 +33,14 @@ uv run logtriage detect --testbed russellmitchell
 `download` fetches into `data/raw/zips/` and extracts only the files the project needs. The archives take about 7 GB for russellmitchell and 10 GB for santos. Rerunning it skips whatever is already in place. `inventory` needs AIT-ADS as well as the testbed; it writes `reports/inventory_<testbed>.md` and `data_meta/phases_<testbed>.csv`. `prepare` parses the logs and writes tables and DuckDB files to `data/processed/<testbed>/`; it takes about 20 seconds per testbed. `detect` fits the anomaly models and writes `scores.parquet` and `incidents.parquet`; it reads no ground truth.
 
 The commands are `download`, `inventory`, `prepare`, `detect`, `index-attack`, `investigate`, `evaluate` and `app`. Each takes `--testbed` and `--config`.
+
+## Dashboard
+
+```
+uv run logtriage app --testbed santos
+```
+
+Opens the Incidents, Incident detail, Chat and Monitoring pages on http://127.0.0.1:8501. Turn on **Replay mode** in the sidebar to watch incidents close on a simulated clock (60×, 600× or 3600×). The chat needs `DEEPSEEK_API_KEY`, and it spends real money under the limits `llm.max_usd_per_run` and `llm.max_usd_total`. `--live` computes missing reports during a replay; it is refused on santos, which runs the agents once only.
 
 Settings live in `configs/default.yaml`. Override them with `LOGTRIAGE_`-prefixed variables in the environment or `.env`, using `__` between nested keys, for example `LOGTRIAGE_SEED=7`. The environment wins over `.env`, and `.env` wins over the YAML file.
 
