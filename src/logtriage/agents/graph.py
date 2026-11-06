@@ -143,9 +143,10 @@ def load_context(
 class EvidenceRegistry:
     """Gives every line shown to the LLM a short eid. Code alone knows the `line_id` (plan 5.7)."""
 
-    def __init__(self, connection: duckdb.DuckDBPyConnection, chars: int) -> None:
+    def __init__(self, connection: duckdb.DuckDBPyConnection, chars: int, first: int = 1) -> None:
         self.connection = connection
         self.chars = chars
+        self.next_number = first
         self.eids: dict[str, str] = {}
         self.rows: dict[str, dict[str, Any]] = {}
 
@@ -167,7 +168,8 @@ class EvidenceRegistry:
         rows = {row[0]: row for row in found}
         for line_id in new:
             if line_id in rows:
-                eid = f"E{len(self.eids) + 1}"
+                eid = f"E{self.next_number}"
+                self.next_number += 1
                 self.eids[line_id] = eid
                 _, ts, host, log_type, raw = rows[line_id]
                 self.rows[eid] = {

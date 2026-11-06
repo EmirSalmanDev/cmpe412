@@ -82,6 +82,22 @@ class AgentsConfig(BaseModel):
         return {"verifier": self.verifier, "rag": self.rag, "few_shot": self.few_shot}
 
 
+class AppConfig(BaseModel):
+    """Dashboard and replay settings (plan 9.1)."""
+
+    # Local only by default: the dashboard shows logs and spends API money. M10 sets it for Docker.
+    host: str = "127.0.0.1"
+    port: int = 8501
+    speeds: list[int] = Field(default_factory=lambda: [60, 600, 3600])
+    default_speed: int = 600
+    # Seconds of wall time between two updates of the replay.
+    tick_seconds: float = 2.0
+    # The replay starts this long before the earliest incident.
+    replay_lead_minutes: int = 60
+    # Windows shown on each side of an incident in its timeline.
+    timeline_context_minutes: int = 60
+
+
 class SupervisedConfig(BaseModel):
     """Supervised reference settings, fixed and never searched (plan 6.7)."""
 
@@ -245,6 +261,7 @@ class Settings(BaseSettings):
     seed: int = 42
     llm: LLMConfig = Field(default_factory=LLMConfig)
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
+    app: AppConfig = Field(default_factory=AppConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     rag: RagConfig = Field(default_factory=RagConfig)

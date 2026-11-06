@@ -51,7 +51,8 @@ class LlmCache:
     def __init__(self, path: Path | str) -> None:
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(str(path))
+        # Streamlit runs each rerun on a new thread; its calls are serialized by the chat lock.
+        self.connection = sqlite3.connect(str(path), check_same_thread=False)
         self.connection.executescript(SCHEMA)
 
     def get(self, key: str) -> dict[str, Any] | None:
@@ -77,6 +78,12 @@ class LlmCache:
     def total_spend(self) -> float:
         """Return the USD paid over all runs."""
         return self.connection.execute("SELECT coalesce(sum(usd), 0) FROM spend").fetchone()[0]
+
+    def role_spend(self, role: str) -> float:
+        """Return the USD paid for one agent role over all runs."""
+        return self.connection.execute(
+            "SELECT coalesce(sum(usd), 0) FROM spend WHERE role = ?", [role]
+        ).fetchone()[0]
 
     def close(self) -> None:
         """Close the file."""
