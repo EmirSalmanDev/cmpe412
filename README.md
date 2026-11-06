@@ -8,6 +8,8 @@ LogTriage detects anomalies in AIT-LDS security logs with machine learning. A La
 
 You need [uv](https://docs.astral.sh/uv/). If it is missing, run `pip install uv`. uv manages Python 3.11 and the virtual environment.
 
+On macOS, XGBoost also needs the OpenMP runtime: `brew install libomp`.
+
 ```
 uv sync
 cp .env.example .env

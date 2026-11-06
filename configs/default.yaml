@@ -34,6 +34,20 @@ ml:
   gap_grid: [5, 10, 15, 30]
   # An entity in more than this share of the fit windows of its log type does not link (plan 6.6).
   common_entity_share: 0.5
+  # Supervised reference, fixed and never searched (plan 6.7, D34, D36, D37).
+  supervised:
+    rf_trees: 300
+    rf_class_weight: balanced_subsample
+    xgb_trees: 300
+    xgb_max_depth: 4
+    xgb_learning_rate: 0.1
+    cv_blocks: 5
+    purge_minutes: 30
+    # A log type with fewer dev positives is reported n/a, with no fallback.
+    min_positives: 5
+    training_periods: [calib, eval]
+    # Secondary variant, used for no selection.
+    all_periods: [fit, calib, eval]
 
 # Windows and features (plan 5.4, 6.3).
 features:

@@ -80,6 +80,27 @@ def window_truth(con: duckdb.DuckDBPyConnection, window_seconds: int) -> pd.Data
     ).df()
 
 
+def attach_truth(windows: pd.DataFrame, truth: pd.DataFrame) -> pd.DataFrame:
+    """Return windows of any period with ground truth columns.
+
+    Args:
+        windows: Table with the window key.
+        truth: Output of `window_truth`.
+
+    Returns:
+        The rows with `phases`, `is_attack` and `is_ambiguous` (D17).
+    """
+    table = windows.merge(truth, how="left", on=["host", "log_type", "window_start"])
+    table["is_attack"] = table["phases"].notna()
+    table["phases"] = table["phases"].map(
+        lambda value: list(value) if isinstance(value, list | np.ndarray) else []
+    )
+    table["is_ambiguous"] = (table["log_type"] == AMBIGUOUS_LOG_TYPE) & (
+        table["host"] == AMBIGUOUS_HOST
+    )
+    return table
+
+
 def with_truth(scores: pd.DataFrame, truth: pd.DataFrame) -> pd.DataFrame:
     """Return the evaluation windows of a scores table, with ground truth columns.
 
@@ -90,17 +111,12 @@ def with_truth(scores: pd.DataFrame, truth: pd.DataFrame) -> pd.DataFrame:
     Returns:
         The eval rows with `phases`, `is_attack` and `is_ambiguous` (D17).
     """
-    table = scores[scores["period"] == "eval"].merge(
-        truth, how="left", on=["host", "log_type", "window_start"]
-    )
-    table["is_attack"] = table["phases"].notna()
-    table["phases"] = table["phases"].map(
-        lambda value: list(value) if isinstance(value, list | np.ndarray) else []
-    )
-    table["is_ambiguous"] = (table["log_type"] == AMBIGUOUS_LOG_TYPE) & (
-        table["host"] == AMBIGUOUS_HOST
-    )
-    return table
+    return attach_truth(scores[scores["period"] == "eval"], truth)
+
+
+def is_exfil_only(phases: pd.Series) -> pd.Series:
+    """Return which windows have `dnsteal_exfil` as their only phase."""
+    return phases.map(lambda value: list(value) == [EXFIL_PHASE])
 
 
 def _window_row(name: str, table: pd.DataFrame) -> dict:
