@@ -10,7 +10,6 @@ from logtriage.config import load_settings
 
 CONFIG = Path(__file__).parents[1] / "configs" / "default.yaml"
 STUB_COMMANDS = [
-    "index-attack",
     "investigate",
     "evaluate",
     "app",
@@ -80,6 +79,15 @@ def test_stub_commands_accept_options(command: str) -> None:
     result = runner.invoke(app, [command, "--testbed", "santos", "--config", str(CONFIG)])
     assert result.exit_code == 0
     assert "not implemented yet" in result.output
+
+
+def test_index_attack_reports_a_missing_bundle(tmp_path: Path) -> None:
+    config = tmp_path / "config.yaml"
+    missing = tmp_path / "missing.json"
+    config.write_text(f"paths:\n  attack_stix_file: {missing}\n", encoding="utf-8")
+    result = runner.invoke(app, ["index-attack", "--config", str(config)])
+    assert result.exit_code == 1
+    assert "index-attack failed" in result.output
 
 
 def test_detect_reports_a_testbed_without_features(tmp_path: Path) -> None:

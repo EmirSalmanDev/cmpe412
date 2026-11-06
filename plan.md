@@ -403,14 +403,14 @@ ReAct agent with the same tools plus the current report in context. Memory via L
 
 ### 8.1 ATT&CK index (`logtriage/rag/attack_index.py`)
 
-- Download `enterprise-attack.json` and record its ATT&CK version in status.md. Exclude revoked/deprecated objects.
+- Use the pinned local `enterprise-attack.json` (`rag.attack_sha256`); `index-attack` downloads no bundle and refuses any other file. Its ATT&CK version is in status.md. Exclude revoked/deprecated objects (changed: see status.md D42).
 - Document per technique/sub-technique: `"{id} {name}. {description}"` (strip citations/markdown), metadata: id, name, tactics, is_subtechnique.
 - Embeddings: `sentence-transformers` `BAAI/bge-small-en-v1.5` (normalize; use the query instruction prefix for queries). Store in Chroma persistent at `data/index/chroma`, collection `attack`.
 - Test: the gold IDs (§11) all exist in the index and are not revoked.
 
 ### 8.2 Incident memory (`logtriage/rag/incident_store.py`)
 
-Chroma collection `incidents`: one document per finalized report (summary claims + techniques + verdict), metadata testbed/incident_id/start. In evaluation, a report may only retrieve reports of incidents that **started earlier** in the same run (filter by start), so there is no look-ahead.
+Chroma collection `incidents`: one document per finalized report (summary claims + techniques + verdict), metadata testbed/incident_id/start. In evaluation, a report may only retrieve reports of incidents that **started earlier** in the same run (filter by start and `run`), so there is no look-ahead (changed: see status.md D42).
 
 ---
 

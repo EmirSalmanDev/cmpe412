@@ -11,6 +11,7 @@ from logtriage.data.download import InsufficientDiskError, run_download
 from logtriage.data.inventory import run_inventory
 from logtriage.ml.detect import run_detect
 from logtriage.prepare import refresh_databases, run_prepare
+from logtriage.rag.attack_index import run_index_attack
 
 app = typer.Typer(no_args_is_help=True, help="LogTriage Agent command line interface.")
 
@@ -86,8 +87,13 @@ def detect(
 def index_attack(
     testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
 ) -> None:
-    """Build the MITRE ATT&CK retrieval index."""
-    _not_implemented("index-attack", testbed, config)
+    """Build the MITRE ATT&CK retrieval index from the pinned local bundle."""
+    try:
+        count = run_index_attack(load_settings(config))
+    except (ValueError, FileNotFoundError) as error:
+        typer.echo(f"index-attack failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(f"indexed {count} techniques")
 
 
 @app.command()

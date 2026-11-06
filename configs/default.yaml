@@ -49,6 +49,28 @@ ml:
     # Secondary variant, used for no selection.
     all_periods: [fit, calib, eval]
 
+# Limits of the agent tools (plan 7.2, 7.3).
+tools:
+  # Most characters of one tool output, and of one log line inside it.
+  output_chars: 4000
+  line_chars: 300
+  sql_rows: 200
+  sql_timeout_seconds: 10
+  log_search_limit: 50
+  # Templates listed per log type and host by ip_profile.
+  top_templates: 3
+  attack_k: 5
+  incidents_k: 3
+
+# ATT&CK index and incident memory (plan 8).
+rag:
+  embedding_model: BAAI/bge-small-en-v1.5
+  query_prefix: "Represent this sentence for searching relevant passages: "
+  # The pinned bundle, version 20.1; `index-attack` refuses any other file.
+  attack_sha256: 539a843a7b53ed9749740b2123dddae3726b1a4831841c32aca740b011b910b5
+  attack_collection: attack
+  incidents_collection: incidents
+
 # Windows and features (plan 5.4, 6.3).
 features:
   # D1 fixes one-minute windows.

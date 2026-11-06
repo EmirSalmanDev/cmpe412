@@ -16,7 +16,7 @@ ALLOWED = {
     "ml/supervised.py",
 }
 FORBIDDEN = re.compile(
-    r"labels|phases|eval\.duckdb|label_report|first_attack"
+    r"labels|(?<!kill_chain_)phases|eval\.duckdb|label_report|first_attack"
     r"|logtriage\.(?:eval|prepare|ml\.supervised)\b"
     r"|from\s+logtriage\.ml\s+import\s+.*\bsupervised\b"
     r"|from\s+\.+\s*(?:ml\s+)?import\s+.*\bsupervised\b"
@@ -69,6 +69,8 @@ def test_no_module_outside_the_allow_list_refers_to_ground_truth() -> None:
         "from . import supervised",
         "from .supervised import run_dev",
         "path = 'reports/results/supervised_santos.csv'",
+        "kill_chain = item['phases']",
+        "phases = load_phases()",
     ],
 )
 def test_the_scan_catches_a_planted_reference(tmp_path: Path, line: str) -> None:
@@ -86,6 +88,7 @@ def test_the_scan_catches_a_planted_reference(tmp_path: Path, line: str) -> None
         "max_label_len = 63",
         "evaluate = model.score(prepared)",
         "# scores of the unsupervised models",
+        "tactics = item['kill_chain_phases']",
     ],
 )
 def test_the_scan_accepts_a_harmless_line(tmp_path: Path, line: str) -> None:
@@ -100,6 +103,18 @@ def test_the_preparation_notebook_refers_to_no_ground_truth() -> None:
     cells = json.loads(path.read_text(encoding="utf-8"))["cells"]
     source = ["".join(cell["source"]) for cell in cells if cell["cell_type"] == "code"]
     assert [line for text in source for line in text.splitlines() if FORBIDDEN.search(line)] == []
+
+
+def test_the_agent_code_opens_only_the_locked_connection() -> None:
+    """A plain connection could read any file, so agents and rag may not open one."""
+    plain = re.compile(r"duckdb\.connect|\bimport\s+connect\b|\bstore\.connect\(")
+    found = []
+    for directory in ("agents", "rag"):
+        for path in sorted((PACKAGE / directory).rglob("*.py")):
+            found += [
+                path.name for line in path.read_text("utf-8").splitlines() if plain.search(line)
+            ]
+    assert found == []
 
 
 def test_the_allowed_modules_exist() -> None:
