@@ -70,6 +70,10 @@ rag:
   attack_sha256: 539a843a7b53ed9749740b2123dddae3726b1a4831841c32aca740b011b910b5
   attack_collection: attack
   incidents_collection: incidents
+  # Hybrid search of the ATT&CK index: textbook values, fixed before measuring (D43).
+  bm25_k1: 1.5
+  bm25_b: 0.75
+  rrf_k: 60
 
 # Windows and features (plan 5.4, 6.3).
 features:

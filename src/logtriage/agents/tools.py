@@ -117,7 +117,7 @@ class AgentTools:
             connection,
             settings.tools,
             testbed,
-            AttackIndex(cosine_collection(client, rag.attack_collection), embedder),
+            AttackIndex(cosine_collection(client, rag.attack_collection), embedder, rag),
             IncidentStore(cosine_collection(client, rag.incidents_collection), embedder),
         )
 

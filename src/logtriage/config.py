@@ -91,6 +91,9 @@ class RagConfig(BaseModel):
     attack_sha256: str = ""
     attack_collection: str = "attack"
     incidents_collection: str = "incidents"
+    bm25_k1: float = 1.5
+    bm25_b: float = 0.75
+    rrf_k: int = 60
 
 
 class FeaturesConfig(BaseModel):

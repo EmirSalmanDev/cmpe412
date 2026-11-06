@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from logtriage.agents.tools import AgentTools, ToolResult, clip, fit_blocks, parse_time
-from logtriage.config import ToolsConfig
+from logtriage.config import RagConfig, ToolsConfig
 from logtriage.data.parsers import vpn
 from logtriage.data.parsers.common import ParseContext
 from logtriage.data.store import build_agent_db, connect_agent, write_lines
@@ -119,7 +119,7 @@ def directory(tmp_path: Path) -> Path:
 def tools(directory: Path) -> Iterator[AgentTools]:
     client = open_client(directory)
     build_index(load_techniques(BUNDLE), client, FakeEmbedder(), "attack")
-    attack = AttackIndex(cosine_collection(client, "attack"), FakeEmbedder())
+    attack = AttackIndex(cosine_collection(client, "attack"), FakeEmbedder(), RagConfig())
     incidents = IncidentStore(cosine_collection(client, "incidents"), FakeEmbedder())
     connection = connect_agent(directory / "agent.duckdb")
     instance = AgentTools(connection, ToolsConfig(), "x", attack, incidents)
@@ -344,7 +344,7 @@ def wide_tools(tmp_path: Path) -> Iterator[AgentTools]:
     build_agent_db(tmp_path)
     client = open_client(tmp_path)
     build_index(load_techniques(BUNDLE), client, FakeEmbedder(), "attack")
-    attack = AttackIndex(cosine_collection(client, "attack"), FakeEmbedder())
+    attack = AttackIndex(cosine_collection(client, "attack"), FakeEmbedder(), RagConfig())
     incidents = IncidentStore(cosine_collection(client, "incidents"), FakeEmbedder())
     for number in range(5):
         incidents.add(report(f"i{number}", "dns tunnel " * 800), "x", TS)

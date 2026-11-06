@@ -32,7 +32,7 @@ def settings():
 def index(settings) -> AttackIndex:
     client = open_client(ROOT / settings.paths.index_dir)
     collection = cosine_collection(client, settings.rag.attack_collection)
-    return AttackIndex(collection, BgeEmbedder(settings.rag))
+    return AttackIndex(collection, BgeEmbedder(settings.rag), settings.rag)
 
 
 def gold_ids() -> set[str]:

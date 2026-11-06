@@ -1,14 +1,16 @@
-"""ATT&CK index (plan 8.1): one document per technique, searched by embedding."""
+"""ATT&CK index (plan 8.1): one document per technique, searched by embedding and by keyword."""
 
 import hashlib
 import json
 import logging
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 import chromadb
+import numpy as np
 from chromadb.api.models.Collection import Collection
 
 from logtriage.config import RagConfig, Settings
@@ -21,6 +23,7 @@ CITATION = re.compile(r"\s*\(Citation:[^)]*\)")
 LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 MARKUP = re.compile(r"</?[a-zA-Z][^>]*>")
 SPACE = re.compile(r"\s+")
+TOKEN = re.compile(r"[a-z0-9]+")
 
 
 class Embedder(Protocol):
@@ -179,29 +182,98 @@ def build_index(
     return collection.count()
 
 
-class AttackIndex:
-    """Search over the ATT&CK collection."""
+def tokenize(text: str) -> list[str]:
+    """Split text into lowercase alphanumeric tokens."""
+    return TOKEN.findall(text.lower())
 
-    def __init__(self, collection: Collection, embedder: Embedder) -> None:
+
+def bm25_scores(documents: list[list[str]], query: list[str], k1: float, b: float) -> np.ndarray:
+    """Return the Okapi BM25 score of each tokenized document for a tokenized query.
+
+    Args:
+        documents: Tokens of each document.
+        query: Tokens of the query.
+        k1: Term frequency saturation.
+        b: Length normalization.
+
+    Returns:
+        One score per document.
+    """
+    lengths = np.array([len(document) for document in documents], dtype=float)
+    counts = [Counter(document) for document in documents]
+    scores = np.zeros(len(documents))
+    for term in set(query):
+        frequency = np.array([count[term] for count in counts], dtype=float)
+        holding = int((frequency > 0).sum())
+        rarity = np.log(1 + (len(documents) - holding + 0.5) / (holding + 0.5))
+        norm = k1 * (1 - b + b * lengths / lengths.mean())
+        scores += rarity * frequency * (k1 + 1) / (frequency + norm)
+    return scores
+
+
+def fuse_ranks(rankings: list[list[str]], k: int) -> dict[str, float]:
+    """Combine rankings by Reciprocal Rank Fusion, with equal weights.
+
+    Args:
+        rankings: IDs of each ranking, best first.
+        k: Damping constant.
+
+    Returns:
+        ID to fused score.
+    """
+    fused: dict[str, float] = {}
+    for ranking in rankings:
+        for position, item in enumerate(ranking, 1):
+            fused[item] = fused.get(item, 0.0) + 1 / (k + position)
+    return fused
+
+
+class AttackIndex:
+    """Hybrid search over the ATT&CK collection (D43)."""
+
+    def __init__(self, collection: Collection, embedder: Embedder, config: RagConfig) -> None:
         self.collection = collection
         self.embedder = embedder
+        self.config = config
+        self._entries: dict[str, dict[str, Any]] | None = None
+        self._tokens: list[list[str]] = []
+
+    @property
+    def entries(self) -> dict[str, dict[str, Any]]:
+        """Read the metadata and tokens of every technique once."""
+        if self._entries is None:
+            found = self.collection.get(include=["metadatas", "documents"])
+            rows = zip(found["ids"], found["metadatas"], found["documents"], strict=True)
+            self._entries = {
+                item: {**metadata, "document": document} for item, metadata, document in rows
+            }
+            self._tokens = [tokenize(entry["document"]) for entry in self._entries.values()]
+        return self._entries
 
     def search(self, text: str, k: int) -> list[dict[str, Any]]:
-        """Return the `k` nearest techniques, best first.
+        """Return the `k` best techniques by fused dense and keyword rank.
 
         Args:
             text: Free text.
             k: Number of results.
 
         Returns:
-            Metadata of each technique, with its `document` and cosine `distance`.
+            Metadata of each technique, with its `document` and fused `score`, best first.
         """
-        found = self.collection.query(query_embeddings=[self.embedder.query(text)], n_results=k)
-        rows = zip(found["metadatas"][0], found["documents"][0], found["distances"][0], strict=True)
-        return [
-            {**metadata, "document": document, "distance": distance}
-            for metadata, document, distance in rows
-        ]
+        entries = self.entries
+        if not entries:
+            return []
+        found = self.collection.query(
+            query_embeddings=[self.embedder.query(text)],
+            n_results=len(entries),
+            include=[],
+        )
+        scores = bm25_scores(self._tokens, tokenize(text), self.config.bm25_k1, self.config.bm25_b)
+        ids = list(entries)
+        keyword = [ids[position] for position in np.argsort(-scores, kind="stable")]
+        fused = fuse_ranks([found["ids"][0], keyword], self.config.rrf_k)
+        best = sorted(fused, key=lambda item: (-fused[item], item))[:k]
+        return [{**entries[item], "score": fused[item]} for item in best]
 
 
 def run_index_attack(settings: Settings, embedder: Embedder | None = None) -> int:

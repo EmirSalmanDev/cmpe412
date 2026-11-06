@@ -6,16 +6,19 @@ from pathlib import Path
 
 import pytest
 
-from logtriage.config import Settings
+from logtriage.config import RagConfig, Settings
 from logtriage.rag.attack_index import (
     AttackIndex,
+    bm25_scores,
     build_index,
     clean_text,
     cosine_collection,
     file_digest,
+    fuse_ranks,
     load_techniques,
     open_client,
     run_index_attack,
+    tokenize,
 )
 from logtriage.rag.incident_store import IncidentStore, report_document
 from rag_fakes import BUNDLE, FakeEmbedder, report
@@ -54,11 +57,56 @@ def test_the_document_is_id_name_and_clean_description() -> None:
 def test_search_returns_the_nearest_technique_with_metadata(tmp_path: Path) -> None:
     client = open_client(tmp_path)
     assert build_index(load_techniques(BUNDLE), client, FakeEmbedder(), "attack") == 3
-    index = AttackIndex(cosine_collection(client, "attack"), FakeEmbedder())
+    index = AttackIndex(cosine_collection(client, "attack"), FakeEmbedder(), RagConfig())
     hits = index.search("guess passwords brute force", 2)
     assert hits[0]["id"] == "T1110"
     assert hits[0]["tactics"] == "credential-access"
-    assert hits[0]["distance"] <= hits[1]["distance"]
+    assert hits[0]["score"] >= hits[1]["score"]
+    assert len(hits) == 2
+
+
+def test_an_empty_index_returns_nothing(tmp_path: Path) -> None:
+    collection = cosine_collection(open_client(tmp_path), "attack")
+    assert AttackIndex(collection, FakeEmbedder(), RagConfig()).search("dns", 5) == []
+
+
+def test_tokens_are_lowercase_alphanumeric() -> None:
+    assert tokenize("Use DNS-over-HTTPS (T1071.004)!") == [
+        "use",
+        "dns",
+        "over",
+        "https",
+        "t1071",
+        "004",
+    ]
+
+
+def test_bm25_prefers_the_document_with_the_rarer_term() -> None:
+    documents = [["dns", "common"], ["common", "common"], ["common", "other"]]
+    scores = bm25_scores(documents, ["dns", "common"], 1.5, 0.75)
+    assert scores.argmax() == 0
+
+
+def test_bm25_gives_zero_to_a_document_without_the_terms() -> None:
+    scores = bm25_scores([["a"], ["b"]], ["a"], 1.5, 0.75)
+    assert scores[1] == 0 and scores[0] > 0
+
+
+def test_bm25_favors_a_shorter_document_at_equal_frequency() -> None:
+    documents = [["dns", "x"], ["dns", "x", "y", "z", "w", "v"], ["other"]]
+    scores = bm25_scores(documents, ["dns"], 1.5, 0.75)
+    assert scores[0] > scores[1]
+
+
+def test_fusion_favors_an_item_high_in_both_rankings() -> None:
+    fused = fuse_ranks([["a", "b", "c"], ["c", "b", "a"]], 60)
+    assert fused["b"] < fused["a"] == fused["c"]
+    assert fuse_ranks([["a", "b"], ["b", "a"]], 60)["a"] == pytest.approx(1 / 61 + 1 / 62)
+
+
+def test_fusion_lets_a_keyword_hit_rise_above_a_dense_only_hit() -> None:
+    fused = fuse_ranks([["dense", "both"], ["both", "keyword"]], 60)
+    assert max(fused, key=fused.get) == "both"
 
 
 def test_rebuilding_replaces_the_collection(tmp_path: Path) -> None:

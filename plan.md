@@ -376,7 +376,7 @@ All tools read only `agent.duckdb`, through `store.connect_agent`: `read_only=Tr
 | `log_search(host, start, end, log_type=None, contains=None, limit=50)` | Raw lines in the range. Dedup by `template_id` (show 1 example + count per template), unseen templates first, then by rarity. |
 | `run_sql(query)` | One `SELECT`/`WITH` statement only, checked on DuckDB's parse tree by `agents/sql_guard.py`: table functions, file paths and unknown tables are rejected (changed: see status.md D41). Auto `LIMIT 200`, 10 s timeout, read-only connection. Schema description in the tool docstring. |
 | `ip_profile(ip)` | Per log type and host: first/last seen, counts, top templates. For VPN-internal IPs also returns the external IP and VPN user from VPN session logs (and vice versa). |
-| `attack_search(text, k=5)` | Vector search over the ATT&CK index (§8.1). |
+| `attack_search(text, k=5)` | Hybrid search over the ATT&CK index (§8.1) (changed: see status.md D43). |
 | `similar_incidents(text, k=3)` | Vector search over finalized reports (§8.2). |
 
 Window anomaly scores and incident metadata are given to the Investigator in the initial context (not via a tool).
@@ -406,6 +406,7 @@ ReAct agent with the same tools plus the current report in context. Memory via L
 - Use the pinned local `enterprise-attack.json` (`rag.attack_sha256`); `index-attack` downloads no bundle and refuses any other file. Its ATT&CK version is in status.md. Exclude revoked/deprecated objects (changed: see status.md D42).
 - Document per technique/sub-technique: `"{id} {name}. {description}"` (strip citations/markdown), metadata: id, name, tactics, is_subtechnique.
 - Embeddings: `sentence-transformers` `BAAI/bge-small-en-v1.5` (normalize; use the query instruction prefix for queries). Store in Chroma persistent at `data/index/chroma`, collection `attack`.
+- Search fuses the dense ranking with a BM25 ranking (`k1` 1.5, `b` 0.75, lowercase alphanumeric tokens) by Reciprocal Rank Fusion (`k` 60, equal weights) (changed: see status.md D43).
 - Test: the gold IDs (§11) all exist in the index and are not revoked.
 
 ### 8.2 Incident memory (`logtriage/rag/incident_store.py`)
