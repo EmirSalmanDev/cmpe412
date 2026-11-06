@@ -49,6 +49,28 @@ INTRO = [
     "",
 ]
 
+LIMITATIONS = [
+    "## Known limitations",
+    "",
+    "Stated before any result exists, and not a reason to change anything later.",
+    "",
+    "- **`wardbeck` gap:** the fallback gap of §4.3 applies (D58), so only 6 h of its evaluation "
+    "period come before the first attack, against 24 h on the other testbeds. There is less "
+    "time to measure false positives before the attack.",
+    "- **`harrison` first phase:** the published `network_scans` row starts at 07:05:00, 120 s "
+    "before the first attacker step in `attacks.log`, so the cross-check of the inventory fails "
+    "on that row. The row stays as published (D60). No labeled line of an attack phase falls in "
+    "those 120 s.",
+    "- **`harrison` volume:** `dirb` alone holds 411,830 labeled lines in 26 minutes, so attack "
+    "lines are most of the parsed lines of the evaluation period, and the alert rate is far above "
+    "the other testbeds. Line shares and the alert reduction are not comparable across testbeds.",
+    "- **Attack order:** exfiltration stops before the scans on santos and `wardbeck`. On "
+    "`harrison`, as on russellmitchell, it runs through the attack, and `service_stop` comes last.",
+    "- **Unlabeled exfiltration:** `inet-dns` holds 45,254 such lines on `wardbeck` and 70,773 on "
+    "`harrison`. The label-ambiguous rule of `reports/targets.md` handles them.",
+    "",
+]
+
 CLOSING = [
     "## What the counts can and cannot say",
     "",
@@ -568,6 +590,7 @@ def render_report(settings: Settings) -> str:
             gold_check(settings),
             "",
             *frozen_feature_section(new, settings),
+            *LIMITATIONS,
             "## D28 exposure, from window counts only",
             "",
             *exposure,
