@@ -62,7 +62,15 @@ def test_a_prompt_needs_a_version_and_the_word_json() -> None:
     )
 
 
-def test_few_shot_needs_its_examples() -> None:
+def test_few_shot_fails_loudly_without_its_examples(monkeypatch: pytest.MonkeyPatch) -> None:
+    real = prompting.load_prompt
+
+    def missing(name: str) -> prompting.Prompt:
+        if name == "reporter_examples":
+            raise FileNotFoundError(name)
+        return real(name)
+
+    monkeypatch.setattr(prompting, "load_prompt", missing)
     assert "reporter" in load_prompts()
     with pytest.raises(FileNotFoundError):
         load_prompts(few_shot=True)
