@@ -416,7 +416,7 @@ The loop is a small LangGraph on `LLMClient`, not `create_react_agent`, so every
 
 ### 8.2 Incident memory (`logtriage/rag/incident_store.py`)
 
-Chroma collection `incidents`: one document per finalized report (summary claims + techniques + verdict), metadata testbed/incident_id/start. In evaluation, a report may only retrieve reports of incidents that **started earlier** in the same run (filter by start and `run`), so there is no look-ahead (changed: see status.md D42).
+Chroma collection `incidents`: one document per finalized report (summary claims + techniques + verdict), metadata testbed/incident_id/start. In evaluation, a report may only retrieve reports of incidents that **started earlier** in the same run (filter by testbed, start and `run`), so there is no look-ahead (changed: see status.md D42, D63).
 
 ---
 
