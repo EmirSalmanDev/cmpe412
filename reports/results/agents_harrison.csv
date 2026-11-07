@@ -1,0 +1,11 @@
+incident_id,verdict,confidence,claims,summary_claims,timeline_claims,technique_claims,removed_claims,draft_claims,draft_unknown_eid_claims,verifier_rounds,evidence_lines,tool_calls,techniques,llm_calls,retries,tokens_in,tokens_cached,tokens_out,cost_usd,latency_s
+harrison-0001,uncertain,0.5,13,4,9,0,0,13,0,1,12,8,,10,0,45451,16384,4807,0.007293,30.37
+harrison-0002,malicious,0.8,21,4,16,1,0,21,0,0,29,8,T1110.004,7,0,53435,15360,4879,0.008685,27.05
+harrison-0003,malicious,0.95,15,4,8,3,0,15,0,1,22,6,T1505.003 T1548.003 T1003.008,9,0,48381,21120,7667,0.008753,44.86
+harrison-0004,uncertain,0.5,9,3,6,0,0,9,0,0,14,8,,8,0,31754,12416,2966,0.004718,21.73
+harrison-0005,uncertain,0.4,9,3,6,0,0,10,0,1,29,8,,10,0,51636,20992,5869,0.008181,34.61
+harrison-0006,uncertain,0.5,13,4,9,0,0,13,0,1,11,8,,10,0,35515,14976,4852,0.006037,30.94
+harrison-0007,uncertain,0.4,12,4,8,0,0,12,0,0,12,8,,8,0,37474,15744,3373,0.005331,22.81
+harrison-0008,uncertain,0.4,11,3,8,0,0,11,0,0,18,8,,8,0,42749,15616,3491,0.006211,24.64
+harrison-0009,uncertain,0.5,14,4,10,0,0,14,0,0,15,8,,8,0,39470,15232,3759,0.005937,24.78
+harrison-0010,uncertain,0.4,10,3,7,0,0,11,0,1,17,8,,10,0,53152,21888,5409,0.008001,32.59
