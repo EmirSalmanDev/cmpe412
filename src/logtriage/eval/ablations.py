@@ -250,3 +250,15 @@ def replay_proof(
             }
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def condition_reports(settings: Settings, condition: str) -> dict[str, dict[str, Any]]:
+    """Return the reports of a condition by incident; `base` means the official ones."""
+    directory = (
+        settings.paths.processed_dir / ABLATION_TESTBED / REPORTS_DIR
+        if condition == BASE
+        else output_dir(settings, condition)
+    )
+    return {
+        path.stem: json.loads(path.read_text(encoding="utf-8")) for path in report_files(directory)
+    }

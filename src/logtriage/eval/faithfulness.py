@@ -357,8 +357,8 @@ def read_labels(directory: Path, ids: set[str]) -> pd.DataFrame:
         unknown = set(table["label"]) - {SUPPORTED, NOT_SUPPORTED}
         if unknown:
             raise ValueError(f"rater {rater}: unknown labels {sorted(unknown)}")
-        renamed = table.rename(columns={"label": f"label_{rater}", "reason": f"reason_{rater}"})
-        merged = merged.merge(renamed[["id", f"label_{rater}", f"reason_{rater}"]], on="id")
+        names = {name: f"{name}_{rater}" for name in ("label", "reason_code", "reason")}
+        merged = merged.merge(table[["id", *names]].rename(columns=names), on="id")
     return merged
 
 
@@ -543,3 +543,41 @@ def rater_parts(sheet: pd.DataFrame, directory: Path, size: int = PART_SIZE) -> 
         path.write_text("\n\n".join(blocks) + "\n", encoding="utf-8")
         paths.append(path)
     return paths
+
+
+def disagreements(sheet: pd.DataFrame, key: pd.DataFrame, labels: pd.DataFrame) -> pd.DataFrame:
+    """Return every sheet row the raters split on, with where the claim came from.
+
+    Args:
+        sheet: The sheet.
+        key: The key.
+        labels: Output of `read_labels`.
+
+    Returns:
+        One row per id, sorted by id.
+    """
+    split = labels[labels["label_a"] != labels["label_b"]]
+    origin = key.groupby("id").agg(
+        testbeds=("testbed", lambda values: " ".join(sorted(set(values)))),
+        arms=("arm", lambda values: " ".join(sorted(set(values)))),
+        claim_type=("claim_type", "first"),
+    )
+    merged = split.merge(sheet[["id", "claim"]], on="id").merge(origin, on="id")
+    columns = [
+        "id", "testbeds", "arms", "claim_type", "claim", "label_a", "reason_code_a", "reason_a",
+        "label_b", "reason_code_b", "reason_b",
+    ]  # fmt: skip
+    return merged[columns].sort_values("id").reset_index(drop=True)
+
+
+def reason_table(key: pd.DataFrame, labels: pd.DataFrame) -> pd.DataFrame:
+    """Count the causes of `not_supported`, per rater and arm. It changes no reading."""
+    joined = key.merge(labels, on="id")
+    parts = []
+    for rater in RATERS:
+        rated = joined[joined[f"label_{rater}"] == NOT_SUPPORTED]
+        counts = rated.groupby(["arm", f"reason_code_{rater}"]).size()
+        part = counts.rename("claims").rename_axis(["arm", "reason_code"]).reset_index()
+        part.insert(0, "rater", rater)
+        parts.append(part)
+    return pd.concat(parts, ignore_index=True)

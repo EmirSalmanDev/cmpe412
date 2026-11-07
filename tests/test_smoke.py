@@ -1,4 +1,4 @@
-"""Smoke tests for the config loader and the CLI stubs."""
+"""Smoke tests for the config loader and the CLI."""
 
 from pathlib import Path
 
@@ -11,9 +11,6 @@ from logtriage.cli import app
 from logtriage.config import load_settings
 
 CONFIG = Path(__file__).parents[1] / "configs" / "default.yaml"
-STUB_COMMANDS = [
-    "evaluate",
-]
 COMMANDS = [
     "download",
     "inventory",
@@ -72,13 +69,6 @@ def test_help_lists_all_commands() -> None:
     assert result.exit_code == 0
     for command in COMMANDS:
         assert command in result.output
-
-
-@pytest.mark.parametrize("command", STUB_COMMANDS)
-def test_stub_commands_accept_options(command: str) -> None:
-    result = runner.invoke(app, [command, "--testbed", "santos", "--config", str(CONFIG)])
-    assert result.exit_code == 0
-    assert "not implemented yet" in result.output
 
 
 def test_investigate_passes_its_options_to_the_runner(monkeypatch: pytest.MonkeyPatch) -> None:

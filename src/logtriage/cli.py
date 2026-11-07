@@ -1,4 +1,4 @@
-"""Typer command line interface (plan 9.3). Commands are stubs until their milestones."""
+"""Typer command line interface (plan 9.3)."""
 
 import logging
 import os
@@ -25,6 +25,7 @@ from logtriage.data.download import InsufficientDiskError, run_download
 from logtriage.data.inventory import run_inventory
 from logtriage.eval import llm_baseline
 from logtriage.eval.ablations import RECHECK, RETRY, run_ablation
+from logtriage.eval.report import PaidCallError, run_evaluate
 from logtriage.ml.detect import run_detect
 from logtriage.prepare import refresh_databases, run_prepare
 from logtriage.rag.attack_index import run_index_attack
@@ -48,11 +49,6 @@ def _report_failure(command: str, error: BaseException) -> None:
     trace = "".join(traceback.format_exception(error))
     typer.echo(trace, err=True)
     typer.echo(f"{command} failed: {error}", err=True)
-
-
-def _not_implemented(command: str, testbed: str, config: Path) -> None:
-    """Print the stub message for a command."""
-    typer.echo(f"{command}: not implemented yet (testbed={testbed}, config={config})")
 
 
 @app.command()
@@ -230,11 +226,14 @@ def llm_only(
 
 
 @app.command()
-def evaluate(
-    testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
-) -> None:
-    """Compute evaluation metrics and reports."""
-    _not_implemented("evaluate", testbed, config)
+def evaluate(config: ConfigOption = DEFAULT_CONFIG_PATH) -> None:
+    """Regenerate every derived table and `reports/results.md`, from saved outputs and the cache."""
+    try:
+        summary = run_evaluate(load_settings(config))
+    except (ValueError, FileNotFoundError, KeyError, CacheMissError, PaidCallError) as error:
+        _report_failure("evaluate", error)
+        raise typer.Exit(code=1) from error
+    typer.echo(f"wrote {len(summary.tables)} tables and {summary.results}")
 
 
 def streamlit_command(settings: Settings) -> list[str]:
