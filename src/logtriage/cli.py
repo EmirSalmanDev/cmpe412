@@ -10,13 +10,20 @@ from typing import Annotated
 
 import typer
 
-from logtriage.agents.llm import CacheMissError, EmptyResponseError, FingerprintChangedError
+from logtriage.agents.llm import (
+    BudgetExceededError,
+    CacheMissError,
+    EmptyResponseError,
+    FingerprintChangedError,
+    LLMOutputError,
+)
 from logtriage.agents.runner import run_incidents
 from logtriage.app.data import AppOptions, database_path
 from logtriage.app.replay import check_live
 from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, Settings, load_settings
 from logtriage.data.download import InsufficientDiskError, run_download
 from logtriage.data.inventory import run_inventory
+from logtriage.eval import llm_baseline
 from logtriage.eval.ablations import RECHECK, RETRY, run_ablation
 from logtriage.ml.detect import run_detect
 from logtriage.prepare import refresh_databases, run_prepare
@@ -186,6 +193,40 @@ def ablate(
     if summary.aborted:
         typer.echo(f"stopped: {summary.aborted}", err=True)
         raise typer.Exit(code=2)
+
+
+@app.command("llm-only")
+def llm_only(
+    stage: Annotated[str, typer.Option("--stage", help="draw, check or run.")],
+    reason: Annotated[str, typer.Option("--reason", help="Why it runs, for the ledger.")] = "",
+    config: ConfigOption = DEFAULT_CONFIG_PATH,
+    retry: Annotated[
+        bool, typer.Option("--retry", help="The one retry after an API failure (D69).")
+    ] = False,
+) -> None:
+    """Draw the LLM-only sample, check its format on dev, or run it on santos once (D66)."""
+    settings = load_settings(config)
+    try:
+        if stage == "draw":
+            typer.echo(f"wrote {llm_baseline.run_draw(settings)}")
+            return
+        if stage == "check":
+            run = llm_baseline.run_check(settings, reason)
+        elif stage == "run":
+            run = llm_baseline.run_sample(settings, reason, retry=retry)
+        else:
+            raise ValueError(f"unknown stage {stage}")
+    except (
+        ValueError,
+        FileNotFoundError,
+        KeyError,
+        LLMOutputError,
+        FingerprintChangedError,
+        BudgetExceededError,
+    ) as error:
+        _report_failure("llm-only", error)
+        raise typer.Exit(code=1) from error
+    typer.echo(f"{stage}: {len(run.rows)} windows, {run.spent_usd:.4f} USD this run")
 
 
 @app.command()
