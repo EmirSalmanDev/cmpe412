@@ -332,16 +332,16 @@ def test_the_metrics_on_the_sample() -> None:
     assert entry["top3_lenient"] == 1.0
 
 
-def test_token_rates_recover_a_known_mix() -> None:
-    lines = [10, 20, 30, 40, 10, 20, 30]
-    kinds = ["auth", "auth", "auth", "auth", "dns", "dns", "dns"]
-    tokens = [500 + (7 if kind == "auth" else 3) * n for n, kind in zip(lines, kinds, strict=True)]
-    fixed, rates, out = token_rates(
-        pd.DataFrame(
-            {"log_type": kinds, "lines_sent": lines, "tokens_in": tokens, "tokens_out": 20}
-        )
+def test_token_rates_take_the_smallest_call_as_fixed() -> None:
+    results = pd.DataFrame(
+        {
+            "log_type": ["auth", "auth", "dns"],
+            "lines_sent": [2, 10, 4],
+            "tokens_in": [300, 380, 500],
+            "tokens_out": [10, 20, 30],
+        }
     )
-    assert fixed == pytest.approx(500)
-    assert rates["auth"] == pytest.approx(7)
-    assert rates["dns"] == pytest.approx(3)
+    fixed, rates, out = token_rates(results)
+    assert fixed == 300
+    assert rates == {"auth": pytest.approx(80 / 12), "dns": 50}
     assert out == 20

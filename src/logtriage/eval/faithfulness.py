@@ -42,10 +42,11 @@ OFF_CONDITION = "verifier0"
 SUPPORTED = "supported"
 NOT_SUPPORTED = "not_supported"
 POOLED = "pooled"
-# Rewrites happen on these testbeds; santos has none, so a paired reading does not exist there.
 SHEET_DIR = "faithfulness"
 SHEET_FILE = "claims_sheet.csv"
 KEY_FILE = "faithfulness_key.csv"
+PAIRED_FILE = "faithfulness_paired.csv"
+PART_SIZE = 53
 RATERS = ("a", "b")
 LABEL_PATTERN = "labels_{}.csv"
 # Testbed names and the organization names built on them (`status.md`, Recorded facts).
@@ -166,16 +167,11 @@ def check_trace(report: IncidentReport, rounds: list[Round]) -> None:
         raise ValueError(f"{name}: {len(rounds)} rounds for {report.verifier_rounds} rewrites")
     if len(claim_text(rounds[0].draft)) != report.meta["draft_claims"]:
         raise ValueError(f"{name}: the first draft is not the one the report counted")
-    last = rounds[-1]
-    kept = {
-        (text, tuple(claim.evidence))
-        for key, (text, claim) in claim_text(last.draft).items()
-        if last.judged[key] == "supported" or report.verifier_rounds == 0
+    written = {
+        (text, tuple(claim.evidence)) for text, claim in claim_text(rounds[-1].draft).values()
     }
     final = {(text, tuple(claim.evidence)) for text, claim in claim_text(report).values()}
-    if not final <= kept | {
-        (text, tuple(claim.evidence)) for text, claim in claim_text(last.draft).values()
-    }:
+    if not final <= written:
         raise ValueError(f"{name}: the last draft does not hold the report's claims")
 
 
@@ -189,7 +185,9 @@ def load_official(testbed: str, settings: Settings) -> dict[str, IncidentReport]
     }
 
 
-def trace_testbeds(settings: Settings, testbeds: Iterable[str]) -> dict[str, dict[str, list[Round]]]:
+def trace_testbeds(
+    settings: Settings, testbeds: Iterable[str]
+) -> dict[str, dict[str, list[Round]]]:
     """Return the rounds of every official report, by testbed and incident."""
     prompt = load_prompts()["verifier"]
     cache = LlmCache(settings.paths.cache_dir / "llm.sqlite")
@@ -436,7 +434,9 @@ def readings_table(
     return pd.DataFrame(rows)
 
 
-def agreement_table(claims: pd.DataFrame, labels: pd.DataFrame, testbeds: list[str]) -> pd.DataFrame:
+def agreement_table(
+    claims: pd.DataFrame, labels: pd.DataFrame, testbeds: list[str]
+) -> pd.DataFrame:
     """Return Cohen's kappa between the raters, on the rows of the sheet.
 
     Args:
@@ -464,3 +464,82 @@ def agreement_table(claims: pd.DataFrame, labels: pd.DataFrame, testbeds: list[s
             }
         )
     return pd.DataFrame(rows)
+
+
+def sheet_dir(settings: Settings) -> Path:
+    """Return `reports/faithfulness`."""
+    return settings.paths.reports_dir / SHEET_DIR
+
+
+def key_path(settings: Settings) -> Path:
+    """Return the key of the sheet, under `data/`, never committed."""
+    return settings.paths.cache_dir / KEY_FILE
+
+
+def paired_path(settings: Settings) -> Path:
+    """Return the first-draft claims of the rewritten reports, with their ids, under `data/`."""
+    return settings.paths.cache_dir / PAIRED_FILE
+
+
+def attach_ids(paired: pd.DataFrame, sheet: pd.DataFrame) -> pd.DataFrame:
+    """Return first-draft claims with the sheet id of each, without their text.
+
+    Args:
+        paired: Second output of `collect_claims`.
+        sheet: Output of `build_sheet`.
+
+    Returns:
+        The rows with `id`.
+
+    Raises:
+        ValueError: If a first-draft claim has no row on the sheet.
+    """
+    names = {"claim": "text", "cited_lines": "lines"}
+    merged = paired.merge(sheet.rename(columns=names), on=["text", "lines"], how="left")
+    if merged["id"].isna().any():
+        raise ValueError("a first-draft claim is not on the sheet")
+    return merged.drop(columns=["text", "lines"])
+
+
+def write_sheet(settings: Settings) -> Path:
+    """Write the sheet, its key and the paired claims. Nothing here reaches a rater but the sheet.
+
+    Args:
+        settings: Loaded settings.
+
+    Returns:
+        The sheet file.
+    """
+    claims, paired = collect_claims(settings)
+    sheet, key = build_sheet(claims, settings.seed)
+    directory = sheet_dir(settings)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / SHEET_FILE
+    sheet.to_csv(path, index=False)
+    key_path(settings).parent.mkdir(parents=True, exist_ok=True)
+    key.to_csv(key_path(settings), index=False)
+    attach_ids(paired, sheet).to_csv(paired_path(settings), index=False)
+    return path
+
+
+def rater_parts(sheet: pd.DataFrame, directory: Path, size: int = PART_SIZE) -> list[Path]:
+    """Write the sheet as plain text parts, so that a rater reads it in pieces.
+
+    Args:
+        sheet: The sheet.
+        directory: Where the parts go.
+        size: Claims per part.
+
+    Returns:
+        The part files, in order.
+    """
+    paths = []
+    for number, first in enumerate(range(0, len(sheet), size), start=1):
+        blocks = []
+        for row in sheet.iloc[first : first + size].itertuples():
+            cited = "\n".join(f"LINE: {line}" for line in json.loads(row.cited_lines))
+            blocks.append(f"### {row.id}\nCLAIM: {row.claim}\n{cited}")
+        path = directory / f"part_{number:02d}.txt"
+        path.write_text("\n\n".join(blocks) + "\n", encoding="utf-8")
+        paths.append(path)
+    return paths

@@ -505,7 +505,9 @@ def cost_summary(results: pd.DataFrame) -> dict[str, float]:
 def token_rates(results: pd.DataFrame) -> tuple[float, dict[str, float], float]:
     """Measure the fixed input tokens per call, the tokens per line and the output per call.
 
-    Least squares of input tokens on lines sent, one slope per log type and one intercept.
+    The fixed part is the smallest call, a little high because that call holds 2 lines. A line
+    rate is what is left of a log type's calls, per line. A regression was tried first: long
+    exfiltration lines pushed its intercept to 864 tokens and its `auth` slope below 0.
 
     Args:
         results: The answers.
@@ -513,17 +515,11 @@ def token_rates(results: pd.DataFrame) -> tuple[float, dict[str, float], float]:
     Returns:
         Fixed tokens, tokens per line by log type, and mean output tokens per call.
     """
-    names = sorted(results["log_type"].unique())
-    design = np.column_stack(
-        [np.ones(len(results))]
-        + [
-            np.where(results["log_type"] == name, results["lines_sent"], 0).astype(float)
-            for name in names
-        ]
-    )
-    solution = np.linalg.lstsq(design, results["tokens_in"].to_numpy(float), rcond=None)[0]
-    rates = {name: max(float(value), 0.0) for name, value in zip(names, solution[1:], strict=True)}
-    return max(float(solution[0]), 0.0), rates, float(results["tokens_out"].mean())
+    fixed = float(results["tokens_in"].min())
+    rates = {}
+    for name, part in results.groupby("log_type"):
+        rates[str(name)] = float((part["tokens_in"] - fixed).sum() / part["lines_sent"].sum())
+    return fixed, rates, float(results["tokens_out"].mean())
 
 
 def period_counts(settings: Settings) -> tuple[pd.Series, int, int]:
