@@ -178,6 +178,7 @@ def ai_tables(settings: Settings) -> dict[str, pd.DataFrame]:
         "eval_faithfulness_kappa": faithfulness.agreement_table(key, labels, testbeds),
         "eval_faithfulness_disagreements": faithfulness.disagreements(sheet, key, labels),
         "eval_faithfulness_reasons": faithfulness.reason_table(key, labels),
+        "eval_faithfulness_sources": faithfulness.source_sensitivity(key, labels, settings),
     }
 
 
@@ -209,8 +210,10 @@ def run_evaluate(settings: Settings) -> EvaluateSummary:
     tables["eval_faithfulness_auto"] = faithfulness.auto_table(settings)
     tables |= ai_tables(settings)
     tables["eval_tool_calls"] = tool_table(items)
-    tables["dev_candidate_recall"] = dev_candidate_recall(settings)
     write_tables(tables, results_dir(settings))
+    # Plain floats: the file was written so in M8, and only its values matter here.
+    candidates = dev_candidate_recall(settings)
+    candidates.to_csv(results_dir(settings) / "dev_candidate_recall.csv", index=False)
     path = settings.paths.reports_dir / RESULTS_FILE
     path.write_text(render(results_dir(settings)), encoding="utf-8")
     after = ablations.ledger_state(settings)

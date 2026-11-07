@@ -1,3 +1,3 @@
 position,window_start,host,log_type,lines_sent,verdict,techniques,llm_calls,cached_calls,tokens_in,tokens_cached,tokens_out,cost_usd,latency_s,fingerprints
-1,2022-01-23 06:25:00+00:00,cloud_share,auth,2,benign,,1,0,361,0,14,0.000063,1.132588,bc19ba97cbe016479903222bb1578db6
-2,2022-01-24 11:52:00+00:00,mail,audit,2,benign,,1,0,481,256,14,0.000043,0.591152,bc19ba97cbe016479903222bb1578db6
+1,2022-01-23 06:25:00+00:00,cloud_share,auth,2,benign,,1,1,361,0,14,0.000063,1.132588,bc19ba97cbe016479903222bb1578db6
+2,2022-01-24 11:52:00+00:00,mail,audit,2,benign,,1,1,481,256,14,0.000043,0.591152,bc19ba97cbe016479903222bb1578db6

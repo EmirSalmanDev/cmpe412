@@ -447,3 +447,62 @@ def plot_feature_importance(
     figure.suptitle(title, color=INK, fontsize=11, x=0.01, ha="left")
     figure.tight_layout()
     return _finish(figure, path)
+
+
+def plot_phase_recall_comparison(table: pd.DataFrame, path: Path | None = None) -> Figure:
+    """Draw phase recall of our system beside the IDS bounds, per testbed (D64).
+
+    Args:
+        table: One row per testbed and series: `testbed`, `series`, `detected`, `phases`.
+        path: PNG file to write, if any.
+
+    Returns:
+        The figure. Each bar carries its count, so that identity and value do not rest on color.
+    """
+    testbeds = list(dict.fromkeys(table["testbed"]))
+    series = list(dict.fromkeys(table["series"]))
+    colors = ("#2a78d6", "#eb6834", "#1baf7a")
+    width = 0.26
+    figure, axes = plt.subplots(figsize=(8.4, 3.4))
+    for position, (name, color) in enumerate(zip(series, colors, strict=False)):
+        rows = table[table["series"] == name].set_index("testbed").loc[testbeds]
+        offsets = np.arange(len(testbeds)) + (position - (len(series) - 1) / 2) * width
+        shares = rows["detected"] / rows["phases"]
+        axes.bar(offsets, shares, width=width - 0.02, color=color, label=name)
+        for offset, share, row in zip(offsets, shares, rows.itertuples(), strict=True):
+            axes.text(
+                offset,
+                share + 0.02,
+                f"{row.detected}/{row.phases}",
+                ha="center",
+                color=INK_SECONDARY,
+                fontsize=7.5,
+                zorder=3,
+                bbox={"facecolor": SURFACE, "edgecolor": "none", "pad": 0.6},
+            )
+    _style(axes)
+    axes.set_xticks(np.arange(len(testbeds)), testbeds, color=INK)
+    axes.set_ylim(0, 1.08)
+    axes.yaxis.set_major_formatter(PercentFormatter(1))
+    axes.axhline(0.8, color=INK_SECONDARY, linewidth=0.8, linestyle=(0, (4, 3)), zorder=1)
+    axes.annotate(
+        "target\non santos",
+        xy=(1, 0.8),
+        xycoords=("axes fraction", "data"),
+        xytext=(6, 0),
+        textcoords="offset points",
+        va="center",
+        color=INK_SECONDARY,
+        fontsize=7.5,
+    )
+    axes.legend(
+        frameon=False,
+        fontsize=8,
+        ncols=len(series),
+        loc="lower left",
+        bbox_to_anchor=(0, 1.0),
+        labelcolor=INK,
+    )
+    figure.suptitle("Phases detected", color=INK, fontsize=10, x=0.01, ha="left")
+    figure.tight_layout()
+    return _finish(figure, path)

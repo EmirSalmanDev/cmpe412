@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 
 NOTEBOOKS = Path(__file__).parents[1] / "notebooks"
-NAMES = ["01_eda.ipynb", "02_preparation.ipynb", "03_ml_models.ipynb", "04_agents.ipynb"]
+NAMES = [
+    "01_eda.ipynb",
+    "02_preparation.ipynb",
+    "03_ml_models.ipynb",
+    "04_agents.ipynb",
+    "05_evaluation.ipynb",
+]
 MAX_TABLE_ROWS = 100
 MAX_BYTES = 5_000_000
 
@@ -47,3 +53,11 @@ def test_the_eda_notebook_shows_figures_as_png() -> None:
     cells = json.loads((NOTEBOOKS / NAMES[0]).read_text(encoding="utf-8"))["cells"]
     outputs = [out for cell in cells if cell["cell_type"] == "code" for out in cell["outputs"]]
     assert "image/png" in {key for out in outputs for key in out.get("data", {})}
+
+
+def test_the_evaluation_notebook_only_reads_saved_results() -> None:
+    cells = json.loads((NOTEBOOKS / NAMES[4]).read_text(encoding="utf-8"))["cells"]
+    code = "\n".join("".join(cell["source"]) for cell in cells if cell["cell_type"] == "code")
+    for word in ("run_detect", "run_incidents", "run_ablation", "run_sample", "LLMClient", ".fit("):
+        assert word not in code
+    assert "read_parquet" not in code

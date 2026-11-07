@@ -18,6 +18,8 @@ COMMANDS = [
     "detect",
     "index-attack",
     "investigate",
+    "ablate",
+    "llm-only",
     "evaluate",
     "app",
 ]

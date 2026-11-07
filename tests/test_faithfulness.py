@@ -227,3 +227,42 @@ def test_kappa_matches_the_library(tmp_path: Path) -> None:
     assert table.loc["all", "rows"] == 5
     assert table.loc["all", "agree"] == 4
     assert table.loc["santos", "rows"] == 1
+
+
+def test_a_named_host_must_be_a_whole_name() -> None:
+    assert f.named_source_is_right("a probe to cloud_share and more", ["cloud_share"])
+    assert not f.named_source_is_right("a probe to cloud_share2", ["cloud_share"])
+    assert not f.named_source_is_right("a probe to mail-gw", ["mail"])
+    assert not f.named_source_is_right("a probe", [])
+
+
+def test_the_sensitivity_counts_only_hosts_the_metadata_confirms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, report = run_with_rewrite(tmp_path)
+    report.summary[0].text = "a page on web"
+    report.timeline[0].claim.text = "a page on elsewhere"
+    monkeypatch.setattr(f, "arm_reports", lambda *_: {"x-0001": report})
+    key = pd.DataFrame(
+        {
+            "id": ["c1", "c2", "c3"],
+            "arm": f.ON,
+            "testbed": "santos",
+            "incident_id": "x-0001",
+            "claim_key": ["summary:0", "timeline:0", "technique:0"],
+        }
+    )
+    labels = pd.DataFrame(
+        {
+            "id": ["c1", "c2", "c3"],
+            "label_a": [f.NOT_SUPPORTED, f.NOT_SUPPORTED, f.SUPPORTED],
+            "label_b": [f.NOT_SUPPORTED, f.NOT_SUPPORTED, f.SUPPORTED],
+            "reason_code_a": ["source_not_shown", "source_not_shown", "shown"],
+            "reason_code_b": ["source_not_shown", "source_not_shown", "shown"],
+        }
+    )
+    table = f.source_sensitivity(key, labels, settings_for(tmp_path)).set_index("testbed")
+    assert table.loc["santos", "source_not_shown_both"] == 2
+    assert table.loc["santos", "host_right_in_metadata"] == 1
+    assert table.loc["santos", "share_both"] == pytest.approx(1 / 3)
+    assert table.loc["santos", "share_if_host_shown"] == pytest.approx(2 / 3)

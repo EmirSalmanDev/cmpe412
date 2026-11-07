@@ -199,9 +199,9 @@ def alerts_section(s: Saved) -> str:
             rows,
         )  # fmt: skip
         + "\n\n**The incident budget is mostly unused.** `q` 0.999 is the only grid value inside "
-        "the budget on dev, and the grid has nothing between 0.995 and 0.999. That is why phase "
-        "recall misses its target while incidents per day are far under 25. The grid was not "
-        "changed after santos was scored.\n"
+        "the budget on dev, and the grid has nothing between 0.995 and 0.999. So phase recall "
+        "misses its target with most of the budget unused; whether a finer `q` would recover "
+        "phases was not tested. The grid was not changed after santos was scored.\n"
     )
 
 
@@ -398,7 +398,9 @@ def baselines_section(s: Saved) -> str:
         )
         for name in ALL_ROWS
     ]
-    only = s.eval_llm_only.iloc[0]
+    tests = s.eval_alert_reduction[s.eval_alert_reduction["group"] == "test"]
+    alerts = tests["raw_alerts_per_day"]
+    only = s.eval_llm_only.to_dict("records")[0]
     costs = s.llm_only_cost.set_index("band")
     matrix = [
         ("true attack", only["malicious_true_malicious"], only["uncertain_true_malicious"],
@@ -423,7 +425,8 @@ def baselines_section(s: Saved) -> str:
         "bound**. D64 was decided after these numbers were computed; it does not change our "
         "system's numbers, and the IDS beats our phase recall under both readings.\n\n"
         + table(("Testbed", "IDS event (lower)", "IDS time (upper)", "Ours"), ids)
-        + "\n\nThe IDS gets there with tens of thousands of alerts per day, as section 2 shows.\n\n"
+        + f"\n\nThe IDS gets there with {alerts.min():,.0f} to {alerts.max():,.0f} alerts per day "
+        "on the test testbeds, as section 2 shows.\n\n"
         "### ML only\n\nEvery incident called malicious: the `ML-only F1` column of the verdict "
         "table, and the alert reduction of section 2.\n\n"
         "### LLM only\n\nRaw lines of 40 santos windows (20 attack, 20 normal), `llm-only-1`, one "
@@ -448,9 +451,9 @@ def baselines_section(s: Saved) -> str:
         "### Supervised reference\n\nThe reference covers **1 of 5 log types**: `dns` is the only "
         "type with enough dev positives (D37). On `dns` it is a **tunnel-presence detector**: its "
         "negatives are only tunnel-absent windows, so these numbers are not attack detection. "
-        "Without the exfiltration-only windows it falls to chance on santos (RF PR-AUC 0.027, "
-        "XGB 0.0033), and to 0.258 and 0.085 on `wardbeck`, 0.876 and 0.859 on `harrison`. Read "
-        "as saved; primary rows:\n\n"
+        "Without the exfiltration-only windows, PR-AUC falls to 0.027 (RF) and 0.0033 (XGB) on "
+        "santos, at an attack share of 0.0033 and with 0 true positives, and to 0.258 and 0.085 "
+        "on `wardbeck`, 0.876 and 0.859 on `harrison`. Read as saved; primary rows:\n\n"
         + table(("Testbed", "Method", "Windows", "Positives", "PR-AUC", "F1"), supervised)
         + "\n"
     )
@@ -501,6 +504,9 @@ def ablation_section(s: Saved) -> str:
         + f"\n\n`base` replayed from the cache: {calls} of {calls} calls hit, and again after "
         "the `llm.py` fix of D69, with no key and a backend that refuses. "
         + ("Both replays paid 0 USD and equal the saved reports." if exact else "NOT EXACT.")
+        + " The Reporter cannot add a technique and a first draft must keep every mapped one, "
+        "so any ATT&CK difference in `verifier0` and `few_shot1` comes from the Investigator and "
+        "the Mapper running again, not from the switch."
         + " `verifier0` failed once, on an empty response from the endpoint, before any output, "
         "and was retried once under D69; its first answer came from the cache. Ablation reports "
         "and memory live apart from the official ones.\n"
@@ -558,6 +564,19 @@ def faithfulness_section(s: Saved) -> str:
         index="reason_code", columns="rater", values="claims", aggfunc="sum", fill_value=0
     )
     reason_rows = [(name, row["a"], row["b"]) for name, row in reasons.iterrows()]
+    sources = [
+        (
+            "on" if row["arm"] == "verifier_on" else "off",
+            row["testbed"],
+            row["claims"],
+            pct(row["share_both"]),
+            row["source_not_shown_both"],
+            row["host_right_in_metadata"],
+            pct(row["share_if_host_shown"]),
+        )
+        for _, row in s.eval_faithfulness_sources.iterrows()
+    ]
+    identical = int(every["rows"]) - int(every["agree"])
 
     def reached(value: float) -> str:
         return "reaches 90%" if value >= THRESHOLD else "is below 90%"
@@ -586,9 +605,8 @@ def faithfulness_section(s: Saved) -> str:
         f"{every['rows']} distinct claims (every claim of the 27 test reports, the santos "
         "Verifier-off claims and the draft-only claims of the 8 rewritten reports) were rated "
         "by two independent AI subagents, each given only the sheet and the rubric, blind to "
-        "testbed name and condition. Both are the same underlying model, so their agreement is "
-        "not agreement between independent people. The readings were fixed before any rating: "
-        "a claim counts as supported only if both raters say so.\n\n"
+        "testbed name and condition. The readings were fixed before any rating: a claim counts "
+        "as supported only if both raters say so.\n\n"
         + table(("Reading", "Testbed", "Claims", "Both raters", "Rater a", "Rater b"), rows)
         + f"\n\n- **≥ 90%, pooled Verifier-on:** {pct(on_pooled['share_both'])} "
         f"{reached(on_pooled['share_both'])}.\n"
@@ -605,13 +623,35 @@ def faithfulness_section(s: Saved) -> str:
         "the ones it flagged.\n\n"
         "Agreement between the raters, on rows of the sheet:\n\n"
         + table(("Scope", "Rows", "Agree", "Share", "Cohen's κ"), kappas)
-        + "\n\nThe disagreements are in `reports/results/eval_faithfulness_disagreements.csv`.\n\n"
-        "**Limit of the sheet.** Raters saw the raw text of the cited lines only, so not the "
-        "host, file or parsed time that the Verifier saw. A claim that names a host a line does "
-        "not show is `not_supported` under the rubric, so this reading is harsher than the "
-        "Verifier's. Dates and address ranges can still hint at a testbed. Causes given for "
-        "`not_supported`, counted over claims; this changes no reading:\n\n"
+        + f"\n\nThe {identical} disagreements are in "
+        "`reports/results/eval_faithfulness_disagreements.csv`. **Do not read this κ as "
+        "independent confirmation.** Both raters are the same underlying model with the same "
+        "strict rubric, so they share their errors. Their reason texts differ, so they did not "
+        "copy each other, but a κ this high shows consistency, not correctness.\n\n"
+        "**Limit of the sheet: raw text only.** As fixed before rating, raters saw the raw text "
+        "of the cited lines, not the host, file or parsed time that the Verifier saw. A claim "
+        "that names a host the line text does not show is `not_supported` under the rubric, even "
+        "when the host is right. So these shares are harsher than the Verifier's, and the "
+        "self-assessment above and this reading are not on the same footing. Most of the low "
+        "santos share comes from this. Dates and address ranges can still hint at a testbed. "
+        "Causes given for `not_supported`, counted over claims; this changes no reading:\n\n"
         + table(("Cause", "Rater a", "Rater b"), reason_rows)
+        + "\n\n**Post hoc, not a reading.** Claims both raters marked `source_not_shown` and "
+        "whose named host matches the saved metadata of a cited line would have passed on that "
+        "point. Counting them shows the size of the effect only; it was computed after the "
+        "labels were seen, and the readings above stand as fixed:\n\n"
+        + table(
+            (
+                "Verifier",
+                "Testbed",
+                "Claims",
+                "Both raters",
+                "Source not shown, both",
+                "Host right in metadata",
+                "Share if the host were shown",
+            ),
+            sources,
+        )  # fmt: skip
         + "\n"
     )
 
@@ -672,6 +712,29 @@ def limits_section(s: Saved) -> str:
         "`system_fingerprint` `bc19ba97cbe016479903222bb1578db6`. It is not bit-exact at "
         "temperature 0, so only the cache makes reruns exact.\n"
     )
+
+
+def recall_comparison(s: Saved) -> pd.DataFrame:
+    """Return phase recall of our system and of the IDS, for the figure of the notebook."""
+    rows = []
+    for name in (*TEST_TESTBEDS, "pooled"):
+        ours = one(s.eval_phase_recall, testbed=name, variant="primary")
+        event = one(s.eval_ids_recall, testbed=name, label="event", variant="primary")
+        timed = one(s.eval_ids_recall, testbed=name, label="time", variant="primary")
+        for series, row in (
+            ("LogTriage", ours),
+            ("IDS, event label (lower bound)", event),
+            ("IDS, time label (upper bound)", timed),
+        ):
+            rows.append(
+                {
+                    "testbed": name,
+                    "series": series,
+                    "detected": row["detected"],
+                    "phases": row["phases"],
+                }
+            )
+    return pd.DataFrame(rows)
 
 
 def render(directory: Path) -> str:

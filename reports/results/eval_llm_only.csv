@@ -1,0 +1,2 @@
+windows,malicious_true_malicious,malicious_true_benign,uncertain_true_malicious,uncertain_true_benign,benign_true_malicious,benign_true_benign,precision,recall,f1,attack_windows,top1_strict_hits,top1_strict,top1_lenient_hits,top1_lenient,top3_strict_hits,top3_strict,top3_lenient_hits,top3_lenient,tokens_in,tokens_cached,tokens_out,cost_usd,cost_mean_usd,latency_mean_s,latency_p90_s
+40,14,0,0,0,6,20,1.000000,0.700000,0.823529,20,11,0.550000,11,0.550000,13,0.650000,13,0.650000,94074,8704,801,0.013314,0.000333,1.014715,1.560205

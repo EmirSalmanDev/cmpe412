@@ -1,0 +1,6 @@
+testbed,group,label,reports,reports_rewritten,first_draft_claims,first_draft_supported,first_draft_share,last_round_claims,last_round_supported,last_round_share
+santos,test,self-assessment,3,0,45,45,1.000000,45,45,1.000000
+wardbeck,test,self-assessment,14,3,195,189,0.969231,195,195,1.000000
+harrison,test,self-assessment,10,5,129,122,0.945736,127,127,1.000000
+russellmitchell,dev,self-assessment,7,3,101,97,0.960396,101,101,1.000000
+pooled,pooled,self-assessment,27,8,369,356,0.964770,367,367,1.000000

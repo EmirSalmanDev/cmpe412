@@ -1,0 +1,6 @@
+arm,testbed,label,claims,supported_both,source_not_shown_both,host_right_in_metadata,share_both,share_if_host_shown
+verifier_on,santos,"post hoc, not a reading",45,21,16,16,0.466667,0.822222
+verifier_on,wardbeck,"post hoc, not a reading",195,165,8,8,0.846154,0.887179
+verifier_on,harrison,"post hoc, not a reading",127,100,22,22,0.787402,0.960630
+verifier_off,santos,"post hoc, not a reading",42,21,14,14,0.500000,0.833333
+verifier_on,pooled,"post hoc, not a reading",367,286,46,46,0.779292,0.904632

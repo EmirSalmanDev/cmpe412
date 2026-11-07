@@ -1,0 +1,3 @@
+band,windows,lines,calls,fixed_tokens_per_call,output_tokens_per_call,tokens_per_line_apache_access,tokens_per_line_audit,tokens_per_line_auth,tokens_per_line_dns,tokens_per_line_vpn,tokens_in,tokens_out,cost_usd
+off_peak,16336,548949,16637,351.000000,20.025000,72.823204,74.446809,22.100000,47.347475,38.608108,36175525.041022,333155.925000,5.626222
+peak,16336,548949,16637,351.000000,20.025000,72.823204,74.446809,22.100000,47.347475,38.608108,36175525.041022,333155.925000,11.252445

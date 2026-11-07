@@ -581,3 +581,68 @@ def reason_table(key: pd.DataFrame, labels: pd.DataFrame) -> pd.DataFrame:
         part.insert(0, "rater", rater)
         parts.append(part)
     return pd.concat(parts, ignore_index=True)
+
+
+def named_source_is_right(claim: str, hosts: Iterable[str]) -> bool:
+    """Return True if a claim names the host of one of its cited lines."""
+    return any(re.search(rf"(?<![\w-]){re.escape(host)}(?![\w-])", claim) for host in hosts)
+
+
+def arm_reports(arm: str, testbed: str, settings: Settings) -> dict[str, IncidentReport]:
+    """Return the reports of an arm of a testbed by incident."""
+    if arm == ON:
+        return load_official(testbed, settings)
+    paths = report_files(output_dir(settings, OFF_CONDITION))
+    loaded = [IncidentReport.model_validate_json(p.read_text(encoding="utf-8")) for p in paths]
+    return {report.incident_id: report for report in loaded}
+
+
+def source_sensitivity(key: pd.DataFrame, labels: pd.DataFrame, settings: Settings) -> pd.DataFrame:
+    """Measure the effect of hiding the host of a line from the raters. Post hoc, not a reading.
+
+    A claim counts here if both raters gave `source_not_shown` and it names the host that the
+    saved evidence holds for one of its cited lines: the raters could not see that host, and the
+    Verifier could. Such a claim would have passed on this one point; it may still fail on others.
+
+    Args:
+        key: The key.
+        labels: Output of `read_labels`.
+        settings: Loaded settings.
+
+    Returns:
+        One row per arm and testbed, and pooled for the Verifier-on arm.
+    """
+    joined = key[key["arm"].isin([ON, OFF])].merge(labels, on="id")
+    source = "source_not_shown"
+    hidden = (joined["reason_code_a"] == source) & (joined["reason_code_b"] == source)
+    rows = []
+    confirmed = pd.Series(False, index=joined.index)
+    for (arm, testbed), part in joined[hidden].groupby(["arm", "testbed"]):
+        reports = arm_reports(str(arm), str(testbed), settings)
+        for index, row in part.iterrows():
+            report = reports[row["incident_id"]]
+            hosts = {item.eid: item.host for item in report.evidence}
+            text, claim = claim_text(report)[row["claim_key"]]
+            cited = [hosts[eid] for eid in claim.evidence if eid in hosts]
+            confirmed.at[index] = named_source_is_right(text, cited)
+    both = (joined["label_a"] == SUPPORTED) & (joined["label_b"] == SUPPORTED)
+    frames = [
+        (arm, name, joined["arm"].eq(arm) & joined["testbed"].eq(name))
+        for arm, name in joined[["arm", "testbed"]].drop_duplicates().itertuples(index=False)
+    ]
+    frames.append((ON, POOLED, joined["arm"].eq(ON)))
+    for arm, name, mask_ in frames:
+        rows.append(
+            {
+                "arm": arm,
+                "testbed": name,
+                "label": "post hoc, not a reading",
+                "claims": int(mask_.sum()),
+                "supported_both": int((both & mask_).sum()),
+                "source_not_shown_both": int((hidden & mask_).sum()),
+                "host_right_in_metadata": int((confirmed & mask_).sum()),
+                "share_both": float((both & mask_).sum() / mask_.sum()),
+                "share_if_host_shown": float(((both | confirmed) & mask_).sum() / mask_.sum()),
+            }
+        )
+    return pd.DataFrame(rows)
