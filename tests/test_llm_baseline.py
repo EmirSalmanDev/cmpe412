@@ -15,6 +15,7 @@ from logtriage.agents.cache import LlmCache
 from logtriage.agents.llm import CacheMissError, LLMClient
 from logtriage.agents.prompting import DATA_CLOSE, DATA_OPEN, load_prompt
 from logtriage.config import DEV_TESTBED
+from logtriage.data.store import connect
 from logtriage.eval import llm_baseline
 from logtriage.eval.ablations import EXPECTED_FINGERPRINT, RefusingBackend
 from logtriage.eval.llm_baseline import (
@@ -122,8 +123,7 @@ def test_the_draw_repeats_with_the_seed_and_mixes_the_strata() -> None:
 
 
 def lines_table() -> duckdb.DuckDBPyConnection:
-    con = duckdb.connect()
-    con.execute("SET TimeZone = 'UTC'")
+    con = connect()
     con.execute(
         "CREATE TABLE lines (host TEXT, log_type TEXT, ts TIMESTAMPTZ, line_no BIGINT, "
         "raw TEXT, parse_ok BOOLEAN)"

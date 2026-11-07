@@ -11,12 +11,12 @@ from collections.abc import Iterable, Iterator
 from importlib import resources
 from pathlib import Path
 
-import duckdb
 import pytest
 import yaml
 
 from logtriage.agents.prompting import load_prompt, load_prompts
 from logtriage.agents.schemas import IncidentReport, ReportDraft, report_claims
+from logtriage.data.store import connect
 
 REPO = Path(__file__).resolve().parents[1]
 TESTBEDS = ("russellmitchell", "santos", "wardbeck", "harrison")
@@ -183,7 +183,7 @@ def test_no_example_text_comes_from_any_testbed() -> None:
     addresses = set(ADDRESS.findall(source))
     domains = {item.lower() for item in DOMAIN.findall(source)}
     report_hits = line_hits = name_hits = entity_hits = 0
-    con = duckdb.connect()
+    con = connect()
     for testbed in TESTBEDS:
         directory = REPO / "data/processed" / testbed
         for path in sorted((directory / "reports").glob(f"{testbed}-*.json")):
