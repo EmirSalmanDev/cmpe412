@@ -8,7 +8,7 @@ and `incidents.parquet`, so `prepare` then `detect` would look like a first run 
 import csv
 import logging
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from logtriage.config import DEV_TESTBED, Settings
@@ -22,6 +22,13 @@ RUN_FIELDS = ["testbed", "stage", "utc", "reason"]
 DETECT = "detect"
 SUPERVISED = "supervised"
 INVESTIGATE = "investigate"
+ABLATION = "ablation"
+LLM_ONLY = "llm_only"
+LLM_ONLY_CHECK = "llm_only_check"
+# These run once on a test testbed, and no retry rule ever covers them (D57, D69).
+ONCE_ONLY = (DETECT, SUPERVISED, INVESTIGATE)
+RETRY_SUFFIX = "retry1"
+RETRY_WAIT = timedelta(minutes=10)
 
 
 def is_test_testbed(testbed: str, settings: Settings) -> bool:
@@ -83,10 +90,86 @@ def check_run(
         )
 
 
+def check_once(stage: str, testbed: str, settings: Settings) -> None:
+    """Allow a paid evaluation stage once on any testbed, with no override (D65, D66).
+
+    It is not `check_run`: these stages have no `--rerun-reason`, and they run on dev as well.
+
+    Raises:
+        ValueError: In the container, or if the ledger already holds the stage.
+    """
+    check_container(testbed)
+    if any(row["testbed"] == testbed and row["stage"] == stage for row in recorded_runs(settings)):
+        raise ValueError(f"{testbed}: {stage} already ran, and it never runs twice")
+
+
+def retry_name(stage: str) -> str:
+    """Return the ledger stage of the single retry of a stage."""
+    return f"{stage}:{RETRY_SUFFIX}"
+
+
+def is_paid_evaluation_stage(stage: str) -> bool:
+    """Return True for an ablation or LLM-only stage, the only ones a retry can cover (D69)."""
+    return stage not in ONCE_ONLY and (
+        stage.startswith(f"{ABLATION}:") or stage in (LLM_ONLY, LLM_ONLY_CHECK)
+    )
+
+
+def check_retry(
+    stage: str,
+    testbed: str,
+    settings: Settings,
+    failed_at: datetime,
+    outputs: Iterable[Path],
+    now: datetime | None = None,
+) -> None:
+    """Allow one retry of a paid M11 stage that failed before writing any output (D69).
+
+    Args:
+        stage: The stage that failed, as the ledger holds it.
+        testbed: Testbed name.
+        settings: Loaded settings.
+        failed_at: When it ended, tz-aware.
+        outputs: What it would have written.
+        now: The current time; the clock if None.
+
+    Raises:
+        ValueError: In the container; for any other stage; if the stage never ran; on a second
+            retry; if it wrote any output; or before `RETRY_WAIT` has passed.
+    """
+    check_container(testbed)
+    if not is_paid_evaluation_stage(stage):
+        raise ValueError(f"{stage}: only ablation and LLM-only stages can be retried (D69)")
+    stages = {row["stage"] for row in recorded_runs(settings) if row["testbed"] == testbed}
+    if stage not in stages:
+        raise ValueError(f"{testbed}: {stage} never ran, so there is nothing to retry")
+    if retry_name(stage) in stages:
+        raise ValueError(f"{testbed}: {stage} already had its one retry: stop and report (D69)")
+    if any(path.exists() for path in outputs):
+        raise ValueError(f"{testbed}: {stage} wrote output, so it cannot be retried (D69)")
+    waited = (now or datetime.now(UTC)) - failed_at
+    if waited < RETRY_WAIT:
+        raise ValueError(f"{stage}: wait {RETRY_WAIT} after the failure, only {waited} passed")
+
+
+def record_stage(stage: str, testbed: str, settings: Settings, reason: str) -> None:
+    """Add a paid evaluation stage to the ledger before it starts, on any testbed (D65, D66)."""
+    if not reason.strip():
+        raise ValueError(f"{stage}: a ledger row needs a reason")
+    _append_run(stage, testbed, settings, reason)
+
+
 def record_run(stage: str, testbed: str, settings: Settings, reason: str | None) -> None:
     """Add a run on a test testbed to the ledger, before it starts, so a crash counts as a run."""
     if not is_test_testbed(testbed, settings):
         return
+    _append_run(stage, testbed, settings, reason)
+    if reason:
+        logger.warning("%s on %s runs again: %s", stage, testbed, reason)
+
+
+def _append_run(stage: str, testbed: str, settings: Settings, reason: str | None) -> None:
+    """Write one row of the ledger."""
     path = runs_path(settings)
     path.parent.mkdir(parents=True, exist_ok=True)
     is_new = not path.is_file()
@@ -96,5 +179,3 @@ def record_run(stage: str, testbed: str, settings: Settings, reason: str | None)
             writer.writeheader()
         utc = datetime.now(UTC).isoformat(timespec="seconds")
         writer.writerow({"testbed": testbed, "stage": stage, "utc": utc, "reason": reason or ""})
-    if reason:
-        logger.warning("%s on %s runs again: %s", stage, testbed, reason)

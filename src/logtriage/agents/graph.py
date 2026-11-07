@@ -420,35 +420,54 @@ def report(state: IncidentState, runtime: AgentRuntime) -> dict[str, Any]:
     return update
 
 
-def verify(state: IncidentState, runtime: AgentRuntime) -> dict[str, Any]:
-    """Check claims by code, then the rest in one LLM call (plan 7.4)."""
-    known = known_eids(state)
-    by_eid = {item.eid: item for item in state.evidence}
+def verifier_request(
+    draft: ReportDraft, evidence: list[Evidence], prompt: Prompt
+) -> tuple[list[BaseMessage], dict[str, tuple[str, str, Claim]], list[UnsupportedClaim]]:
+    """Build the Verifier's request for a draft (plan 7.4).
+
+    Args:
+        draft: The draft.
+        evidence: The evidence given to the Reporter.
+        prompt: The Verifier's prompt.
+
+    Returns:
+        The messages, empty if no claim is left to judge; the claims to judge by id, each with its
+        key and text; and the claims that code rejects without a call.
+    """
+    known = {item.eid for item in evidence}
+    by_eid = {item.eid: item for item in evidence}
     unsupported: list[UnsupportedClaim] = []
     to_judge: dict[str, tuple[str, str, Claim]] = {}
-    for key, claim, text in draft_claims(state.draft):
+    for key, claim, text in draft_claims(draft):
         if cites_unknown(claim, known):
             unsupported.append(UnsupportedClaim(key=key, text=claim.text, reason=UNKNOWN_EID))
         else:
             to_judge[f"C{len(to_judge) + 1}"] = (key, text, claim)
+    if not to_judge:
+        return [], to_judge, unsupported
+    blocks = [
+        f"## {cid}\nClaim:\n{wrap_untrusted(text)}\nCited lines:\n"
+        + wrap_untrusted(
+            evidence_lines([by_eid[eid] for eid in dict.fromkeys(claim.evidence)], notes=False)
+        )
+        for cid, (_, text, claim) in to_judge.items()
+    ]
+    messages = [SystemMessage(prompt.text), HumanMessage("\n\n".join(blocks))]
+    return messages, to_judge, unsupported
+
+
+def verify(state: IncidentState, runtime: AgentRuntime) -> dict[str, Any]:
+    """Check claims by code, then the rest in one LLM call (plan 7.4)."""
+    messages, to_judge, unsupported = verifier_request(
+        state.draft, state.evidence, runtime.prompts["verifier"]
+    )
     if to_judge:
-        blocks = [
-            f"## {cid}\nClaim:\n{wrap_untrusted(text)}\nCited lines:\n"
-            + wrap_untrusted(
-                evidence_lines([by_eid[eid] for eid in dict.fromkeys(claim.evidence)], notes=False)
-            )
-            for cid, (_, text, claim) in to_judge.items()
-        ]
 
         def check(answer: VerifierOutput) -> None:
             missing = sorted(set(to_judge) - {item.id for item in answer.results})
             if missing:
                 raise ValueError(f"judge every claim; missing: {missing}")
 
-        messages = [
-            SystemMessage(runtime.prompts["verifier"].text),
-            HumanMessage("\n\n".join(blocks)),
-        ]
         answer = runtime.client.structured("verifier", messages, VerifierOutput, check)
         judged = {item.id: item for item in answer.results}
         for cid, (key, _, claim) in to_judge.items():

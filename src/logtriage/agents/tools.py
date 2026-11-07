@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
 import duckdb
 import pandas as pd
@@ -106,6 +107,7 @@ class AgentTools:
         testbed: str,
         settings: Settings,
         connection: duckdb.DuckDBPyConnection | None = None,
+        memory_dir: Path | None = None,
     ) -> AgentTools:
         """Open the tools of a testbed.
 
@@ -114,6 +116,8 @@ class AgentTools:
             settings: Loaded settings.
             connection: An open locked connection. A process can hold only one per file, because
                 the lock covers the whole database; opened here if None.
+            memory_dir: A Chroma store of its own for the incident memory, so that an ablation
+                never writes to the official one (D65). The ATT&CK index stays shared.
 
         Returns:
             The tools, on a locked connection and the persistent Chroma store.
@@ -129,7 +133,12 @@ class AgentTools:
             settings.tools,
             testbed,
             AttackIndex(cosine_collection(client, rag.attack_collection), embedder, rag),
-            IncidentStore(cosine_collection(client, rag.incidents_collection), embedder),
+            IncidentStore(
+                cosine_collection(
+                    open_client(memory_dir) if memory_dir else client, rag.incidents_collection
+                ),
+                embedder,
+            ),
         )
 
     def close(self) -> None:

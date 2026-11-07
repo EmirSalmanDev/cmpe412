@@ -1,0 +1,6 @@
+testbed,group,malicious_incidents,top1_strict_hits,top1_strict,top1_lenient_hits,top1_lenient,top3_strict_hits,top3_strict,top3_lenient_hits,top3_lenient
+santos,test,2,2,1.000000,2,1.000000,2,1.000000,2,1.000000
+wardbeck,test,2,0,0.000000,0,0.000000,1,0.500000,1,0.500000
+harrison,test,2,0,0.000000,0,0.000000,1,0.500000,1,0.500000
+russellmitchell,dev,2,0,0.000000,0,0.000000,1,0.500000,1,0.500000
+pooled,pooled,6,2,0.333333,2,0.333333,4,0.666667,4,0.666667

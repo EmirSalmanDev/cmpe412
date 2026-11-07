@@ -345,7 +345,7 @@ Lives in `eval/` because the plots are colored by ground truth. PCA and t-SNE of
 - OpenAI-compatible client via `langchain_openai.ChatOpenAI(base_url=cfg.llm.base_url, model=cfg.llm.model, api_key=env)`. Defaults: `base_url=https://api.deepseek.com`, `model=deepseek-flash`, `temperature=0` for evaluation runs, and `thinking: disabled`, because thinking mode ignores `temperature` (changed: see status.md D44).
 - Verify the model string and parameters against DeepSeek's API docs in M8. Record the result in status.md.
 - One model for all roles. `deepseek-flash` is a rolling alias, so each report records `system_fingerprint` (changed: see status.md D44). A switch to `deepseek-v4-pro` (if ever) is a config change, and it **requires re-running the full LLM evaluation (M11)** so reported numbers match the demo model.
-- Structured outputs: request JSON (`response_format={"type": "json_object"}`; the prompt must contain the word "json" and the schema), parse with Pydantic. On validation failure retry up to 2 times, feeding the validation error back.
+- Structured outputs: request JSON (`response_format={"type": "json_object"}`; the prompt must contain the word "json" and the schema), parse with Pydantic. On validation failure retry up to 2 times, feeding the validation error back. An empty response from the endpoint is sent again within the same limit (changed: see status.md D69).
 - Tool calling: native function calling. M8 MUST include a live smoke test (`@pytest.mark.live`) proving a full tool-call round trip works with the configured model. If the model returns reasoning fields that must be echoed back in multi-turn tool use, handle it in `llm.py`.
 - **Cache**: SQLite cache in `data/cache/llm.sqlite` keyed by `sha256(model, messages, tools, params)`. Evaluation reruns hit the cache. A `--no-cache` flag bypasses it.
 - **Cost**: record `tokens_in`, `tokens_out`, cache-hit tokens per call. Price table in `configs/default.yaml` (`llm.pricing_usd_per_1m: {off_peak, peak}`, each `{input, cached_input, output}`, chosen by `llm.peak_hours_utc`) (changed: see status.md D45). Verify the prices on DeepSeek's pricing page in M8. Budget guard `llm.max_usd_per_run` (default 5) aborts a run cleanly when exceeded, and `llm.max_usd_total` (10) does the same for cumulative spend (changed: see status.md D45).
@@ -416,7 +416,7 @@ The loop is a small LangGraph on `LLMClient`, not `create_react_agent`, so every
 
 ### 8.2 Incident memory (`logtriage/rag/incident_store.py`)
 
-Chroma collection `incidents`: one document per finalized report (summary claims + techniques + verdict), metadata testbed/incident_id/start. In evaluation, a report may only retrieve reports of incidents that **started earlier** in the same run (filter by start and `run`), so there is no look-ahead (changed: see status.md D42).
+Chroma collection `incidents`: one document per finalized report (summary claims + techniques + verdict), metadata testbed/incident_id/start. In evaluation, a report may only retrieve reports of incidents that **started earlier** in the same run (filter by testbed, start and `run`), so there is no look-ahead (changed: see status.md D42, D63).
 
 ---
 
@@ -446,7 +446,7 @@ The UI never shows labels except on an optional "Evaluation" page clearly marked
 
 ### 9.3 CLI (`logtriage/cli.py`)
 
-`download`, `inventory`, `prepare` (parse + drain + labels + features), `detect` (fit + score + incidents), `index-attack`, `investigate` (agents over incidents), `evaluate`, `app`. Every command takes `--testbed` and `--config`. `app` also takes `--live` (changed: see status.md D51).
+`download`, `inventory`, `prepare` (parse + drain + labels + features), `detect` (fit + score + incidents), `index-attack`, `investigate` (agents over incidents), `ablate` and `llm-only` (M11, santos only, once per stage) (changed: see status.md D65, D66), `evaluate`, `app`. Every command takes `--testbed` and `--config`. `app` also takes `--live` (changed: see status.md D51).
 
 Each test testbed runs `detect`, the supervised test stage and `investigate` once. A repeat needs `--rerun-reason`, and every run is written to `reports/results/test_runs.csv` by `logtriage/guards.py`. That ledger carries the guard because `prepare` deletes `scores.parquet` and `incidents.parquet` (changed: see status.md D57).
 
@@ -473,22 +473,22 @@ All numbers on the **santos evaluation period** unless stated. Dev numbers are r
 | Alert reduction | per day: incidents vs anomalous windows vs IDS alerts (AIT-ADS, same period) vs IDS alerts grouped with the same gap rule (§6.6, entity = host) |
 | Verdict | confusion matrix (3 predicted classes × 2 true). F1 with `uncertain` counted as non-benign. Label-ambiguous incidents are left out, and a secondary number includes them (changed: see status.md D17) |
 | ATT&CK top-1/top-3 | per malicious incident: hit if any predicted technique in top-k ∈ union of gold sets of the incident's phases. Strict = exact ID. Lenient (secondary) = parent technique match. |
-| Faithfulness (primary) | manual annotation: share of claims supported by their cited lines, on a sample of ≥ 100 claims, rated by the team blind to the condition (Verifier on/off) |
+| Faithfulness (primary) | manual annotation: share of claims supported by their cited lines, on a sample of ≥ 100 claims, rated by the team blind to the condition (Verifier on/off). NOT MEASURED: there are no human annotators; "AI-annotated faithfulness" is reported instead, by two independent subagents with κ, and is not this metric (changed: see status.md D67) |
 | Faithfulness (auto) | Verifier LLM judgment (reported, but labelled as self-assessment) |
 | Hallucinated citations | share of claims citing non-existent eids before the Verifier |
 | Cost/latency | USD and seconds per incident (mean, p90), tokens |
-| Human evaluation | usefulness and readability 1–5, ≥ 2 raters, ≥ 20 reports; report mean and agreement (Cohen's κ on binarized scores) |
+| Human evaluation | usefulness and readability 1–5, ≥ 2 raters, ≥ 20 reports; report mean and agreement (Cohen's κ on binarized scores). NOT PERFORMED, with no AI substitute (changed: see status.md D68) |
 
 ### 10.3 Baselines
 
-1. **IDS**: AIT-ADS alerts for santos. Phase recall = phase detected if ≥ 1 alert with that phase label (prefer the event-based label over the time-based one). Alert counts as above.
+1. **IDS**: AIT-ADS alerts for santos. Phase recall = phase detected if ≥ 1 alert with that phase label (prefer the event-based label over the time-based one). AIT-ADS has no per-alert label, so the event-based label is derived: an alert carries a phase if its log text equals a labeled line's raw text, host not compared. Event recall (lower bound, primary) and time-based recall (upper bound) are both reported (changed: see status.md D64). Alert counts as above.
 2. **ML only**: incidents without agents (verdict = malicious for all). Gives verdict and alert-reduction numbers.
-3. **LLM only**: stratified sample of 40 windows' raw lines (20 attack, 20 normal; ≤ 300 lines per sample, chronological). Prompt for verdict + top-3 techniques. Report the same metrics on the sample and the extrapolated cost for the full evaluation period.
+3. **LLM only**: stratified sample of 40 windows' raw lines (20 attack, 20 normal; ≤ 300 lines per sample, chronological). Prompt for verdict + top-3 techniques. Report the same metrics on the sample and the extrapolated cost for the full evaluation period. The draw and the run are fixed in `reports/m11_design.md` §3c (changed: see status.md D66).
 4. **Supervised reference**: §6.7.
 
 ### 10.4 Ablations (on all santos incidents, or the top 100 by priority if more)
 
-Verifier on/off · RAG on/off in Mapper · zero-shot vs few-shot Reporter. Same incidents, same model, `temperature=0`, cache keyed per condition.
+Verifier on/off · RAG on/off in Mapper · zero-shot vs few-shot Reporter. Same incidents, same model, `temperature=0`, cache keyed per condition. Run by `logtriage ablate`, once per condition, apart from the official reports and memory; with n = 3 the results are illustrative (changed: see status.md D65). A paid M11 stage that fails from an API or infrastructure error before writing any output may be retried once, after at least 10 minutes (changed: see status.md D69).
 
 ### 10.5 Targets
 
@@ -496,11 +496,11 @@ Finalized in M3 and **frozen** in `reports/targets.md`, unchanged from the propo
 - Phase recall ≥ 80% of phases with traces.
 - Incidents/day ≤ 25 and ≥ 90% fewer than raw IDS alerts. The budget of 25 is `ml.incidents_per_day_budget`.
 - ATT&CK top-3 (strict) ≥ 70%.
-- Manual faithfulness ≥ 90% with the Verifier, and higher than without.
+- Manual faithfulness ≥ 90% with the Verifier, and higher than without. NOT MEASURED; the target stands as frozen and is not reported as met or missed (changed: see status.md D67).
 
 ### 10.6 Outputs
 
-`reports/results/*.csv` + `reports/figures/*.png` (small, committed), a `reports/results.md` summary table generated by `logtriage evaluate`.
+`reports/results/*.csv` + `reports/figures/*.png` (small, committed), a `reports/results.md` summary table generated by `logtriage evaluate`. Files of once-only stages are inputs, read as saved (changed: see status.md D70).
 
 ### 10.7 Extra test testbeds (changed: see status.md D56)
 
@@ -515,7 +515,7 @@ Fixed before any result of `wardbeck` or `harrison` exists. Metric definitions (
 | Incidents/day, alert reduction | not pooled: per testbed, each against the budget of 25 |
 | ATT&CK top-1/top-3 | over all malicious incidents of the three |
 | Verdict | over all malicious incidents of the three; the benign column of the §10.2 confusion matrix adds the other incidents of the three, as F1 needs it; label-ambiguous incidents follow D17 (changed: see status.md D62) |
-| Manual faithfulness | one sample of claims from the reports of the three, rated once |
+| Manual faithfulness | one sample of claims from the reports of the three, rated once. NOT MEASURED; AI-annotated faithfulness covers every claim of the three instead (changed: see status.md D67) |
 
 - Ablations (§10.4) and the LLM-only baseline (§10.3) stay on santos: each test testbed runs the agents once.
 - Data is never pooled: no model, scaler, vocabulary, percentile reference or threshold is shared between testbeds.
@@ -561,11 +561,11 @@ Phases present in the data but missing here are added in M3 with a logged decisi
 │   ├── ml/         models.py ensemble.py incidents.py detect.py supervised.py
 │   ├── rag/        attack_index.py incident_store.py
 │   ├── agents/     llm.py cache.py schemas.py prompting.py sql_guard.py tools.py graph.py runner.py chat.py prompts/ (changed: see status.md D48)
-│   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py extra_testbeds.py (changed: see status.md D57)
+│   ├── eval/       metrics.py detection.py tuning.py viz.py eda.py baselines.py ablations.py human_eval.py report.py results_text.py tables.py llm_baseline.py faithfulness.py extra_testbeds.py (changed: see status.md D57, D70)
 │   └── app/        streamlit_app.py replay.py data.py charts.py ui.py views/ (changed: see status.md D50)
 ├── notebooks/      01_eda.ipynb 02_preparation.ipynb 03_ml_models.ipynb 04_agents.ipynb 05_evaluation.ipynb
 ├── tests/          fixtures/ (tiny hand-made log snippets per type + label files) test_*.py
-├── reports/        targets.md targets_extra.md results.md results/ figures/ human_eval/ inventory_<testbed>.md (changed: see status.md D56)
+├── reports/        targets.md targets_extra.md results.md results/ figures/ faithfulness/ inventory_<testbed>.md (changed: see status.md D56, D67)
 └── data/           (gitignored) raw/ processed/ index/ cache/
 ```
 
@@ -639,14 +639,14 @@ Accept: draw committed before any download; parse rate ≥ 99% per file or repor
 
 ### M11 — Evaluation (`m11-eval`)
 Read: §10, §11.
-Tasks: metrics, baselines, ablations, LLM-only baseline, human-eval export (`reports/human_eval/sheet.csv`) and import, `evaluate` command, `05_evaluation.ipynb`, `reports/results.md`.
-Accept: every metric in §10.2 and every baseline/ablation in §10.3–10.4 has a number (manual faithfulness and human eval may be pending team input; mark them "PENDING" in results.md and status.md); results regenerate from cache with one command.
+Tasks: metrics, baselines, ablations, LLM-only baseline, AI-annotated faithfulness, `evaluate` command, `05_evaluation.ipynb`, `reports/results.md` (changed: see status.md D67, D68).
+Accept: every metric in §10.2 and every baseline/ablation in §10.3–10.4 has a number, except manual faithfulness, marked NOT MEASURED, and human evaluation, marked NOT PERFORMED, in results.md and status.md (changed: see status.md D67, D68); results regenerate from cache with one command.
 
 ### M12 — Stretch (`m12-stretch`, optional)
 DeepLog-style LSTM next-template model on one log type; long-term memory evaluation ("similar incident" usefulness). Only after M11 is merged.
 
 ### M13 — Finalize (`m13-final`)
-README complete (architecture figure, results table, how to reproduce), all notebooks executed in order from a clean state, license/attribution, final status.md.
+README complete (architecture figure, results table, how to reproduce), all notebooks executed in order from a clean state, license/attribution, final status.md, an AI browser check of the dashboard pages (changed: see status.md D68).
 Accept: fresh-clone reproduction steps verified; tag `v1.0`.
 
 Order constraints: M7 may start after M2 (in parallel with M3–M6 on its own branch). Everything else is sequential.

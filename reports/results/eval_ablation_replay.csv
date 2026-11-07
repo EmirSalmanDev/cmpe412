@@ -1,0 +1,7 @@
+replay,incident_id,official_sha256,replayed,llm_calls,cached_calls,spent_usd,identical
+base,santos-0001,086e0ce3a743ef3b3144a0d8534f666caf93dbac7e0332d5ad22cc666efd1652,True,8,8,0.000000,True
+base,santos-0002,577169760bfbe3e78f8d1320aacfa227b6ba316c63bfcd1f8f2affb281cb7922,True,8,8,0.000000,True
+base,santos-0003,854e71d6141d5522ea897079c132ee85c0e2d5a34d31961c72317019095d5348,True,8,8,0.000000,True
+base_recheck,santos-0001,086e0ce3a743ef3b3144a0d8534f666caf93dbac7e0332d5ad22cc666efd1652,True,8,8,0.000000,True
+base_recheck,santos-0002,577169760bfbe3e78f8d1320aacfa227b6ba316c63bfcd1f8f2affb281cb7922,True,8,8,0.000000,True
+base_recheck,santos-0003,854e71d6141d5522ea897079c132ee85c0e2d5a34d31961c72317019095d5348,True,8,8,0.000000,True

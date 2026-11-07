@@ -5,14 +5,16 @@ from datetime import UTC, datetime
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 from agent_fakes import FakeChat, llm_config
 from logtriage.agents.cache import LlmCache, cache_key
 from logtriage.agents.llm import (
     REASONING,
     BudgetExceededError,
+    CacheMissError,
     DeepSeekChat,
+    EmptyResponseError,
     LLMClient,
     LLMOutputError,
     build_chat_model,
@@ -245,3 +247,64 @@ def test_the_spend_ledger_survives_a_reopen(tmp_path) -> None:
     reopened = LlmCache(path)
     assert reopened.total_spend() == 0.25
     assert json.dumps(reopened.get("k")) == '{"a": 1}'
+
+
+class EmptyThenFine:
+    """A backend that returns nothing `empty` times, as the endpoint did (D69)."""
+
+    def __init__(self, empty: int) -> None:
+        self.empty = empty
+        self.calls = 0
+
+    def invoke(self, messages: list, **kwargs: object) -> AIMessage:
+        self.calls += 1
+        if self.calls <= self.empty:
+            raise EmptyResponseError("the endpoint returned an empty response")
+        reply = AIMessage(content='{"a": 1}')
+        reply.usage_metadata = {"input_tokens": 10, "output_tokens": 1, "total_tokens": 11}
+        return reply
+
+
+def empty_client(backend: EmptyThenFine, cache: LlmCache | None = None) -> LLMClient:
+    config = llm_config(json_retries=2)
+    return LLMClient(backend, cache or LlmCache(":memory:"), config, CONDITION)
+
+
+def test_the_real_client_names_an_empty_response() -> None:
+    model = DeepSeekChat(model="x", api_key=SecretStr("k"), base_url="http://127.0.0.1:9")
+    with pytest.raises(EmptyResponseError):
+        model._create_chat_result(None)
+
+
+def test_an_empty_response_is_sent_again_within_json_retries() -> None:
+    backend = EmptyThenFine(empty=2)
+    client = empty_client(backend)
+    reply = client.chat("verifier", [HumanMessage("json")], json_mode=True)
+    assert reply.content == '{"a": 1}'
+    assert backend.calls == 3
+    assert client.tally.retries == 2
+
+
+def test_empty_responses_past_the_limit_fail_as_an_output_error() -> None:
+    backend = EmptyThenFine(empty=3)
+    cache = LlmCache(":memory:")
+    with pytest.raises(LLMOutputError, match="empty response"):
+        empty_client(backend, cache).chat("verifier", [HumanMessage("json")], json_mode=True)
+    assert backend.calls == 3
+    assert cache.total_spend() == 0
+
+
+def test_a_retry_after_an_empty_response_leaves_the_cache_key_alone() -> None:
+    cache = LlmCache(":memory:")
+    empty_client(EmptyThenFine(empty=1), cache).chat("verifier", [HumanMessage("json")])
+    clean = EmptyThenFine(empty=0)
+    empty_client(clean, cache).chat("verifier", [HumanMessage("json")])
+    assert clean.calls == 0
+
+
+def test_a_cache_only_client_never_reaches_the_model() -> None:
+    backend = EmptyThenFine(empty=0)
+    client = LLMClient(backend, LlmCache(":memory:"), llm_config(), CONDITION, cache_only=True)
+    with pytest.raises(CacheMissError):
+        client.chat("verifier", [HumanMessage("json")])
+    assert backend.calls == 0

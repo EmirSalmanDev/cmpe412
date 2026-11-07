@@ -28,6 +28,18 @@ class LLMOutputError(RuntimeError):
     """The model did not produce a valid answer within the allowed retries."""
 
 
+class EmptyResponseError(RuntimeError):
+    """The endpoint answered with no body at all, which the HTTP client does not retry (D69)."""
+
+
+class CacheMissError(RuntimeError):
+    """A cache-only client would have to pay for a call (D65)."""
+
+
+class FingerprintChangedError(RuntimeError):
+    """The model behind the rolling alias is not the one the runs are compared with (D44)."""
+
+
 class ChatBackend(Protocol):
     """The part of a chat model the client uses."""
 
@@ -60,7 +72,14 @@ class DeepSeekChat(ChatOpenAI):
         return payload
 
     def _create_chat_result(self, response: Any, generation_info: dict | None = None) -> Any:
-        """Copy the reasoning of the raw answer onto the message."""
+        """Copy the reasoning of the raw answer onto the message.
+
+        Raises:
+            EmptyResponseError: If the endpoint sent nothing. The parent raises a plain ValueError
+                there, which nothing could tell from a real fault.
+        """
+        if response is None:
+            raise EmptyResponseError("the endpoint returned an empty response")
         result = super()._create_chat_result(response, generation_info)
         data = response if isinstance(response, dict) else response.model_dump()
         for generation, choice in zip(result.generations, data.get("choices", []), strict=False):
@@ -142,6 +161,34 @@ def plain_message(message: BaseMessage) -> dict[str, Any]:
     return plain
 
 
+def request_key(
+    config: LLMConfig,
+    condition: dict[str, bool],
+    messages: list[BaseMessage],
+    tools: list[dict[str, Any]] | None = None,
+    json_mode: bool = False,
+) -> str:
+    """Return the cache key of a request, as the client computes it.
+
+    Args:
+        config: LLM settings.
+        condition: Ablation switches.
+        messages: The conversation.
+        tools: Tool schemas, if any.
+        json_mode: Whether a JSON object is asked for.
+
+    Returns:
+        The key, so that saved answers can be found again without a call.
+    """
+    params = {
+        "temperature": config.temperature,
+        "thinking": config.thinking,
+        "max_tokens": config.max_tokens,
+        "json_mode": json_mode,
+    }
+    return cache_key(config.model, [plain_message(m) for m in messages], tools, params, condition)
+
+
 def _usage(reply: AIMessage) -> tuple[int, int, int]:
     """Return input, cached input and output tokens of a reply."""
     usage = reply.usage_metadata or {}
@@ -221,12 +268,16 @@ class LLMClient:
         config: LLMConfig,
         condition: dict[str, bool],
         use_cache: bool = True,
+        cache_only: bool = False,
+        expected_fingerprint: str | None = None,
     ) -> None:
         self.backend = backend
         self.cache = cache
         self.config = config
         self.condition = condition
         self.use_cache = use_cache
+        self.cache_only = cache_only
+        self.expected_fingerprint = expected_fingerprint
         self.tally = Tally()
         self.run_spent = 0.0
 
@@ -247,13 +298,28 @@ class LLMClient:
                 f"total spend {total:.4f} USD reached llm.max_usd_total {self.config.max_usd_total}"
             )
 
+    def _invoke(self, role: str, messages: list[BaseMessage], kwargs: dict[str, Any]) -> AIMessage:
+        """Call the model, sending the same request again after an empty response (D69).
+
+        Raises:
+            LLMOutputError: If `llm.json_retries` retries all come back empty.
+        """
+        for attempt in range(self.config.json_retries + 1):
+            try:
+                return self.backend.invoke(messages, **kwargs)
+            except EmptyResponseError as error:
+                last = error
+                if attempt < self.config.json_retries:
+                    self.tally.retries += 1
+        raise LLMOutputError(f"{role}: no valid answer: {last}")
+
     def _paid_answer(
         self, role: str, messages: list[BaseMessage], kwargs: dict[str, Any]
     ) -> dict[str, Any]:
         """Make the real call and record what it cost."""
         self._check_budget()
         began = time.perf_counter()
-        reply = self.backend.invoke(messages, **kwargs)
+        reply = self._invoke(role, messages, kwargs)
         latency = time.perf_counter() - began
         tokens_in, tokens_cached, tokens_out = _usage(reply)
         rates = rates_at(
@@ -264,6 +330,11 @@ class LLMClient:
         self.tally.spent_usd += cost
         self.cache.record_spend(self.config.model, role, cost)
         metadata = reply.response_metadata or {}
+        fingerprint = metadata.get("system_fingerprint")
+        if self.expected_fingerprint and fingerprint != self.expected_fingerprint:
+            raise FingerprintChangedError(
+                f"{role}: system_fingerprint {fingerprint}, expected {self.expected_fingerprint}"
+            )
         return {
             "content": reply.content,
             "tool_calls": [
@@ -277,7 +348,7 @@ class LLMClient:
             "cost_usd": cost,
             "latency_s": latency,
             "served_model": metadata.get("model_name"),
-            "fingerprint": metadata.get("system_fingerprint"),
+            "fingerprint": fingerprint,
             "finish_reason": metadata.get("finish_reason"),
         }
 
@@ -320,20 +391,14 @@ class LLMClient:
 
         Raises:
             BudgetExceededError: If a limit stops a call that the cache cannot answer.
+            CacheMissError: If the client is cache-only and the cache cannot answer.
         """
-        config = self.config
-        params = {
-            "temperature": config.temperature,
-            "thinking": config.thinking,
-            "max_tokens": config.max_tokens,
-            "json_mode": json_mode,
-        }
-        key = cache_key(
-            config.model, [plain_message(m) for m in messages], tools, params, self.condition
-        )
+        key = request_key(self.config, self.condition, messages, tools, json_mode)
         answer = self.cache.get(key) if self.use_cache else None
         cached = answer is not None
         if answer is None:
+            if self.cache_only:
+                raise CacheMissError(f"{role}: no saved answer for request {key[:12]}")
             kwargs: dict[str, Any] = {}
             if tools:
                 kwargs["tools"] = tools

@@ -1,0 +1,5 @@
+testbed,group,days,incidents,anomalous_windows,raw_alerts,grouped_alerts,incidents_per_day,anomalous_windows_per_day,raw_alerts_per_day,grouped_alerts_per_day,reduction_vs_windows,reduction_vs_raw_alerts,reduction_vs_grouped_alerts,within_budget,meets_reduction
+santos,test,2.697025,3,5,82998,233,1.112337,1.853894,30773.903005,86.391472,0.400000,0.999964,0.987124,True,True
+wardbeck,test,3.324688,14,19,60975,441,4.210922,5.714823,18340.069555,132.644045,0.263158,0.999770,0.968254,True,True
+harrison,test,1.704861,10,75,478319,162,5.865580,43.991853,280561.857434,95.022403,0.866667,0.999979,0.938272,True,True
+russellmitchell,dev,1.874306,7,24,29435,168,3.734717,12.804742,15704.483142,89.633197,0.708333,0.999762,0.958333,True,True

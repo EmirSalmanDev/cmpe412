@@ -13,6 +13,9 @@ from sklearn.metrics import average_precision_score
 AMBIGUOUS_LOG_TYPE = "dns"
 AMBIGUOUS_HOST = "inet-dns"
 EXFIL_PHASE = "dnsteal_exfil"
+WITHOUT_DNS = "pooled_without_dns"
+VERDICTS = ("malicious", "uncertain", "benign")
+TOP_K = (1, 3)
 
 
 def load_gold_mapping(path: Path) -> dict[str, list[str]]:
@@ -156,6 +159,21 @@ def window_metrics(table: pd.DataFrame, include_ambiguous: bool = False) -> pd.D
     return pd.DataFrame(rows).set_index("scope")
 
 
+def window_table(table: pd.DataFrame, include_ambiguous: bool = False) -> pd.DataFrame:
+    """Return `window_metrics` with a row for the pool without `dns`, whose baseline is tainted.
+
+    Args:
+        table: Output of `with_truth`.
+        include_ambiguous: Count label-ambiguous windows as normal: the secondary number (D17).
+
+    Returns:
+        The rows of `window_metrics`, then `pooled_without_dns`.
+    """
+    kept = table[table["log_type"] != AMBIGUOUS_LOG_TYPE]
+    extra = pd.DataFrame([_window_row(WITHOUT_DNS, kept)]).set_index("scope")
+    return pd.concat([window_metrics(table, include_ambiguous), extra])
+
+
 def detected_phases(table: pd.DataFrame) -> pd.DataFrame:
     """Count, per phase and log type, the anomalous incident windows holding that phase.
 
@@ -235,6 +253,216 @@ def incident_phases(table: pd.DataFrame) -> dict[str, list[str]]:
     return {
         incident: sorted({phase for phases in group["phases"] for phase in phases})
         for incident, group in rows.groupby("incident_id")
+    }
+
+
+def incident_truth(table: pd.DataFrame) -> pd.DataFrame:
+    """Return the ground truth of every incident (plan 10.1, D17).
+
+    Args:
+        table: Output of `with_truth`.
+
+    Returns:
+        One row per incident, indexed by `incident_id`: `malicious`, `ambiguous` and `phases`. An
+        incident with an attack window is malicious, whatever else it holds, so it is never
+        ambiguous.
+    """
+    rows = table[table["incident_id"].notna()].groupby("incident_id")
+    malicious = rows["is_attack"].any()
+    return pd.DataFrame(
+        {
+            "malicious": malicious,
+            "ambiguous": rows["is_ambiguous"].any() & ~malicious,
+            "phases": pd.Series(incident_phases(table)),
+        }
+    )
+
+
+def verdict_counts(
+    truth: pd.DataFrame, verdicts: pd.Series, include_ambiguous: bool = False
+) -> dict[str, int]:
+    """Return the confusion matrix of plan 10.2: 3 predicted classes by 2 true ones.
+
+    Args:
+        truth: Output of `incident_truth`.
+        verdicts: Verdict of each incident.
+        include_ambiguous: Count label-ambiguous incidents as benign: the secondary number (D17).
+
+    Returns:
+        Counts named `<predicted>_true_<malicious or benign>`.
+    """
+    kept = truth if include_ambiguous else truth[~truth["ambiguous"]]
+    predicted = verdicts.reindex(kept.index)
+    if predicted.isna().any():
+        raise ValueError(f"no verdict for {sorted(predicted.index[predicted.isna()])}")
+    unknown = set(predicted) - set(VERDICTS)
+    if unknown:
+        raise ValueError(f"unknown verdicts: {sorted(unknown)}")
+    counts = {}
+    for verdict in VERDICTS:
+        chosen = kept[predicted == verdict]
+        counts[f"{verdict}_true_malicious"] = int(chosen["malicious"].sum())
+        counts[f"{verdict}_true_benign"] = int((~chosen["malicious"]).sum())
+    return counts
+
+
+def verdict_scores(counts: dict[str, int]) -> dict[str, float]:
+    """Return precision, recall and F1 of a confusion matrix, with `uncertain` as non-benign.
+
+    Args:
+        counts: Output of `verdict_counts`, or sums of it.
+
+    Returns:
+        `precision`, `recall` and `f1`; NaN where a denominator is 0.
+    """
+    hits = counts["malicious_true_malicious"] + counts["uncertain_true_malicious"]
+    false_alarms = counts["malicious_true_benign"] + counts["uncertain_true_benign"]
+    misses = counts["benign_true_malicious"]
+    precision = hits / (hits + false_alarms) if hits + false_alarms else float("nan")
+    recall = hits / (hits + misses) if hits + misses else float("nan")
+    total = precision + recall
+    return {
+        "precision": precision,
+        "recall": recall,
+        "f1": 2 * precision * recall / total if total else float("nan"),
+    }
+
+
+def parent_technique(technique: str) -> str:
+    """Return the parent of an ATT&CK ID: `T1548` for `T1548.003`, and `T1548` for itself."""
+    return technique.split(".")[0]
+
+
+def attack_hit(predicted: list[str], wanted: set[str], k: int, lenient: bool = False) -> bool:
+    """Tell whether a technique in the top `k` is acceptable (plan 10.2).
+
+    Args:
+        predicted: Techniques of a report, ranked.
+        wanted: Union of the gold sets of the incident's phases.
+        k: How many predictions count.
+        lenient: Compare parent techniques, on both sides, not exact IDs.
+
+    Returns:
+        True on a hit. A report with no technique misses.
+    """
+    top = predicted[:k]
+    if lenient:
+        return bool({parent_technique(item) for item in top} & set(map(parent_technique, wanted)))
+    return bool(set(top) & wanted)
+
+
+def attack_incidents(
+    truth: pd.DataFrame, reports: dict[str, dict], gold: dict[str, list[str]]
+) -> pd.DataFrame:
+    """Score every malicious incident against the gold mapping (plan 10.2, 11).
+
+    Args:
+        truth: Output of `incident_truth`.
+        reports: Report dicts by incident.
+        gold: Output of `load_gold_mapping`.
+
+    Returns:
+        One row per malicious incident, with a column per `top<k>_strict` and `top<k>_lenient`,
+        and `gold_retrieved`, whether a gold technique was among the Mapper's candidates.
+    """
+    rows = []
+    for incident, row in truth[truth["malicious"]].iterrows():
+        report = reports[incident]
+        predicted = [item["technique_id"] for item in report["techniques"]]
+        wanted = {item for phase in row["phases"] for item in gold[phase]}
+        entry = {
+            "incident_id": incident,
+            "phases": " ".join(row["phases"]),
+            "gold": " ".join(sorted(wanted)),
+            "predicted": " ".join(predicted),
+            "verdict": report["verdict"],
+            "gold_retrieved": bool(set(report["meta"]["retrieved_techniques"]) & wanted),
+        }
+        for k in TOP_K:
+            entry[f"top{k}_strict"] = attack_hit(predicted, wanted, k)
+            entry[f"top{k}_lenient"] = attack_hit(predicted, wanted, k, lenient=True)
+        rows.append(entry)
+    columns = ["incident_id", "phases", "gold", "predicted", "verdict", "gold_retrieved"]
+    columns += [f"top{k}_{kind}" for k in TOP_K for kind in ("strict", "lenient")]
+    return pd.DataFrame(rows, columns=columns)
+
+
+def attack_summary(incidents: pd.DataFrame) -> dict[str, float]:
+    """Return hit counts and shares of the rows of `attack_incidents`."""
+    summary: dict[str, float] = {"malicious_incidents": len(incidents)}
+    for k in TOP_K:
+        for kind in ("strict", "lenient"):
+            name = f"top{k}_{kind}"
+            summary[f"{name}_hits"] = int(incidents[name].sum())
+            summary[name] = incidents[name].mean() if len(incidents) else float("nan")
+    return summary
+
+
+def citation_summary(reports: Iterable[dict]) -> dict[str, float]:
+    """Return the share of first-draft claims citing an eid that does not exist (plan 10.2)."""
+    metas = [report["meta"] for report in reports]
+    claims = sum(meta["draft_claims"] for meta in metas)
+    unknown = sum(meta["draft_unknown_eid_claims"] for meta in metas)
+    return {
+        "reports": len(metas),
+        "draft_claims": claims,
+        "unknown_eid_claims": unknown,
+        "hallucinated_share": unknown / claims if claims else float("nan"),
+    }
+
+
+def token_cost(meta: dict, rates: dict[str, float]) -> float:
+    """Return the USD of a report's tokens at one rate set, per million tokens."""
+    missed = meta["tokens_in"] - meta["tokens_cached"]
+    total = (
+        missed * rates["input"]
+        + meta["tokens_cached"] * rates["cached_input"]
+        + meta["tokens_out"] * rates["output"]
+    )
+    return total / 1_000_000
+
+
+def priced_at(meta: dict, off_peak: dict[str, float], peak: dict[str, float]) -> str:
+    """Name the rate set behind a report's logged cost: `off_peak`, `peak` or `mixed`."""
+    for name, rates in (("off_peak", off_peak), ("peak", peak)):
+        if abs(meta["cost_usd"] - token_cost(meta, rates)) <= 1e-9:
+            return name
+    return "mixed"
+
+
+def cost_summary(
+    reports: Iterable[dict], off_peak: dict[str, float], peak: dict[str, float]
+) -> dict[str, float | str]:
+    """Return cost, latency and tokens per incident (plan 10.2).
+
+    Args:
+        reports: Report dicts.
+        off_peak: Off-peak rates, per million tokens.
+        peak: Peak rates, per million tokens.
+
+    Returns:
+        Means and p90s as logged, and the cost of the same tokens at off-peak rates, which is the
+        one comparable across runs: M8 ran at peak hours (D45).
+    """
+    metas = [report["meta"] for report in reports]
+    cost = np.array([meta["cost_usd"] for meta in metas])
+    latency = np.array([meta["latency_s"] for meta in metas])
+    at_off_peak = np.array([token_cost(meta, off_peak) for meta in metas])
+    return {
+        "reports": len(metas),
+        "priced_at": "/".join(sorted({priced_at(meta, off_peak, peak) for meta in metas})),
+        "cost_total_usd": cost.sum(),
+        "cost_mean_usd": cost.mean(),
+        "cost_p90_usd": np.percentile(cost, 90),
+        "off_peak_total_usd": at_off_peak.sum(),
+        "off_peak_mean_usd": at_off_peak.mean(),
+        "off_peak_p90_usd": np.percentile(at_off_peak, 90),
+        "latency_mean_s": latency.mean(),
+        "latency_p90_s": np.percentile(latency, 90),
+        "tokens_in_mean": np.mean([meta["tokens_in"] for meta in metas]),
+        "tokens_cached_mean": np.mean([meta["tokens_cached"] for meta in metas]),
+        "tokens_out_mean": np.mean([meta["tokens_out"] for meta in metas]),
+        "llm_calls_mean": np.mean([meta["llm_calls"] for meta in metas]),
     }
 
 

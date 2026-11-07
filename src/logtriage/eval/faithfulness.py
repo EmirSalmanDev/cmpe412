@@ -1,0 +1,648 @@
+"""Faithfulness (plan 10.2, D67): the Verifier's saved judgments, and the blind claims sheet.
+
+Auto faithfulness is self-assessment. It reads saved answers only: a Verifier answer is found by
+rebuilding the key of its request from a Reporter answer and a report's evidence, so a match is
+proof that the two belong together. No LLM call is made.
+
+AI-annotated faithfulness is not the manual metric of plan 10.2, which is NOT MEASURED. The sheet
+holds every claim with its cited raw lines and nothing else; the key stays under `data/`.
+"""
+
+import json
+import re
+from collections.abc import Iterable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+from pydantic import ValidationError
+from sklearn.metrics import cohen_kappa_score
+
+from logtriage.agents.cache import LlmCache
+from logtriage.agents.graph import verifier_request
+from logtriage.agents.llm import request_key
+from logtriage.agents.prompting import Prompt, load_prompts
+from logtriage.agents.schemas import (
+    Claim,
+    Evidence,
+    IncidentReport,
+    ReportDraft,
+    VerifierOutput,
+    draft_claims,
+)
+from logtriage.config import DEV_TESTBED, Settings
+from logtriage.eval.ablations import ABLATION_TESTBED, output_dir, report_files
+
+ON = "verifier_on"
+OFF = "verifier_off"
+DRAFT_ONLY = "draft_only"
+OFF_CONDITION = "verifier0"
+SUPPORTED = "supported"
+NOT_SUPPORTED = "not_supported"
+POOLED = "pooled"
+SHEET_DIR = "faithfulness"
+SHEET_FILE = "claims_sheet.csv"
+KEY_FILE = "faithfulness_key.csv"
+PAIRED_FILE = "faithfulness_paired.csv"
+PART_SIZE = 53
+RATERS = ("a", "b")
+LABEL_PATTERN = "labels_{}.csv"
+# Testbed names and the organization names built on them (`status.md`, Recorded facts).
+MASK = re.compile(r"santos|wardbeck|harrison|hurstwong|mannsmith|\bsmith\b", re.IGNORECASE)
+MASKED = "<org>"
+
+
+@dataclass
+class Round:
+    """One draft of a report and the Verifier's judgment of it."""
+
+    position: int
+    draft: ReportDraft
+    judged: dict[str, str]
+
+
+def reporter_answers(cache: LlmCache) -> list[tuple[int, ReportDraft]]:
+    """Return every saved answer that is a report draft, oldest first.
+
+    Args:
+        cache: The LLM cache.
+
+    Returns:
+        Row number and draft. Answers of other roles do not parse, and are left out.
+    """
+    drafts = []
+    rows = cache.connection.execute("SELECT rowid, answer FROM answers ORDER BY rowid")
+    for rowid, text in rows.fetchall():
+        content = json.loads(text).get("content") or ""
+        if '"summary"' not in content:
+            continue
+        try:
+            drafts.append((rowid, ReportDraft.model_validate_json(content)))
+        except ValidationError:
+            continue
+    return drafts
+
+
+def judgment_of(
+    draft: ReportDraft,
+    evidence: list[Evidence],
+    prompt: Prompt,
+    cache: LlmCache,
+    settings: Settings,
+    condition: dict[str, bool],
+) -> dict[str, str] | None:
+    """Return the Verifier's verdict per claim key, or None if it never judged this draft here.
+
+    Args:
+        draft: A draft.
+        evidence: Evidence of a report.
+        prompt: The Verifier's prompt.
+        cache: The LLM cache.
+        settings: Loaded settings.
+        condition: Condition of the report.
+
+    Returns:
+        Claim key to `supported` or `unsupported`.
+    """
+    messages, to_judge, rejected = verifier_request(draft, evidence, prompt)
+    if not to_judge:
+        return None
+    key = request_key(settings.llm, condition, messages, json_mode=True)
+    answer = cache.get(key)
+    if answer is None:
+        return None
+    output = VerifierOutput.model_validate_json(answer["content"])
+    verdicts = {item.id: item.verdict for item in output.results}
+    judged = {claim_key: verdicts[cid] for cid, (claim_key, _, _) in to_judge.items()}
+    return judged | {item.key: "unsupported" for item in rejected}
+
+
+def trace_report(
+    report: IncidentReport,
+    drafts: list[tuple[int, ReportDraft]],
+    prompt: Prompt,
+    cache: LlmCache,
+    settings: Settings,
+) -> list[Round]:
+    """Return the rounds of a report, first draft first (D48).
+
+    Args:
+        report: A saved report with the Verifier on.
+        drafts: Output of `reporter_answers`.
+        prompt: The Verifier's prompt.
+        cache: The LLM cache.
+        settings: Loaded settings.
+
+    Returns:
+        One entry per draft the Verifier judged on this report's evidence.
+    """
+    condition = {key: report.meta[key] for key in ("verifier", "rag", "few_shot")}
+    rounds = []
+    for position, draft in drafts:
+        judged = judgment_of(draft, report.evidence, prompt, cache, settings, condition)
+        if judged is not None:
+            rounds.append(Round(position, draft, judged))
+    return rounds
+
+
+def claim_text(item: ReportDraft | IncidentReport) -> dict[str, tuple[str, Claim]]:
+    """Return the text to judge and the claim of every key of a draft or a report."""
+    return {key: (text, claim) for key, claim, text in draft_claims(item)}
+
+
+def check_trace(report: IncidentReport, rounds: list[Round]) -> None:
+    """Refuse a trace that does not end in the saved report.
+
+    Args:
+        report: The report.
+        rounds: Its rounds.
+
+    Raises:
+        ValueError: If a round is missing, or the last draft is not the report.
+    """
+    name = report.incident_id
+    if len(rounds) != report.verifier_rounds + 1:
+        raise ValueError(f"{name}: {len(rounds)} rounds for {report.verifier_rounds} rewrites")
+    if len(claim_text(rounds[0].draft)) != report.meta["draft_claims"]:
+        raise ValueError(f"{name}: the first draft is not the one the report counted")
+    written = {
+        (text, tuple(claim.evidence)) for text, claim in claim_text(rounds[-1].draft).values()
+    }
+    final = {(text, tuple(claim.evidence)) for text, claim in claim_text(report).values()}
+    if not final <= written:
+        raise ValueError(f"{name}: the last draft does not hold the report's claims")
+
+
+def load_official(testbed: str, settings: Settings) -> dict[str, IncidentReport]:
+    """Return the official reports of a testbed by incident."""
+    directory = settings.paths.processed_dir / testbed / "reports"
+    paths = sorted(directory.glob(f"{testbed}-*.json"))
+    return {
+        path.stem: IncidentReport.model_validate_json(path.read_text(encoding="utf-8"))
+        for path in paths
+    }
+
+
+def trace_testbeds(
+    settings: Settings, testbeds: Iterable[str]
+) -> dict[str, dict[str, list[Round]]]:
+    """Return the rounds of every official report, by testbed and incident."""
+    prompt = load_prompts()["verifier"]
+    cache = LlmCache(settings.paths.cache_dir / "llm.sqlite")
+    try:
+        drafts = reporter_answers(cache)
+        traced: dict[str, dict[str, list[Round]]] = {}
+        for testbed in testbeds:
+            traced[testbed] = {}
+            for name, report in load_official(testbed, settings).items():
+                rounds = trace_report(report, drafts, prompt, cache, settings)
+                check_trace(report, rounds)
+                traced[testbed][name] = rounds
+        return traced
+    finally:
+        cache.close()
+
+
+def _auto_row(testbed: str, group: str, reports: list[list[Round]]) -> dict[str, Any]:
+    """Return the shares of claims the Verifier itself called supported."""
+    first = [verdict for rounds in reports for verdict in rounds[0].judged.values()]
+    last = [verdict for rounds in reports for verdict in rounds[-1].judged.values()]
+    return {
+        "testbed": testbed,
+        "group": group,
+        "label": "self-assessment",
+        "reports": len(reports),
+        "reports_rewritten": sum(len(rounds) > 1 for rounds in reports),
+        "first_draft_claims": len(first),
+        "first_draft_supported": first.count("supported"),
+        "first_draft_share": first.count("supported") / len(first),
+        "last_round_claims": len(last),
+        "last_round_supported": last.count("supported"),
+        "last_round_share": last.count("supported") / len(last),
+    }
+
+
+def auto_table(settings: Settings) -> pd.DataFrame:
+    """Return auto faithfulness per testbed and pooled (plan 10.2), from saved answers only."""
+    testbeds = [*settings.test_testbeds, DEV_TESTBED]
+    traced = trace_testbeds(settings, testbeds)
+    rows = [
+        _auto_row(name, "dev" if name == DEV_TESTBED else "test", list(traced[name].values()))
+        for name in testbeds
+    ]
+    tests = [item for name in settings.test_testbeds for item in traced[name].values()]
+    rows.append(_auto_row(POOLED, POOLED, tests))
+    return pd.DataFrame(rows)
+
+
+def mask(text: str) -> str:
+    """Hide the testbed in a text."""
+    return MASK.sub(MASKED, text)
+
+
+def claim_rows(
+    testbed: str, incident: str, arm: str, source: ReportDraft | IncidentReport, lines: dict
+) -> list[dict[str, Any]]:
+    """Return one row per claim, with the raw text of its cited lines.
+
+    Args:
+        testbed: Testbed name.
+        incident: Incident id.
+        arm: `verifier_on`, `verifier_off` or `draft_only`.
+        source: Report or draft.
+        lines: Eid to raw text.
+
+    Returns:
+        Rows with the key, the masked text and the masked lines. A cited eid that names no line
+        has no raw text, so such a claim shows `(no such line)`.
+    """
+    rows = []
+    for key, (text, claim) in claim_text(source).items():
+        cited = [lines.get(eid, "(no such line)") for eid in dict.fromkeys(claim.evidence)]
+        rows.append(
+            {
+                "testbed": testbed,
+                "incident_id": incident,
+                "arm": arm,
+                "claim_key": key,
+                "claim_type": key.split(":")[0],
+                "text": mask(text),
+                "lines": json.dumps([mask(line) for line in cited], ensure_ascii=False),
+            }
+        )
+    return rows
+
+
+def _identity(row: dict[str, Any]) -> tuple[str, str]:
+    """Return what makes two claims the same: the text and the cited lines."""
+    return row["text"], row["lines"]
+
+
+def collect_claims(settings: Settings) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return every claim of D67, and the claims of the first drafts of the rewritten reports.
+
+    Args:
+        settings: Loaded settings.
+
+    Returns:
+        The rows to rate: the final claims of the test reports, the santos Verifier-off claims and
+        the draft-only claims; and all first-draft claims of the reports the Verifier rewrote,
+        which are the off side of the paired reading.
+    """
+    traced = trace_testbeds(settings, settings.test_testbeds)
+    rows: list[dict[str, Any]] = []
+    paired: list[dict[str, Any]] = []
+    for testbed in settings.test_testbeds:
+        for name, report in load_official(testbed, settings).items():
+            lines = {item.eid: item.raw for item in report.evidence}
+            final = claim_rows(testbed, name, ON, report, lines)
+            rows += final
+            rounds = traced[testbed][name]
+            if len(rounds) == 1:
+                continue
+            first = claim_rows(testbed, name, DRAFT_ONLY, rounds[0].draft, lines)
+            paired += first
+            known = {_identity(row) for row in final}
+            rows += [row for row in first if _identity(row) not in known]
+    directory = output_dir(settings, OFF_CONDITION)
+    for path in report_files(directory):
+        report = IncidentReport.model_validate_json(path.read_text(encoding="utf-8"))
+        lines = {item.eid: item.raw for item in report.evidence}
+        rows += claim_rows(ABLATION_TESTBED, report.incident_id, OFF, report, lines)
+    return pd.DataFrame(rows), pd.DataFrame(paired)
+
+
+def build_sheet(claims: pd.DataFrame, seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return the blind sheet and its key (m11_design.md 3d).
+
+    Args:
+        claims: Rows of `collect_claims`.
+        seed: The project seed.
+
+    Returns:
+        The sheet, one shuffled row per distinct claim: `id`, `claim`, `cited_lines`. And the key,
+        one row per claim, with the `id` that holds it.
+    """
+    distinct = claims[["text", "lines"]].drop_duplicates().reset_index(drop=True)
+    rng = np.random.default_rng(seed)
+    order = rng.permutation(len(distinct))
+    ids = rng.choice(900_000, len(distinct), replace=False) + 100_000
+    sheet = distinct.iloc[order].reset_index(drop=True)
+    sheet.insert(0, "id", [f"c{number}" for number in ids])
+    key = claims.merge(sheet, on=["text", "lines"], how="left")
+    table = sheet.rename(columns={"text": "claim", "lines": "cited_lines"})
+    return table, key.drop(columns=["text", "lines"])
+
+
+def read_labels(directory: Path, ids: set[str]) -> pd.DataFrame:
+    """Read the label file of each rater.
+
+    Args:
+        directory: `reports/faithfulness`.
+        ids: The ids of the sheet.
+
+    Returns:
+        One row per id, with a column per rater and its reason.
+
+    Raises:
+        ValueError: If a file does not cover the sheet, or holds another label.
+    """
+    merged = pd.DataFrame({"id": sorted(ids)})
+    for rater in RATERS:
+        table = pd.read_csv(directory / LABEL_PATTERN.format(rater), keep_default_na=False)
+        if set(table["id"]) != ids or table["id"].duplicated().any():
+            raise ValueError(f"rater {rater}: the labels do not cover the sheet once each")
+        unknown = set(table["label"]) - {SUPPORTED, NOT_SUPPORTED}
+        if unknown:
+            raise ValueError(f"rater {rater}: unknown labels {sorted(unknown)}")
+        names = {name: f"{name}_{rater}" for name in ("label", "reason_code", "reason")}
+        merged = merged.merge(table[["id", *names]].rename(columns=names), on="id")
+    return merged
+
+
+def _share(labels: pd.Series) -> float:
+    """Return the share of claims a reader counts as supported."""
+    return float(labels.mean()) if len(labels) else float("nan")
+
+
+def reading_row(reading: str, testbed: str, part: pd.DataFrame) -> dict[str, Any]:
+    """Return one row of the readings, with each rater and the reading of both.
+
+    Args:
+        reading: Name of the reading.
+        testbed: Testbed or `pooled`.
+        part: Claims joined with labels.
+
+    Returns:
+        The counts and shares. `both` counts a claim only if both raters call it supported, the
+        reading fixed before any rating.
+    """
+    a = part["label_a"] == SUPPORTED
+    b = part["label_b"] == SUPPORTED
+    return {
+        "reading": reading,
+        "testbed": testbed,
+        "claims": len(part),
+        "supported_both": int((a & b).sum()),
+        "share_both": _share(a & b),
+        "share_a": _share(a),
+        "share_b": _share(b),
+    }
+
+
+def readings_table(
+    claims: pd.DataFrame, paired: pd.DataFrame, labels: pd.DataFrame, testbeds: list[str]
+) -> pd.DataFrame:
+    """Compute every D67 reading, per testbed and pooled.
+
+    Args:
+        claims: The key, one row per claim, with its `id`.
+        paired: First-draft claims of the rewritten reports, with their `id`.
+        labels: Output of `read_labels`.
+        testbeds: The test testbeds.
+
+    Returns:
+        One row per reading and testbed.
+    """
+    joined = claims.merge(labels, on="id")
+    drafts = paired.merge(labels, on="id")
+    on = joined[joined["arm"] == ON]
+    rewritten = set(paired["incident_id"])
+    final = on[on["incident_id"].isin(rewritten)]
+    first_keys = set(zip(paired["incident_id"], paired["id"], strict=True))
+    final_keys = set(zip(final["incident_id"], final["id"], strict=True))
+    only_final = final[
+        [pair not in first_keys for pair in zip(final["incident_id"], final["id"], strict=True)]
+    ]
+    only_draft = drafts[
+        [pair not in final_keys for pair in zip(drafts["incident_id"], drafts["id"], strict=True)]
+    ]
+    rows = []
+    for testbed in [*testbeds, POOLED]:
+
+        def of(table: pd.DataFrame, name: str = testbed) -> pd.DataFrame:
+            return table if name == POOLED else table[table["testbed"] == name]
+
+        rows.append(reading_row("verifier_on", testbed, of(on)))
+        rows.append(reading_row("paired_first_draft", testbed, of(drafts)))
+        rows.append(reading_row("paired_final", testbed, of(final)))
+        rows.append(reading_row("paired_draft_only", testbed, of(only_draft)))
+        rows.append(reading_row("paired_final_only", testbed, of(only_final)))
+    rows.append(reading_row("verifier_off", ABLATION_TESTBED, joined[joined["arm"] == OFF]))
+    return pd.DataFrame(rows)
+
+
+def agreement_table(
+    claims: pd.DataFrame, labels: pd.DataFrame, testbeds: list[str]
+) -> pd.DataFrame:
+    """Return Cohen's kappa between the raters, on the rows of the sheet.
+
+    Args:
+        claims: The key.
+        labels: Output of `read_labels`.
+        testbeds: The test testbeds.
+
+    Returns:
+        One row per scope: all rows, then the rows that hold a claim of each testbed.
+    """
+    scopes = {"all": set(labels["id"])}
+    for testbed in testbeds:
+        scopes[testbed] = set(claims.loc[claims["testbed"] == testbed, "id"])
+    rows = []
+    for scope, ids in scopes.items():
+        part = labels[labels["id"].isin(ids)]
+        a, b = part["label_a"], part["label_b"]
+        rows.append(
+            {
+                "scope": scope,
+                "rows": len(part),
+                "agree": int((a == b).sum()),
+                "agreement": float((a == b).mean()),
+                "kappa": float(cohen_kappa_score(a, b, labels=[SUPPORTED, NOT_SUPPORTED])),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def sheet_dir(settings: Settings) -> Path:
+    """Return `reports/faithfulness`."""
+    return settings.paths.reports_dir / SHEET_DIR
+
+
+def key_path(settings: Settings) -> Path:
+    """Return the key of the sheet, under `data/`, never committed."""
+    return settings.paths.cache_dir / KEY_FILE
+
+
+def paired_path(settings: Settings) -> Path:
+    """Return the first-draft claims of the rewritten reports, with their ids, under `data/`."""
+    return settings.paths.cache_dir / PAIRED_FILE
+
+
+def attach_ids(paired: pd.DataFrame, sheet: pd.DataFrame) -> pd.DataFrame:
+    """Return first-draft claims with the sheet id of each, without their text.
+
+    Args:
+        paired: Second output of `collect_claims`.
+        sheet: Output of `build_sheet`.
+
+    Returns:
+        The rows with `id`.
+
+    Raises:
+        ValueError: If a first-draft claim has no row on the sheet.
+    """
+    names = {"claim": "text", "cited_lines": "lines"}
+    merged = paired.merge(sheet.rename(columns=names), on=["text", "lines"], how="left")
+    if merged["id"].isna().any():
+        raise ValueError("a first-draft claim is not on the sheet")
+    return merged.drop(columns=["text", "lines"])
+
+
+def write_sheet(settings: Settings) -> Path:
+    """Write the sheet, its key and the paired claims. Nothing here reaches a rater but the sheet.
+
+    Args:
+        settings: Loaded settings.
+
+    Returns:
+        The sheet file.
+    """
+    claims, paired = collect_claims(settings)
+    sheet, key = build_sheet(claims, settings.seed)
+    directory = sheet_dir(settings)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / SHEET_FILE
+    sheet.to_csv(path, index=False)
+    key_path(settings).parent.mkdir(parents=True, exist_ok=True)
+    key.to_csv(key_path(settings), index=False)
+    attach_ids(paired, sheet).to_csv(paired_path(settings), index=False)
+    return path
+
+
+def rater_parts(sheet: pd.DataFrame, directory: Path, size: int = PART_SIZE) -> list[Path]:
+    """Write the sheet as plain text parts, so that a rater reads it in pieces.
+
+    Args:
+        sheet: The sheet.
+        directory: Where the parts go.
+        size: Claims per part.
+
+    Returns:
+        The part files, in order.
+    """
+    paths = []
+    for number, first in enumerate(range(0, len(sheet), size), start=1):
+        blocks = []
+        for row in sheet.iloc[first : first + size].itertuples():
+            cited = "\n".join(f"LINE: {line}" for line in json.loads(row.cited_lines))
+            blocks.append(f"### {row.id}\nCLAIM: {row.claim}\n{cited}")
+        path = directory / f"part_{number:02d}.txt"
+        path.write_text("\n\n".join(blocks) + "\n", encoding="utf-8")
+        paths.append(path)
+    return paths
+
+
+def disagreements(sheet: pd.DataFrame, key: pd.DataFrame, labels: pd.DataFrame) -> pd.DataFrame:
+    """Return every sheet row the raters split on, with where the claim came from.
+
+    Args:
+        sheet: The sheet.
+        key: The key.
+        labels: Output of `read_labels`.
+
+    Returns:
+        One row per id, sorted by id.
+    """
+    split = labels[labels["label_a"] != labels["label_b"]]
+    origin = key.groupby("id").agg(
+        testbeds=("testbed", lambda values: " ".join(sorted(set(values)))),
+        arms=("arm", lambda values: " ".join(sorted(set(values)))),
+        claim_type=("claim_type", "first"),
+    )
+    merged = split.merge(sheet[["id", "claim"]], on="id").merge(origin, on="id")
+    columns = [
+        "id", "testbeds", "arms", "claim_type", "claim", "label_a", "reason_code_a", "reason_a",
+        "label_b", "reason_code_b", "reason_b",
+    ]  # fmt: skip
+    return merged[columns].sort_values("id").reset_index(drop=True)
+
+
+def reason_table(key: pd.DataFrame, labels: pd.DataFrame) -> pd.DataFrame:
+    """Count the causes of `not_supported`, per rater and arm. It changes no reading."""
+    joined = key.merge(labels, on="id")
+    parts = []
+    for rater in RATERS:
+        rated = joined[joined[f"label_{rater}"] == NOT_SUPPORTED]
+        counts = rated.groupby(["arm", f"reason_code_{rater}"]).size()
+        part = counts.rename("claims").rename_axis(["arm", "reason_code"]).reset_index()
+        part.insert(0, "rater", rater)
+        parts.append(part)
+    return pd.concat(parts, ignore_index=True)
+
+
+def named_source_is_right(claim: str, hosts: Iterable[str]) -> bool:
+    """Return True if a claim names the host of one of its cited lines."""
+    return any(re.search(rf"(?<![\w-]){re.escape(host)}(?![\w-])", claim) for host in hosts)
+
+
+def arm_reports(arm: str, testbed: str, settings: Settings) -> dict[str, IncidentReport]:
+    """Return the reports of an arm of a testbed by incident."""
+    if arm == ON:
+        return load_official(testbed, settings)
+    paths = report_files(output_dir(settings, OFF_CONDITION))
+    loaded = [IncidentReport.model_validate_json(p.read_text(encoding="utf-8")) for p in paths]
+    return {report.incident_id: report for report in loaded}
+
+
+def source_sensitivity(key: pd.DataFrame, labels: pd.DataFrame, settings: Settings) -> pd.DataFrame:
+    """Measure the effect of hiding the host of a line from the raters. Post hoc, not a reading.
+
+    A claim counts here if both raters gave `source_not_shown` and it names the host that the
+    saved evidence holds for one of its cited lines: the raters could not see that host, and the
+    Verifier could. Such a claim would have passed on this one point; it may still fail on others.
+
+    Args:
+        key: The key.
+        labels: Output of `read_labels`.
+        settings: Loaded settings.
+
+    Returns:
+        One row per arm and testbed, and pooled for the Verifier-on arm.
+    """
+    joined = key[key["arm"].isin([ON, OFF])].merge(labels, on="id")
+    source = "source_not_shown"
+    hidden = (joined["reason_code_a"] == source) & (joined["reason_code_b"] == source)
+    rows = []
+    confirmed = pd.Series(False, index=joined.index)
+    for (arm, testbed), part in joined[hidden].groupby(["arm", "testbed"]):
+        reports = arm_reports(str(arm), str(testbed), settings)
+        for index, row in part.iterrows():
+            report = reports[row["incident_id"]]
+            hosts = {item.eid: item.host for item in report.evidence}
+            text, claim = claim_text(report)[row["claim_key"]]
+            cited = [hosts[eid] for eid in claim.evidence if eid in hosts]
+            confirmed.at[index] = named_source_is_right(text, cited)
+    both = (joined["label_a"] == SUPPORTED) & (joined["label_b"] == SUPPORTED)
+    frames = [
+        (arm, name, joined["arm"].eq(arm) & joined["testbed"].eq(name))
+        for arm, name in joined[["arm", "testbed"]].drop_duplicates().itertuples(index=False)
+    ]
+    frames.append((ON, POOLED, joined["arm"].eq(ON)))
+    for arm, name, mask_ in frames:
+        rows.append(
+            {
+                "arm": arm,
+                "testbed": name,
+                "label": "post hoc, not a reading",
+                "claims": int(mask_.sum()),
+                "supported_both": int((both & mask_).sum()),
+                "source_not_shown_both": int((hidden & mask_).sum()),
+                "host_right_in_metadata": int((confirmed & mask_).sum()),
+                "share_both": float((both & mask_).sum() / mask_.sum()),
+                "share_if_host_shown": float(((both | confirmed) & mask_).sum() / mask_.sum()),
+            }
+        )
+    return pd.DataFrame(rows)

@@ -1,0 +1,31 @@
+testbed,group,label,variant,detected,phases,recall,missed
+santos,test,event,primary,7,9,0.777778,dnsteal_exfil network_scans
+santos,test,event,all_parsed,7,9,0.777778,dnsteal_exfil network_scans
+santos,test,event,without_exfil,7,8,0.875000,network_scans
+santos,test,time,primary,9,9,1.000000,
+santos,test,time,all_parsed,9,9,1.000000,
+santos,test,time,without_exfil,8,8,1.000000,
+wardbeck,test,event,primary,7,9,0.777778,dnsteal_exfil network_scans
+wardbeck,test,event,all_parsed,7,9,0.777778,dnsteal_exfil network_scans
+wardbeck,test,event,without_exfil,7,8,0.875000,network_scans
+wardbeck,test,time,primary,9,9,1.000000,
+wardbeck,test,time,all_parsed,9,9,1.000000,
+wardbeck,test,time,without_exfil,8,8,1.000000,
+harrison,test,event,primary,7,9,0.777778,dnsteal_exfil network_scans
+harrison,test,event,all_parsed,7,9,0.777778,dnsteal_exfil network_scans
+harrison,test,event,without_exfil,7,8,0.875000,network_scans
+harrison,test,time,primary,9,9,1.000000,
+harrison,test,time,all_parsed,9,9,1.000000,
+harrison,test,time,without_exfil,8,8,1.000000,
+russellmitchell,dev,event,primary,7,10,0.700000,dnsteal dnsteal_exfil network_scans
+russellmitchell,dev,event,all_parsed,7,10,0.700000,dnsteal dnsteal_exfil network_scans
+russellmitchell,dev,event,without_exfil,7,9,0.777778,dnsteal network_scans
+russellmitchell,dev,time,primary,10,10,1.000000,
+russellmitchell,dev,time,all_parsed,10,10,1.000000,
+russellmitchell,dev,time,without_exfil,9,9,1.000000,
+pooled,pooled,event,primary,21,27,0.777778,
+pooled,pooled,event,all_parsed,21,27,0.777778,
+pooled,pooled,event,without_exfil,21,24,0.875000,
+pooled,pooled,time,primary,27,27,1.000000,
+pooled,pooled,time,all_parsed,27,27,1.000000,
+pooled,pooled,time,without_exfil,24,24,1.000000,

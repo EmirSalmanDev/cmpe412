@@ -1,0 +1,425 @@
+id,label,reason_code,reason
+c526685,supported,shown,
+c177607,supported,shown,
+c202336,supported,shown,
+c614994,supported,shown,
+c132451,supported,shown,
+c669380,supported,shown,
+c264549,not_supported,source_not_shown,cloud_share and intranet_server not named in lines
+c597537,supported,shown,
+c653171,supported,shown,
+c358964,not_supported,source_not_shown,inet-dns not shown in dnsmasq lines
+c865254,supported,shown,
+c796648,not_supported,source_not_shown,intranet_server not shown in lines
+c953891,supported,shown,
+c864307,supported,shown,
+c837822,supported,shown,
+c320348,not_supported,count_or_list,only 16:09:01 has open and close; others only open
+c570218,not_supported,count_or_list,counts 158 11 408 not shown by few lines
+c956903,supported,shown,
+c649834,supported,shown,
+c382995,supported,shown,
+c110879,not_supported,time_not_shown,flagged window not shown in lines
+c928341,supported,shown,
+c800010,supported,shown,
+c223617,not_supported,source_not_shown,intranet_server not shown in line
+c384574,supported,shown,
+c579242,supported,shown,
+c501831,supported,shown,
+c963597,not_supported,other,same source needs another line
+c672360,supported,shown,
+c651237,supported,shown,
+c922251,supported,shown,
+c735545,supported,shown,
+c630863,supported,shown,
+c113214,supported,shown,
+c126093,not_supported,source_not_shown,intranet_server not shown in lines
+c837673,not_supported,fact_not_in_lines,incident data windows and score not in lines
+c230599,supported,shown,
+c207283,supported,shown,
+c620149,supported,shown,
+c568313,supported,shown,
+c394610,supported,shown,
+c654588,not_supported,count_or_list,count 158 not shown by single line
+c966684,supported,shown,
+c789357,not_supported,inference,uid 1002 not tied to gmorgan in lines
+c567346,not_supported,count_or_list,second query needs a first query line
+c728183,not_supported,source_not_shown,inet-dns not shown in line
+c424603,supported,shown,
+c738521,supported,shown,
+c254103,supported,shown,
+c427663,supported,shown,
+c199503,supported,shown,
+c532626,supported,shown,
+c467870,supported,shown,
+c563874,supported,shown,
+c570713,supported,shown,
+c725054,supported,shown,
+c716888,not_supported,source_not_shown,webserver not named in lines
+c819057,not_supported,fact_not_in_lines,no upload path requests in lines; hosts cloud_share not shown
+c643506,supported,shown,
+c987699,supported,shown,
+c182536,supported,shown,
+c341878,supported,shown,
+c628399,not_supported,fact_not_in_lines,su session tty pts/1 not shown in su lines
+c104885,supported,shown,
+c819856,supported,shown,
+c216389,supported,shown,
+c754732,supported,shown,
+c371173,supported,shown,
+c205355,supported,shown,
+c924343,supported,shown,
+c585764,supported,shown,
+c955819,supported,shown,
+c385312,not_supported,absence,only line and incident window not shown
+c946432,supported,shown,
+c278342,supported,shown,
+c287373,supported,shown,
+c881649,supported,shown,
+c587070,supported,shown,
+c395394,supported,shown,
+c531299,supported,shown,
+c650298,not_supported,count_or_list,second authentication not shown and only accounting record
+c794757,supported,shown,
+c232961,supported,shown,
+c806951,supported,shown,
+c823638,not_supported,source_not_shown,intranet_server not shown in line
+c163170,supported,shown,
+c687072,not_supported,source_not_shown,intranet_server not shown and 404 not in error lines
+c316693,supported,shown,
+c639439,supported,shown,
+c181376,not_supported,source_not_shown,intranet_server not shown in lines
+c761042,not_supported,other,same source needs a second line
+c971198,supported,shown,
+c104400,supported,shown,
+c508771,supported,shown,
+c138887,supported,shown,
+c273707,not_supported,source_not_shown,intranet_server not shown in line
+c637473,supported,shown,
+c597518,supported,shown,
+c512972,supported,shown,
+c252394,supported,shown,
+c942262,supported,shown,
+c507866,supported,shown,
+c323430,supported,shown,
+c602462,not_supported,source_not_shown,cloud_share not shown in line
+c374205,supported,shown,
+c699024,not_supported,source_not_shown,intranet_server not shown in line
+c934846,supported,shown,
+c460670,supported,shown,
+c429601,supported,shown,
+c573713,supported,shown,
+c488254,supported,shown,
+c445522,not_supported,inference,answered locally not shown in lines
+c763003,not_supported,source_not_shown,intranet_server not shown in lines
+c176012,supported,shown,
+c514264,supported,shown,
+c178910,supported,shown,
+c277265,supported,shown,
+c897726,not_supported,source_not_shown,intranet_server not shown in line
+c177407,supported,shown,
+c104924,supported,shown,
+c683114,supported,shown,
+c107065,supported,shown,
+c583731,supported,shown,
+c663380,not_supported,count_or_list,single failures and earlier dates not shown
+c792953,supported,shown,
+c493987,supported,shown,
+c553250,not_supported,source_not_shown,intranet_server not shown in lines
+c129132,supported,shown,
+c821178,not_supported,time_not_shown,earlier has no reference line
+c827434,not_supported,source_not_shown,intranet_server not shown in lines
+c435035,supported,shown,
+c258979,supported,shown,
+c641369,supported,shown,
+c481309,supported,shown,
+c951092,supported,shown,
+c755700,supported,shown,
+c352545,not_supported,fact_not_in_lines,172.21.131.50 is the client address not the dovecot server
+c632689,supported,shown,
+c962646,supported,shown,
+c844451,supported,shown,
+c565765,supported,shown,
+c441361,not_supported,source_not_shown,cloud_share and intranet_server not named in lines
+c312060,supported,shown,
+c964063,not_supported,other,additional needs another authentication line
+c578818,supported,shown,
+c964885,supported,shown,
+c654337,supported,shown,
+c895606,not_supported,source_not_shown,webserver not shown in line
+c813154,supported,shown,
+c750811,supported,shown,
+c912502,supported,shown,
+c774369,not_supported,source_not_shown,intranet_server not shown in line
+c691869,supported,shown,
+c874322,supported,shown,
+c329001,supported,shown,
+c164851,supported,shown,
+c343400,not_supported,source_not_shown,intranet_server not shown in line
+c752876,supported,shown,
+c415758,supported,shown,
+c233579,supported,shown,
+c634101,supported,shown,
+c359229,supported,shown,
+c184059,supported,shown,
+c240662,supported,shown,
+c937811,not_supported,source_not_shown,intranet_server not shown for web requests
+c159886,not_supported,source_not_shown,mail host not shown in audit lines
+c359958,not_supported,inference,what whoami and who identify is outside knowledge
+c500509,supported,shown,
+c212409,supported,shown,
+c404271,supported,shown,
+c570194,not_supported,source_not_shown,intranet_server not shown in line
+c645214,supported,shown,
+c552784,supported,shown,
+c738805,not_supported,other,same PHP file needs another line
+c926376,not_supported,fact_not_in_lines,systemd-user not shown in lines
+c529887,not_supported,time_not_shown,incident window not shown in lines
+c185511,supported,shown,
+c493003,not_supported,source_not_shown,inet-dns not shown in dnsmasq lines
+c131619,not_supported,source_not_shown,inet-firewall not shown in dnsmasq lines
+c952975,supported,shown,
+c868732,supported,shown,
+c282087,supported,shown,
+c717310,supported,shown,
+c121564,supported,shown,
+c815322,supported,shown,
+c698967,not_supported,source_not_shown,intranet_server not shown in line
+c169879,supported,shown,
+c503829,not_supported,source_not_shown,intranet_server not shown in lines
+c865171,not_supported,source_not_shown,intranet_server not shown in line
+c629279,supported,shown,
+c314651,not_supported,source_not_shown,intranet_server not shown in line
+c721715,supported,shown,
+c382902,supported,shown,
+c756509,supported,shown,
+c438620,supported,shown,
+c942242,not_supported,other,same authentication needs another line
+c764226,supported,shown,
+c868428,supported,shown,
+c181063,supported,shown,
+c861362,not_supported,other,again needs an earlier success line
+c132539,supported,shown,
+c954152,supported,shown,
+c490328,supported,shown,
+c592298,supported,shown,
+c218843,not_supported,count_or_list,second record needs a first record line
+c965549,supported,shown,
+c295848,supported,shown,
+c355452,not_supported,source_not_shown,webserver not shown in line
+c438689,not_supported,source_not_shown,intranet_server not shown in lines
+c870890,supported,shown,
+c703900,supported,shown,
+c757691,supported,shown,
+c149042,supported,shown,
+c553992,supported,shown,
+c258349,supported,shown,
+c760026,supported,shown,
+c630705,supported,shown,
+c711121,supported,shown,
+c588641,supported,shown,
+c827346,supported,shown,
+c937906,not_supported,other,further needs an earlier line
+c185711,supported,shown,
+c715887,supported,shown,
+c731757,not_supported,time_not_shown,earlier and same sources have no reference line
+c485073,supported,shown,
+c510495,supported,shown,
+c856034,not_supported,absence,only line in incident window not shown
+c808645,supported,shown,
+c805573,supported,shown,
+c762945,not_supported,source_not_shown,inet-dns not shown in dnsmasq line
+c615173,supported,shown,
+c476529,supported,shown,
+c248538,supported,shown,
+c250890,supported,shown,
+c686547,not_supported,inference,admin.php used other agent and purpose gathering info not shown
+c512580,not_supported,source_not_shown,inet-dns not shown in dnsmasq lines
+c981851,supported,shown,
+c255692,supported,shown,
+c195753,supported,shown,
+c303018,supported,shown,
+c684237,not_supported,source_not_shown,intranet_server not shown in lines
+c831865,supported,shown,
+c581678,supported,shown,
+c343640,supported,shown,
+c207721,supported,shown,
+c424574,supported,shown,
+c702092,supported,shown,
+c470594,supported,shown,
+c666906,supported,shown,
+c476616,supported,shown,
+c660846,supported,shown,
+c498360,supported,shown,
+c470349,not_supported,source_not_shown,intranet_server not shown in line
+c863369,supported,shown,
+c953587,supported,shown,
+c463589,not_supported,fact_not_in_lines,incident record windows and score not in lines
+c908255,supported,shown,
+c222841,supported,shown,
+c210434,supported,shown,
+c281568,not_supported,fact_not_in_lines,Horde not named in line
+c327956,supported,shown,
+c672687,supported,shown,
+c763529,not_supported,other,another needs a prior line
+c820719,not_supported,source_not_shown,intranet_server not shown in audit lines
+c368782,supported,shown,
+c684968,not_supported,source_not_shown,intranet_server not shown in line
+c239666,supported,shown,
+c538797,supported,shown,
+c151498,not_supported,source_not_shown,intranet_server not shown in line
+c589919,not_supported,other,further needs an earlier line
+c113112,supported,shown,
+c400712,supported,shown,
+c885314,supported,shown,
+c233121,supported,shown,
+c802053,supported,shown,
+c853015,supported,shown,
+c926700,supported,shown,
+c928915,supported,shown,
+c757256,not_supported,fact_not_in_lines,michael.bennett line is accounting not authentication
+c512645,supported,shown,
+c889909,supported,shown,
+c111069,supported,shown,
+c761122,supported,shown,
+c528175,supported,shown,
+c729719,supported,shown,
+c241803,supported,shown,
+c998969,supported,shown,
+c671110,supported,shown,
+c971239,supported,shown,
+c554338,not_supported,count_or_list,count 11 not shown by single line
+c749419,supported,shown,
+c654943,supported,shown,
+c787278,not_supported,time_not_shown,earlier has no reference line
+c225176,supported,shown,
+c475024,supported,shown,
+c185550,not_supported,source_not_shown,intranet_server not named in lines
+c400171,supported,shown,
+c451741,supported,shown,
+c997096,supported,shown,
+c975969,supported,shown,
+c544714,not_supported,fact_not_in_lines,pts/1 not shown in su lines
+c786047,not_supported,source_not_shown,intranet_server not shown in line
+c430607,not_supported,time_not_shown,earlier has no reference line
+c768416,supported,shown,
+c343798,supported,shown,
+c209697,supported,shown,
+c865879,supported,shown,
+c861474,supported,shown,
+c371661,supported,shown,
+c748873,not_supported,source_not_shown,cloud_share and intranet_server not named in lines
+c835154,supported,shown,
+c147714,supported,shown,
+c165192,supported,shown,
+c853619,supported,shown,
+c542776,not_supported,count_or_list,first session needs a second session line
+c433990,supported,shown,
+c444877,supported,shown,
+c408413,not_supported,source_not_shown,intranet_server not shown in line
+c764182,supported,shown,
+c982036,supported,shown,
+c918309,supported,shown,
+c501816,supported,shown,
+c750144,not_supported,time_not_shown,incident window not shown in lines
+c839681,not_supported,other,also needs another line
+c539219,supported,shown,
+c558306,supported,shown,
+c150010,supported,shown,
+c687151,not_supported,source_not_shown,intranet_server not shown in lines
+c629429,not_supported,source_not_shown,inet-firewall not shown in dnsmasq lines
+c497974,supported,shown,
+c854033,not_supported,other,further needs an earlier line
+c670856,supported,shown,
+c208185,supported,shown,
+c703487,supported,shown,
+c712506,supported,shown,
+c770544,supported,shown,
+c114172,not_supported,source_not_shown,intranet_server not shown in line
+c568229,not_supported,fact_not_in_lines,session 250 not in the cited line
+c215092,supported,shown,
+c690508,supported,shown,
+c139743,not_supported,source_not_shown,intranet_server not shown in line
+c919387,supported,shown,
+c981896,supported,shown,
+c265155,not_supported,fact_not_in_lines,session 250 not in lines
+c793124,supported,shown,
+c608264,supported,shown,
+c927802,supported,shown,
+c857776,supported,shown,
+c150351,supported,shown,
+c321642,not_supported,source_not_shown,intranet_server not shown in lines
+c473688,not_supported,count_or_list,second and same token need another line
+c907135,not_supported,fact_not_in_lines,systemd-user not shown in line
+c529513,supported,shown,
+c488063,not_supported,time_not_shown,incident window not shown in line
+c996641,supported,shown,
+c807108,supported,shown,
+c804083,supported,shown,
+c137497,supported,shown,
+c146481,not_supported,other,again needs an earlier login line
+c367067,supported,shown,
+c238086,supported,shown,
+c350241,not_supported,source_not_shown,cloud_share and intranet_server not named in lines
+c519230,supported,shown,
+c321321,supported,shown,
+c929173,supported,shown,
+c622498,supported,shown,
+c974232,supported,shown,
+c842652,supported,shown,
+c383773,supported,shown,
+c673198,supported,shown,
+c311805,supported,shown,
+c608756,supported,shown,
+c331714,supported,shown,
+c540134,supported,shown,
+c815462,supported,shown,
+c225896,supported,shown,
+c515443,supported,shown,
+c186085,supported,shown,
+c891075,supported,shown,
+c659454,not_supported,other,further needs an earlier line
+c136129,supported,shown,
+c561442,supported,shown,
+c476482,not_supported,source_not_shown,intranet_server not shown in line
+c526703,not_supported,source_not_shown,intranet_server not shown in lines
+c145114,not_supported,source_not_shown,webserver not shown in line
+c798928,not_supported,source_not_shown,intranet_server not shown in lines
+c594200,supported,shown,
+c215435,supported,shown,
+c609157,supported,shown,
+c220672,supported,shown,
+c530230,supported,shown,
+c738258,supported,shown,
+c103940,not_supported,absence,incident window and only query not shown
+c820508,supported,shown,
+c802977,supported,shown,
+c876912,supported,shown,
+c615101,supported,shown,
+c216362,supported,shown,
+c189966,supported,shown,
+c309215,not_supported,fact_not_in_lines,Horde not named in line
+c599350,not_supported,source_not_shown,inet-dns not shown in dnsmasq lines
+c593349,not_supported,source_not_shown,intranet_server not shown in line
+c576670,supported,shown,
+c206599,supported,shown,
+c951309,supported,shown,
+c255791,supported,shown,
+c942004,not_supported,other,other users has no reference line
+c138109,not_supported,source_not_shown,intranet_server not shown in lines
+c242113,not_supported,other,same uploads directory needs another line
+c381622,supported,shown,
+c365749,not_supported,source_not_shown,intranet_server not shown in line
+c557464,not_supported,source_not_shown,intranet_server not shown in line
+c590281,supported,shown,
+c382500,supported,shown,
+c282041,supported,shown,
+c204268,supported,shown,
+c321272,supported,shown,
+c745789,not_supported,source_not_shown,intranet_server not shown in lines
+c228689,not_supported,source_not_shown,intranet_server not shown in lines
+c652712,supported,shown,
+c297191,supported,shown,
+c727518,supported,shown,
+c860267,supported,shown,
+c465899,supported,shown,

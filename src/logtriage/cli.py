@@ -1,20 +1,31 @@
-"""Typer command line interface (plan 9.3). Commands are stubs until their milestones."""
+"""Typer command line interface (plan 9.3)."""
 
 import logging
 import os
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
+from logtriage.agents.llm import (
+    BudgetExceededError,
+    CacheMissError,
+    EmptyResponseError,
+    FingerprintChangedError,
+    LLMOutputError,
+)
 from logtriage.agents.runner import run_incidents
 from logtriage.app.data import AppOptions, database_path
 from logtriage.app.replay import check_live
 from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, Settings, load_settings
 from logtriage.data.download import InsufficientDiskError, run_download
 from logtriage.data.inventory import run_inventory
+from logtriage.eval import llm_baseline
+from logtriage.eval.ablations import RECHECK, RETRY, run_ablation
+from logtriage.eval.report import PaidCallError, run_evaluate
 from logtriage.ml.detect import run_detect
 from logtriage.prepare import refresh_databases, run_prepare
 from logtriage.rag.attack_index import run_index_attack
@@ -33,9 +44,11 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
-def _not_implemented(command: str, testbed: str, config: Path) -> None:
-    """Print the stub message for a command."""
-    typer.echo(f"{command}: not implemented yet (testbed={testbed}, config={config})")
+def _report_failure(command: str, error: BaseException) -> None:
+    """Print the whole traceback of a failed command, then its one-line message (D69)."""
+    trace = "".join(traceback.format_exception(error))
+    typer.echo(trace, err=True)
+    typer.echo(f"{command} failed: {error}", err=True)
 
 
 @app.command()
@@ -46,7 +59,7 @@ def download(
     try:
         run_download(testbed, load_settings(config))
     except (ValueError, InsufficientDiskError) as error:
-        typer.echo(f"download failed: {error}", err=True)
+        _report_failure("download", error)
         raise typer.Exit(code=1) from error
 
 
@@ -58,7 +71,7 @@ def inventory(
     try:
         report = run_inventory(testbed, load_settings(config))
     except (ValueError, FileNotFoundError) as error:
-        typer.echo(f"inventory failed: {error}", err=True)
+        _report_failure("inventory", error)
         raise typer.Exit(code=1) from error
     typer.echo(f"wrote {report}")
 
@@ -71,7 +84,7 @@ def prepare(
     try:
         out_dir = run_prepare(testbed, load_settings(config))
     except (ValueError, FileNotFoundError) as error:
-        typer.echo(f"prepare failed: {error}", err=True)
+        _report_failure("prepare", error)
         raise typer.Exit(code=1) from error
     typer.echo(f"wrote {out_dir}")
 
@@ -90,7 +103,7 @@ def detect(
         out_dir = run_detect(testbed, settings, rerun_reason)
         refresh_databases(testbed, settings)
     except (ValueError, FileNotFoundError) as error:
-        typer.echo(f"detect failed: {error}", err=True)
+        _report_failure("detect", error)
         raise typer.Exit(code=1) from error
     typer.echo(f"wrote {out_dir}")
 
@@ -103,7 +116,7 @@ def index_attack(
     try:
         count = run_index_attack(load_settings(config))
     except (ValueError, FileNotFoundError) as error:
-        typer.echo(f"index-attack failed: {error}", err=True)
+        _report_failure("index-attack", error)
         raise typer.Exit(code=1) from error
     typer.echo(f"indexed {count} techniques")
 
@@ -130,7 +143,7 @@ def investigate(
             rerun_reason=rerun_reason,
         )
     except (ValueError, FileNotFoundError, KeyError) as error:
-        typer.echo(f"investigate failed: {error}", err=True)
+        _report_failure("investigate", error)
         raise typer.Exit(code=1) from error
     typer.echo(
         f"{len(summary.finished)} reports, {len(summary.failed)} failed, "
@@ -142,11 +155,85 @@ def investigate(
 
 
 @app.command()
-def evaluate(
-    testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
+def ablate(
+    condition: Annotated[
+        str, typer.Option("--condition", help="base, verifier0, rag0, few_shot1.")
+    ],
+    reason: Annotated[str, typer.Option("--reason", help="Why it runs, for the ledger.")],
+    config: ConfigOption = DEFAULT_CONFIG_PATH,
+    retry: Annotated[
+        bool, typer.Option("--retry", help="The one retry after an API failure (D69).")
+    ] = False,
+    recheck: Annotated[
+        bool, typer.Option("--recheck", help="Replay base again, to prove keys held (D69).")
+    ] = False,
 ) -> None:
-    """Compute evaluation metrics and reports."""
-    _not_implemented("evaluate", testbed, config)
+    """Run one ablation condition on santos, once, apart from the official reports (D65)."""
+    attempt = RETRY if retry else RECHECK if recheck else None
+    try:
+        summary = run_ablation(condition, reason, load_settings(config), attempt=attempt)
+    except (
+        ValueError,
+        FileNotFoundError,
+        KeyError,
+        CacheMissError,
+        FingerprintChangedError,
+        EmptyResponseError,
+    ) as error:
+        _report_failure("ablate", error)
+        raise typer.Exit(code=1) from error
+    typer.echo(
+        f"{condition}: {len(summary.finished)} reports, {len(summary.failed)} failed, "
+        f"{summary.spent_usd:.4f} USD this run, {summary.total_spent_usd:.4f} USD in total"
+    )
+    if summary.aborted:
+        typer.echo(f"stopped: {summary.aborted}", err=True)
+        raise typer.Exit(code=2)
+
+
+@app.command("llm-only")
+def llm_only(
+    stage: Annotated[str, typer.Option("--stage", help="draw, check or run.")],
+    reason: Annotated[str, typer.Option("--reason", help="Why it runs, for the ledger.")] = "",
+    config: ConfigOption = DEFAULT_CONFIG_PATH,
+    retry: Annotated[
+        bool, typer.Option("--retry", help="The one retry after an API failure (D69).")
+    ] = False,
+) -> None:
+    """Draw the LLM-only sample, check its format on dev, or run it on santos once (D66)."""
+    settings = load_settings(config)
+    try:
+        if stage == "draw":
+            typer.echo(f"wrote {llm_baseline.run_draw(settings)}")
+            return
+        if stage == "check":
+            run = llm_baseline.run_check(settings, reason)
+        elif stage == "run":
+            run = llm_baseline.run_sample(settings, reason, retry=retry)
+        else:
+            raise ValueError(f"unknown stage {stage}")
+    except (
+        ValueError,
+        FileNotFoundError,
+        KeyError,
+        LLMOutputError,
+        FingerprintChangedError,
+        BudgetExceededError,
+    ) as error:
+        _report_failure("llm-only", error)
+        raise typer.Exit(code=1) from error
+    typer.echo(f"{stage}: {len(run.rows)} windows, {run.spent_usd:.4f} USD this run")
+
+
+@app.command()
+def evaluate(config: ConfigOption = DEFAULT_CONFIG_PATH) -> None:
+    """Regenerate every derived table and `reports/results.md`, from saved outputs and the cache."""
+    try:
+        summary = run_evaluate(load_settings(config))
+    except (ValueError, FileNotFoundError, KeyError, CacheMissError, PaidCallError) as error:
+        _report_failure("evaluate", error)
+        raise typer.Exit(code=1) from error
+    typer.echo(f"wrote {len(summary.tables)} tables and {summary.results}")
 
 
 def streamlit_command(settings: Settings) -> list[str]:
@@ -186,7 +273,7 @@ def run_app(
         if not database_path(settings, testbed).is_file():
             raise ValueError(f"{testbed}: no agent database, run `logtriage prepare` first")
     except ValueError as error:
-        typer.echo(f"app failed: {error}", err=True)
+        _report_failure("app", error)
         raise typer.Exit(code=1) from error
     options = AppOptions(testbed, config, live)
     env = {**os.environ, **options.to_env()}

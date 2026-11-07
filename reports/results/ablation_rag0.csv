@@ -1,0 +1,4 @@
+incident_id,verdict,confidence,claims,summary_claims,timeline_claims,technique_claims,removed_claims,draft_claims,draft_unknown_eid_claims,verifier_rounds,evidence_lines,tool_calls,techniques,llm_calls,retries,tokens_in,tokens_cached,tokens_out,cost_usd,latency_s
+santos-0001,uncertain,0.4,14,3,8,3,0,14,0,1,13,8,T1078.004 T1110.003 T1005,10,0,55670,24960,5894,0.008218,26.65
+santos-0002,malicious,0.9,21,2,16,3,2,22,0,2,29,8,T1595.002 T1505.003 T1059.004,12,0,83647,41216,13259,0.014444,53.0
+santos-0003,malicious,0.9,18,4,11,3,0,18,0,0,13,8,T1059.004 T1505.003 T1548.003,8,0,40617,16256,4293,0.006279,21.66

@@ -1,0 +1,3 @@
+id,testbeds,arms,claim_type,claim,label_a,reason_code_a,reason_a,label_b,reason_code_b,reason_b
+c138887,santos,verifier_off,technique,"T1548.003: In session 252, gmorgan ran a sudo command (hex-decoded to 'tail /var/log/syslog') from /home/gmorgan, and sudo refreshed credentials for root, showing use of sudo to execute with elevated privileges.",supported,shown,,not_supported,inference,gmorgan tied to uid 1003 only by cwd and elevation is interpretation
+c808645,harrison,verifier_on,timeline,At 2022-02-08 17:20:10 UTC: dnsmasq logged A and AAAA queries for smtp.taylor.<org>.com from 10.237.2.255 and answered from cache with 172.28.192.7.,supported,shown,,not_supported,inference,cached line maps IP to name and is not the A answer
