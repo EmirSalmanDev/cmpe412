@@ -473,22 +473,22 @@ All numbers on the **santos evaluation period** unless stated. Dev numbers are r
 | Alert reduction | per day: incidents vs anomalous windows vs IDS alerts (AIT-ADS, same period) vs IDS alerts grouped with the same gap rule (§6.6, entity = host) |
 | Verdict | confusion matrix (3 predicted classes × 2 true). F1 with `uncertain` counted as non-benign. Label-ambiguous incidents are left out, and a secondary number includes them (changed: see status.md D17) |
 | ATT&CK top-1/top-3 | per malicious incident: hit if any predicted technique in top-k ∈ union of gold sets of the incident's phases. Strict = exact ID. Lenient (secondary) = parent technique match. |
-| Faithfulness (primary) | manual annotation: share of claims supported by their cited lines, on a sample of ≥ 100 claims, rated by the team blind to the condition (Verifier on/off) |
+| Faithfulness (primary) | manual annotation: share of claims supported by their cited lines, on a sample of ≥ 100 claims, rated by the team blind to the condition (Verifier on/off). NOT MEASURED: there are no human annotators; "AI-annotated faithfulness" is reported instead, by two independent subagents with κ, and is not this metric (changed: see status.md D67) |
 | Faithfulness (auto) | Verifier LLM judgment (reported, but labelled as self-assessment) |
 | Hallucinated citations | share of claims citing non-existent eids before the Verifier |
 | Cost/latency | USD and seconds per incident (mean, p90), tokens |
-| Human evaluation | usefulness and readability 1–5, ≥ 2 raters, ≥ 20 reports; report mean and agreement (Cohen's κ on binarized scores) |
+| Human evaluation | usefulness and readability 1–5, ≥ 2 raters, ≥ 20 reports; report mean and agreement (Cohen's κ on binarized scores). NOT PERFORMED, with no AI substitute (changed: see status.md D68) |
 
 ### 10.3 Baselines
 
-1. **IDS**: AIT-ADS alerts for santos. Phase recall = phase detected if ≥ 1 alert with that phase label (prefer the event-based label over the time-based one). Alert counts as above.
+1. **IDS**: AIT-ADS alerts for santos. Phase recall = phase detected if ≥ 1 alert with that phase label (prefer the event-based label over the time-based one). AIT-ADS has no per-alert label, so the event-based label is derived: an alert carries a phase if its log text equals a labeled line's raw text, host not compared. Event recall (lower bound, primary) and time-based recall (upper bound) are both reported (changed: see status.md D64). Alert counts as above.
 2. **ML only**: incidents without agents (verdict = malicious for all). Gives verdict and alert-reduction numbers.
-3. **LLM only**: stratified sample of 40 windows' raw lines (20 attack, 20 normal; ≤ 300 lines per sample, chronological). Prompt for verdict + top-3 techniques. Report the same metrics on the sample and the extrapolated cost for the full evaluation period.
+3. **LLM only**: stratified sample of 40 windows' raw lines (20 attack, 20 normal; ≤ 300 lines per sample, chronological). Prompt for verdict + top-3 techniques. Report the same metrics on the sample and the extrapolated cost for the full evaluation period. The draw and the run are fixed in `reports/m11_design.md` §3c (changed: see status.md D66).
 4. **Supervised reference**: §6.7.
 
 ### 10.4 Ablations (on all santos incidents, or the top 100 by priority if more)
 
-Verifier on/off · RAG on/off in Mapper · zero-shot vs few-shot Reporter. Same incidents, same model, `temperature=0`, cache keyed per condition.
+Verifier on/off · RAG on/off in Mapper · zero-shot vs few-shot Reporter. Same incidents, same model, `temperature=0`, cache keyed per condition. Run by `logtriage ablate`, once per condition, apart from the official reports and memory; with n = 3 the results are illustrative (changed: see status.md D65).
 
 ### 10.5 Targets
 
@@ -496,7 +496,7 @@ Finalized in M3 and **frozen** in `reports/targets.md`, unchanged from the propo
 - Phase recall ≥ 80% of phases with traces.
 - Incidents/day ≤ 25 and ≥ 90% fewer than raw IDS alerts. The budget of 25 is `ml.incidents_per_day_budget`.
 - ATT&CK top-3 (strict) ≥ 70%.
-- Manual faithfulness ≥ 90% with the Verifier, and higher than without.
+- Manual faithfulness ≥ 90% with the Verifier, and higher than without. NOT MEASURED; the target stands as frozen and is not reported as met or missed (changed: see status.md D67).
 
 ### 10.6 Outputs
 
@@ -515,7 +515,7 @@ Fixed before any result of `wardbeck` or `harrison` exists. Metric definitions (
 | Incidents/day, alert reduction | not pooled: per testbed, each against the budget of 25 |
 | ATT&CK top-1/top-3 | over all malicious incidents of the three |
 | Verdict | over all malicious incidents of the three; the benign column of the §10.2 confusion matrix adds the other incidents of the three, as F1 needs it; label-ambiguous incidents follow D17 (changed: see status.md D62) |
-| Manual faithfulness | one sample of claims from the reports of the three, rated once |
+| Manual faithfulness | one sample of claims from the reports of the three, rated once. NOT MEASURED; AI-annotated faithfulness covers every claim of the three instead (changed: see status.md D67) |
 
 - Ablations (§10.4) and the LLM-only baseline (§10.3) stay on santos: each test testbed runs the agents once.
 - Data is never pooled: no model, scaler, vocabulary, percentile reference or threshold is shared between testbeds.
@@ -639,14 +639,14 @@ Accept: draw committed before any download; parse rate ≥ 99% per file or repor
 
 ### M11 — Evaluation (`m11-eval`)
 Read: §10, §11.
-Tasks: metrics, baselines, ablations, LLM-only baseline, human-eval export (`reports/human_eval/sheet.csv`) and import, `evaluate` command, `05_evaluation.ipynb`, `reports/results.md`.
-Accept: every metric in §10.2 and every baseline/ablation in §10.3–10.4 has a number (manual faithfulness and human eval may be pending team input; mark them "PENDING" in results.md and status.md); results regenerate from cache with one command.
+Tasks: metrics, baselines, ablations, LLM-only baseline, AI-annotated faithfulness, `evaluate` command, `05_evaluation.ipynb`, `reports/results.md` (changed: see status.md D67, D68).
+Accept: every metric in §10.2 and every baseline/ablation in §10.3–10.4 has a number, except manual faithfulness, marked NOT MEASURED, and human evaluation, marked NOT PERFORMED, in results.md and status.md (changed: see status.md D67, D68); results regenerate from cache with one command.
 
 ### M12 — Stretch (`m12-stretch`, optional)
 DeepLog-style LSTM next-template model on one log type; long-term memory evaluation ("similar incident" usefulness). Only after M11 is merged.
 
 ### M13 — Finalize (`m13-final`)
-README complete (architecture figure, results table, how to reproduce), all notebooks executed in order from a clean state, license/attribution, final status.md.
+README complete (architecture figure, results table, how to reproduce), all notebooks executed in order from a clean state, license/attribution, final status.md, an AI browser check of the dashboard pages (changed: see status.md D68).
 Accept: fresh-clone reproduction steps verified; tag `v1.0`.
 
 Order constraints: M7 may start after M2 (in parallel with M3–M6 on its own branch). Everything else is sequential.
