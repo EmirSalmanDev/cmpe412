@@ -14,3 +14,4 @@ santos,ablation:base:recheck,2026-11-07T07:54:48+00:00,"D69: replay after the ll
 santos,ablation:verifier0:retry1,2026-11-07T07:59:26+00:00,"D69: one retry, the first run failed on an empty response from the endpoint before any output"
 santos,ablation:rag0,2026-11-07T08:00:31+00:00,"D65: RAG off, once, n = 3, illustrative"
 santos,ablation:few_shot1,2026-11-07T08:02:24+00:00,"D65: few-shot Reporter, once, n = 3, illustrative"
+russellmitchell,llm_only_check,2026-11-07T08:03:53+00:00,"D66: output format check on 2 dev windows, once"
