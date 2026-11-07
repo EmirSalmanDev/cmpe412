@@ -2,3 +2,7 @@ testbed,stage,utc,reason
 santos,detect,2026-11-06T06:13:00+00:00,"Before this ledger: M5, last run by the time of scores.parquet"
 santos,supervised,2026-11-06T06:46:37+00:00,"Before this ledger: three runs, see D40; the time is the commit of run 1"
 santos,investigate,2026-11-06T08:59:30+00:00,"Before this ledger: the accidental run of D47"
+wardbeck,detect,2026-11-07T05:47:50+00:00,
+harrison,detect,2026-11-07T05:48:15+00:00,
+wardbeck,supervised,2026-11-07T05:48:43+00:00,
+harrison,supervised,2026-11-07T05:49:19+00:00,
