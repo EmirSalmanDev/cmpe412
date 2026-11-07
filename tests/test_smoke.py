@@ -161,3 +161,14 @@ def test_prepare_needs_the_downloaded_testbed() -> None:
     result = runner.invoke(app, ["prepare", "--testbed", "nope", "--config", str(CONFIG)])
     assert result.exit_code == 1
     assert "logtriage download" in result.output
+
+
+def test_a_failed_command_keeps_its_traceback(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail(*args: object, **kwargs: object) -> None:
+        raise ValueError("the endpoint broke")
+
+    monkeypatch.setattr("logtriage.cli.run_ablation", fail)
+    result = runner.invoke(app, ["ablate", "--condition", "rag0", "--reason", "why"])
+    assert result.exit_code == 1
+    assert "Traceback (most recent call last)" in result.output
+    assert "ablate failed: the endpoint broke" in result.output

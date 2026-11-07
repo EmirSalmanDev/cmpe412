@@ -1,6 +1,7 @@
 """Guards of the test testbeds (D39, D47, D53, D57): one test per guard, on every test testbed."""
 
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import duckdb
@@ -77,7 +78,7 @@ def test_the_committed_ledger_holds_every_santos_stage() -> None:
     settings = Settings(_env_file=None)
     settings.paths.reports_dir = ROOT / "reports"
     rows = guards.recorded_runs(settings)
-    assert {row["stage"] for row in rows if row["testbed"] == TEST_TESTBED} == set(ALL_STAGES)
+    assert {row["stage"] for row in rows if row["testbed"] == TEST_TESTBED} >= set(ALL_STAGES)
 
 
 # Freeze guard.
@@ -308,3 +309,56 @@ def test_a_run_outside_the_list_leaves_the_ledger_alone(tmp_path: Path) -> None:
     settings = settings_at(tmp_path)
     guards.record_run(guards.DETECT, DEV_TESTBED, settings, None)
     assert not guards.runs_path(settings).exists()
+
+
+@pytest.mark.parametrize("stage", [guards.DETECT, guards.SUPERVISED, guards.INVESTIGATE])
+@pytest.mark.parametrize("testbed", ["santos", "wardbeck", "harrison"])
+def test_the_retry_rule_never_covers_the_once_only_stages(
+    tmp_path: Path, stage: str, testbed: str
+) -> None:
+    settings = Settings(_env_file=None)
+    settings.paths.reports_dir = tmp_path
+    guards.record_run(stage, testbed, settings, None)
+    long_ago = datetime(2020, 1, 1, tzinfo=UTC)
+    with pytest.raises(ValueError, match="only ablation and LLM-only"):
+        guards.check_retry(stage, testbed, settings, long_ago, [])
+
+
+def test_a_retry_needs_a_failed_run_and_the_wait(tmp_path: Path) -> None:
+    settings = Settings(_env_file=None)
+    settings.paths.reports_dir = tmp_path
+    stage = "ablation:rag0"
+    ended = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+    with pytest.raises(ValueError, match="nothing to retry"):
+        guards.check_retry(stage, "santos", settings, ended, [])
+    guards.record_stage(stage, "santos", settings, "why")
+    with pytest.raises(ValueError, match="wait"):
+        guards.check_retry(
+            stage, "santos", settings, ended, [], ended + timedelta(minutes=9, seconds=59)
+        )
+    guards.check_retry(stage, "santos", settings, ended, [], ended + timedelta(minutes=10))
+    guards.record_stage(guards.retry_name(stage), "santos", settings, "why")
+    with pytest.raises(ValueError, match="stop and report"):
+        guards.check_retry(stage, "santos", settings, ended, [], ended + timedelta(hours=1))
+
+
+def test_a_stage_that_wrote_output_is_not_retried(tmp_path: Path) -> None:
+    settings = Settings(_env_file=None)
+    settings.paths.reports_dir = tmp_path
+    guards.record_stage(guards.LLM_ONLY, "santos", settings, "why")
+    output = tmp_path / "written"
+    output.touch()
+    long_ago = datetime(2020, 1, 1, tzinfo=UTC)
+    with pytest.raises(ValueError, match="wrote output"):
+        guards.check_retry(guards.LLM_ONLY, "santos", settings, long_ago, [output])
+
+
+def test_a_paid_stage_is_once_only_and_needs_a_reason(tmp_path: Path) -> None:
+    settings = Settings(_env_file=None)
+    settings.paths.reports_dir = tmp_path
+    guards.check_once(guards.LLM_ONLY_CHECK, "russellmitchell", settings)
+    with pytest.raises(ValueError, match="needs a reason"):
+        guards.record_stage(guards.LLM_ONLY_CHECK, "russellmitchell", settings, " ")
+    guards.record_stage(guards.LLM_ONLY_CHECK, "russellmitchell", settings, "why")
+    with pytest.raises(ValueError, match="never runs twice"):
+        guards.check_once(guards.LLM_ONLY_CHECK, "russellmitchell", settings)

@@ -4,19 +4,20 @@ import logging
 import os
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from logtriage.agents.llm import CacheMissError
+from logtriage.agents.llm import CacheMissError, EmptyResponseError, FingerprintChangedError
 from logtriage.agents.runner import run_incidents
 from logtriage.app.data import AppOptions, database_path
 from logtriage.app.replay import check_live
 from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, Settings, load_settings
 from logtriage.data.download import InsufficientDiskError, run_download
 from logtriage.data.inventory import run_inventory
-from logtriage.eval.ablations import run_ablation
+from logtriage.eval.ablations import RECHECK, RETRY, run_ablation
 from logtriage.ml.detect import run_detect
 from logtriage.prepare import refresh_databases, run_prepare
 from logtriage.rag.attack_index import run_index_attack
@@ -35,6 +36,13 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
+def _report_failure(command: str, error: BaseException) -> None:
+    """Print the whole traceback of a failed command, then its one-line message (D69)."""
+    trace = "".join(traceback.format_exception(error))
+    typer.echo(trace, err=True)
+    typer.echo(f"{command} failed: {error}", err=True)
+
+
 def _not_implemented(command: str, testbed: str, config: Path) -> None:
     """Print the stub message for a command."""
     typer.echo(f"{command}: not implemented yet (testbed={testbed}, config={config})")
@@ -48,7 +56,7 @@ def download(
     try:
         run_download(testbed, load_settings(config))
     except (ValueError, InsufficientDiskError) as error:
-        typer.echo(f"download failed: {error}", err=True)
+        _report_failure("download", error)
         raise typer.Exit(code=1) from error
 
 
@@ -60,7 +68,7 @@ def inventory(
     try:
         report = run_inventory(testbed, load_settings(config))
     except (ValueError, FileNotFoundError) as error:
-        typer.echo(f"inventory failed: {error}", err=True)
+        _report_failure("inventory", error)
         raise typer.Exit(code=1) from error
     typer.echo(f"wrote {report}")
 
@@ -73,7 +81,7 @@ def prepare(
     try:
         out_dir = run_prepare(testbed, load_settings(config))
     except (ValueError, FileNotFoundError) as error:
-        typer.echo(f"prepare failed: {error}", err=True)
+        _report_failure("prepare", error)
         raise typer.Exit(code=1) from error
     typer.echo(f"wrote {out_dir}")
 
@@ -92,7 +100,7 @@ def detect(
         out_dir = run_detect(testbed, settings, rerun_reason)
         refresh_databases(testbed, settings)
     except (ValueError, FileNotFoundError) as error:
-        typer.echo(f"detect failed: {error}", err=True)
+        _report_failure("detect", error)
         raise typer.Exit(code=1) from error
     typer.echo(f"wrote {out_dir}")
 
@@ -105,7 +113,7 @@ def index_attack(
     try:
         count = run_index_attack(load_settings(config))
     except (ValueError, FileNotFoundError) as error:
-        typer.echo(f"index-attack failed: {error}", err=True)
+        _report_failure("index-attack", error)
         raise typer.Exit(code=1) from error
     typer.echo(f"indexed {count} techniques")
 
@@ -132,7 +140,7 @@ def investigate(
             rerun_reason=rerun_reason,
         )
     except (ValueError, FileNotFoundError, KeyError) as error:
-        typer.echo(f"investigate failed: {error}", err=True)
+        _report_failure("investigate", error)
         raise typer.Exit(code=1) from error
     typer.echo(
         f"{len(summary.finished)} reports, {len(summary.failed)} failed, "
@@ -150,12 +158,26 @@ def ablate(
     ],
     reason: Annotated[str, typer.Option("--reason", help="Why it runs, for the ledger.")],
     config: ConfigOption = DEFAULT_CONFIG_PATH,
+    retry: Annotated[
+        bool, typer.Option("--retry", help="The one retry after an API failure (D69).")
+    ] = False,
+    recheck: Annotated[
+        bool, typer.Option("--recheck", help="Replay base again, to prove keys held (D69).")
+    ] = False,
 ) -> None:
     """Run one ablation condition on santos, once, apart from the official reports (D65)."""
+    attempt = RETRY if retry else RECHECK if recheck else None
     try:
-        summary = run_ablation(condition, reason, load_settings(config))
-    except (ValueError, FileNotFoundError, KeyError, CacheMissError) as error:
-        typer.echo(f"ablate failed: {error}", err=True)
+        summary = run_ablation(condition, reason, load_settings(config), attempt=attempt)
+    except (
+        ValueError,
+        FileNotFoundError,
+        KeyError,
+        CacheMissError,
+        FingerprintChangedError,
+        EmptyResponseError,
+    ) as error:
+        _report_failure("ablate", error)
         raise typer.Exit(code=1) from error
     typer.echo(
         f"{condition}: {len(summary.finished)} reports, {len(summary.failed)} failed, "
@@ -211,7 +233,7 @@ def run_app(
         if not database_path(settings, testbed).is_file():
             raise ValueError(f"{testbed}: no agent database, run `logtriage prepare` first")
     except ValueError as error:
-        typer.echo(f"app failed: {error}", err=True)
+        _report_failure("app", error)
         raise typer.Exit(code=1) from error
     options = AppOptions(testbed, config, live)
     env = {**os.environ, **options.to_env()}

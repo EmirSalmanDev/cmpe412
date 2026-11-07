@@ -345,7 +345,7 @@ Lives in `eval/` because the plots are colored by ground truth. PCA and t-SNE of
 - OpenAI-compatible client via `langchain_openai.ChatOpenAI(base_url=cfg.llm.base_url, model=cfg.llm.model, api_key=env)`. Defaults: `base_url=https://api.deepseek.com`, `model=deepseek-flash`, `temperature=0` for evaluation runs, and `thinking: disabled`, because thinking mode ignores `temperature` (changed: see status.md D44).
 - Verify the model string and parameters against DeepSeek's API docs in M8. Record the result in status.md.
 - One model for all roles. `deepseek-flash` is a rolling alias, so each report records `system_fingerprint` (changed: see status.md D44). A switch to `deepseek-v4-pro` (if ever) is a config change, and it **requires re-running the full LLM evaluation (M11)** so reported numbers match the demo model.
-- Structured outputs: request JSON (`response_format={"type": "json_object"}`; the prompt must contain the word "json" and the schema), parse with Pydantic. On validation failure retry up to 2 times, feeding the validation error back.
+- Structured outputs: request JSON (`response_format={"type": "json_object"}`; the prompt must contain the word "json" and the schema), parse with Pydantic. On validation failure retry up to 2 times, feeding the validation error back. An empty response from the endpoint is sent again within the same limit (changed: see status.md D69).
 - Tool calling: native function calling. M8 MUST include a live smoke test (`@pytest.mark.live`) proving a full tool-call round trip works with the configured model. If the model returns reasoning fields that must be echoed back in multi-turn tool use, handle it in `llm.py`.
 - **Cache**: SQLite cache in `data/cache/llm.sqlite` keyed by `sha256(model, messages, tools, params)`. Evaluation reruns hit the cache. A `--no-cache` flag bypasses it.
 - **Cost**: record `tokens_in`, `tokens_out`, cache-hit tokens per call. Price table in `configs/default.yaml` (`llm.pricing_usd_per_1m: {off_peak, peak}`, each `{input, cached_input, output}`, chosen by `llm.peak_hours_utc`) (changed: see status.md D45). Verify the prices on DeepSeek's pricing page in M8. Budget guard `llm.max_usd_per_run` (default 5) aborts a run cleanly when exceeded, and `llm.max_usd_total` (10) does the same for cumulative spend (changed: see status.md D45).
@@ -488,7 +488,7 @@ All numbers on the **santos evaluation period** unless stated. Dev numbers are r
 
 ### 10.4 Ablations (on all santos incidents, or the top 100 by priority if more)
 
-Verifier on/off · RAG on/off in Mapper · zero-shot vs few-shot Reporter. Same incidents, same model, `temperature=0`, cache keyed per condition. Run by `logtriage ablate`, once per condition, apart from the official reports and memory; with n = 3 the results are illustrative (changed: see status.md D65).
+Verifier on/off · RAG on/off in Mapper · zero-shot vs few-shot Reporter. Same incidents, same model, `temperature=0`, cache keyed per condition. Run by `logtriage ablate`, once per condition, apart from the official reports and memory; with n = 3 the results are illustrative (changed: see status.md D65). A paid M11 stage that fails from an API or infrastructure error before writing any output may be retried once, after at least 10 minutes (changed: see status.md D69).
 
 ### 10.5 Targets
 

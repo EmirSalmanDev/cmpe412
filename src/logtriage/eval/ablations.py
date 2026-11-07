@@ -9,6 +9,7 @@ from the cache with no key and a backend that refuses, so it cannot spend anythi
 import hashlib
 import json
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,8 @@ from logtriage.config import Settings
 
 ABLATION_TESTBED = "santos"
 BASE = "base"
+RETRY = guards.RETRY_SUFFIX
+RECHECK = "recheck"
 # Each row is a change of `agents`, in a copy of the settings in memory; the config stays as it is.
 CONDITIONS: dict[str, dict[str, bool]] = {
     BASE: {},
@@ -82,6 +85,11 @@ def table_path(settings: Settings, condition: str) -> Path:
     return settings.paths.reports_dir / RESULTS_DIR / f"ablation_{condition}.csv"
 
 
+def failed_at(target: Path) -> datetime:
+    """Return when a run ended: the ledger file is written last, whatever happened."""
+    return datetime.fromtimestamp((target / LEDGER_FILE).stat().st_mtime, UTC)
+
+
 def condition_settings(settings: Settings, condition: str) -> Settings:
     """Return a copy of the settings with the switches of a condition."""
     agents = settings.agents.model_copy(update=CONDITIONS[condition])
@@ -90,7 +98,11 @@ def condition_settings(settings: Settings, condition: str) -> Settings:
 
 
 def check_ablation(
-    condition: str, reason: str, settings: Settings, testbed: str = ABLATION_TESTBED
+    condition: str,
+    reason: str,
+    settings: Settings,
+    testbed: str = ABLATION_TESTBED,
+    attempt: str | None = None,
 ) -> None:
     """Refuse an ablation that may not run (m11_design.md 3a).
 
@@ -99,10 +111,12 @@ def check_ablation(
         reason: Why it runs; it goes in the ledger.
         settings: Loaded settings.
         testbed: Must be santos (plan 10.7).
+        attempt: None for the one run, `RETRY` for the one retry, `RECHECK` for a second replay.
 
     Raises:
         ValueError: In the container whatever else holds (D53). Then on another testbed, an unknown
-            condition, prompts that are not frozen, an empty reason, or a second run.
+            condition, prompts that are not frozen, an empty reason, or a second run. A retry must
+            also pass `guards.check_retry` (D69).
     """
     guards.check_container(testbed)
     if testbed != ABLATION_TESTBED:
@@ -113,7 +127,18 @@ def check_ablation(
         raise ValueError(f"{testbed}: freeze the prompts first (agents.prompts_frozen)")
     if not reason.strip():
         raise ValueError("an ablation needs a reason")
-    guards.check_once(stage_name(condition), testbed, settings)
+    if attempt is None:
+        guards.check_once(stage_name(condition), testbed, settings)
+    elif attempt == RECHECK:
+        if condition != BASE:
+            raise ValueError("only the replay can be checked again: it cannot spend anything")
+        guards.check_once(f"{stage_name(condition)}:{RECHECK}", testbed, settings)
+    elif attempt == RETRY:
+        target = output_dir(settings, condition, testbed)
+        outputs = [*report_files(target), table_path(settings, condition)]
+        guards.check_retry(stage_name(condition), testbed, settings, failed_at(target), outputs)
+    else:
+        raise ValueError(f"unknown attempt {attempt}")
 
 
 def run_ablation(
@@ -123,6 +148,7 @@ def run_ablation(
     testbed: str = ABLATION_TESTBED,
     backend: Any = None,
     tools: AgentTools | None = None,
+    attempt: str | None = None,
 ) -> RunSummary:
     """Run one condition once.
 
@@ -133,6 +159,8 @@ def run_ablation(
         testbed: Must be santos.
         backend: Chat model; the configured one if None. `base` always refuses.
         tools: Agent tools; opened here, with a memory of the condition's own, if None.
+        attempt: None for the one run, `RETRY` for the one retry after an API failure, `RECHECK`
+            to replay `base` again into a directory of its own (D69).
 
     Returns:
         The outcome of the run.
@@ -141,9 +169,11 @@ def run_ablation(
         CacheMissError: If `base` cannot be replayed. It costs nothing, and the saved reports
             then stand as the Verifier-on condition.
     """
-    check_ablation(condition, reason, settings, testbed)
-    guards.record_stage(stage_name(condition), testbed, settings, reason)
-    target = output_dir(settings, condition, testbed)
+    check_ablation(condition, reason, settings, testbed, attempt)
+    stage = stage_name(condition) if attempt is None else f"{stage_name(condition)}:{attempt}"
+    guards.record_stage(stage, testbed, settings, reason)
+    name = f"{condition}_{RECHECK}" if attempt == RECHECK else condition
+    target = output_dir(settings, name, testbed)
     target.mkdir(parents=True, exist_ok=True)
     changed = condition_settings(settings, condition)
     before = ledger_state(settings)
@@ -155,7 +185,7 @@ def run_ablation(
             testbed,
             changed,
             target,
-            table_path(settings, condition),
+            table_path(settings, name),
             backend=RefusingBackend() if replay else backend,
             tools=tools,
             cache_only=replay,
@@ -166,10 +196,9 @@ def run_ablation(
         if owned:
             tools.close()
         after = ledger_state(settings)
-        (target / LEDGER_FILE).write_text(
-            json.dumps({"before": asdict(before), "after": asdict(after)}, indent=2),
-            encoding="utf-8",
-        )
+        with (target / LEDGER_FILE).open("a", encoding="utf-8") as handle:
+            state = {"stage": stage, "before": asdict(before), "after": asdict(after)}
+            handle.write(json.dumps(state) + "\n")
     return summary
 
 
@@ -184,24 +213,28 @@ def comparable(report: dict[str, Any]) -> dict[str, Any]:
     return {**report, "meta": meta}
 
 
-def replay_proof(settings: Settings, testbed: str = ABLATION_TESTBED) -> pd.DataFrame:
-    """Compare the `base` replay with the official reports (m11_design.md 3a).
+def replay_proof(
+    settings: Settings, testbed: str = ABLATION_TESTBED, name: str = BASE
+) -> pd.DataFrame:
+    """Compare a replay with the official reports (m11_design.md 3a).
 
     Args:
         settings: Loaded settings.
         testbed: Santos.
+        name: `base`, or `base_recheck` for the replay after the D69 fix.
 
     Returns:
         One row per official report, with the checks of the proof. A report the replay does not
         have is a row with `replayed` False.
     """
     official_dir = settings.paths.processed_dir / testbed / REPORTS_DIR
-    replay_dir = output_dir(settings, BASE, testbed)
+    replay_dir = output_dir(settings, name, testbed)
     rows = []
     for path in report_files(official_dir):
         twin = replay_dir / path.name
         saved = json.loads(path.read_text(encoding="utf-8"))
         row: dict[str, Any] = {
+            "replay": name,
             "incident_id": path.stem,
             "official_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             "replayed": twin.is_file(),

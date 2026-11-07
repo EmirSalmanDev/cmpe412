@@ -258,7 +258,7 @@ def run_queue(
                 summary.aborted = str(error)
                 break
             except (LLMOutputError, openai.APIError) as error:
-                logger.error("%s failed: %s", incident_id, error)
+                logger.exception("%s failed: %s", incident_id, error)
                 summary.failed[incident_id] = str(error)
                 if stop_on_failure:
                     summary.aborted = f"{incident_id} failed: {error}"

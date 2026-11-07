@@ -28,6 +28,10 @@ class LLMOutputError(RuntimeError):
     """The model did not produce a valid answer within the allowed retries."""
 
 
+class EmptyResponseError(RuntimeError):
+    """The endpoint answered with no body at all, which the HTTP client does not retry (D69)."""
+
+
 class CacheMissError(RuntimeError):
     """A cache-only client would have to pay for a call (D65)."""
 
@@ -68,7 +72,14 @@ class DeepSeekChat(ChatOpenAI):
         return payload
 
     def _create_chat_result(self, response: Any, generation_info: dict | None = None) -> Any:
-        """Copy the reasoning of the raw answer onto the message."""
+        """Copy the reasoning of the raw answer onto the message.
+
+        Raises:
+            EmptyResponseError: If the endpoint sent nothing. The parent raises a plain ValueError
+                there, which nothing could tell from a real fault.
+        """
+        if response is None:
+            raise EmptyResponseError("the endpoint returned an empty response")
         result = super()._create_chat_result(response, generation_info)
         data = response if isinstance(response, dict) else response.model_dump()
         for generation, choice in zip(result.generations, data.get("choices", []), strict=False):
@@ -287,13 +298,28 @@ class LLMClient:
                 f"total spend {total:.4f} USD reached llm.max_usd_total {self.config.max_usd_total}"
             )
 
+    def _invoke(self, role: str, messages: list[BaseMessage], kwargs: dict[str, Any]) -> AIMessage:
+        """Call the model, sending the same request again after an empty response (D69).
+
+        Raises:
+            LLMOutputError: If `llm.json_retries` retries all come back empty.
+        """
+        for attempt in range(self.config.json_retries + 1):
+            try:
+                return self.backend.invoke(messages, **kwargs)
+            except EmptyResponseError as error:
+                last = error
+                if attempt < self.config.json_retries:
+                    self.tally.retries += 1
+        raise LLMOutputError(f"{role}: no valid answer: {last}")
+
     def _paid_answer(
         self, role: str, messages: list[BaseMessage], kwargs: dict[str, Any]
     ) -> dict[str, Any]:
         """Make the real call and record what it cost."""
         self._check_budget()
         began = time.perf_counter()
-        reply = self.backend.invoke(messages, **kwargs)
+        reply = self._invoke(role, messages, kwargs)
         latency = time.perf_counter() - began
         tokens_in, tokens_cached, tokens_out = _usage(reply)
         rates = rates_at(

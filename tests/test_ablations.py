@@ -2,9 +2,10 @@
 
 import hashlib
 import json
+import os
 import shutil
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -20,7 +21,14 @@ from logtriage.agents.runner import run_incidents
 from logtriage.agents.tools import AgentTools
 from logtriage.config import TEST_TESTBED
 from logtriage.eval import ablations
-from logtriage.eval.ablations import BASE, RefusingBackend, check_ablation, run_ablation
+from logtriage.eval.ablations import (
+    BASE,
+    RECHECK,
+    RETRY,
+    RefusingBackend,
+    check_ablation,
+    run_ablation,
+)
 from rag_fakes import FakeEmbedder
 
 FINGERPRINT = ablations.EXPECTED_FINGERPRINT
@@ -260,8 +268,92 @@ def test_the_ledger_file_holds_both_states(tmp_path: Path, tools: AgentTools) ->
     settings = frozen(tmp_path)
     run_ablation("verifier0", "why", settings, backend=PinnedChat(), tools=tools)
     target = ablations.output_dir(settings, "verifier0") / ablations.LEDGER_FILE
-    state = json.loads(target.read_text(encoding="utf-8"))
+    state = json.loads(target.read_text(encoding="utf-8").splitlines()[-1])
+    assert state["stage"] == "ablation:verifier0"
     assert state["after"]["rows"] > state["before"]["rows"]
+
+
+def back_date(settings, condition: str, minutes: int) -> None:
+    """Make the end of a failed run lie some minutes in the past."""
+    path = ablations.output_dir(settings, condition) / ablations.LEDGER_FILE
+    moment = (datetime.now(UTC) - timedelta(minutes=minutes)).timestamp()
+    os.utime(path, (moment, moment))
+
+
+def failed_run(settings, tools: AgentTools) -> None:
+    """Fail a condition with a fault of the endpoint, before any output."""
+
+    class Broken(PinnedChat):
+        def invoke(self, messages, **kwargs) -> AIMessage:
+            raise ValueError("Unexpected response type")
+
+    with pytest.raises(ValueError, match="Unexpected"):
+        run_ablation("verifier0", "first", settings, backend=Broken(), tools=tools)
+
+
+def test_a_failed_condition_gets_one_retry_after_the_wait(
+    tmp_path: Path, tools: AgentTools
+) -> None:
+    settings = frozen(tmp_path)
+    failed_run(settings, tools)
+    with pytest.raises(ValueError, match="wait"):
+        run_ablation(
+            "verifier0", "again", settings, backend=PinnedChat(), tools=tools, attempt=RETRY
+        )
+    back_date(settings, "verifier0", 11)
+    summary = run_ablation(
+        "verifier0", "again", settings, backend=PinnedChat(), tools=tools, attempt=RETRY
+    )
+    assert summary.failed == {}
+    stages = [row["stage"] for row in guards.recorded_runs(settings)]
+    assert stages == ["ablation:verifier0", "ablation:verifier0:retry1"]
+
+
+def test_a_second_failure_gets_no_retry(tmp_path: Path, tools: AgentTools) -> None:
+    settings = frozen(tmp_path)
+    failed_run(settings, tools)
+    back_date(settings, "verifier0", 11)
+
+    class Broken(PinnedChat):
+        def invoke(self, messages, **kwargs) -> AIMessage:
+            raise ValueError("Unexpected response type")
+
+    with pytest.raises(ValueError, match="Unexpected"):
+        run_ablation("verifier0", "again", settings, backend=Broken(), tools=tools, attempt=RETRY)
+    back_date(settings, "verifier0", 11)
+    with pytest.raises(ValueError, match="stop and report"):
+        run_ablation(
+            "verifier0", "third", settings, backend=PinnedChat(), tools=tools, attempt=RETRY
+        )
+
+
+def test_a_run_that_wrote_output_gets_no_retry(tmp_path: Path, tools: AgentTools) -> None:
+    settings = frozen(tmp_path)
+    run_ablation("verifier0", "first", settings, backend=PinnedChat(), tools=tools)
+    back_date(settings, "verifier0", 11)
+    with pytest.raises(ValueError, match="wrote output"):
+        run_ablation(
+            "verifier0", "again", settings, backend=PinnedChat(), tools=tools, attempt=RETRY
+        )
+
+
+def test_the_replay_can_be_checked_again_into_its_own_directory(
+    tmp_path: Path, tools: AgentTools
+) -> None:
+    official(tmp_path, tools)
+    settings = frozen(tmp_path)
+    run_ablation(BASE, "proof", settings, tools=tools)
+    run_ablation(BASE, "after the fix", settings, tools=tools, attempt=RECHECK)
+    proof = ablations.replay_proof(settings, name="base_recheck")
+    assert proof["identical"].all()
+    assert (proof["cached_calls"] == proof["llm_calls"]).all()
+    with pytest.raises(ValueError, match="never runs twice"):
+        run_ablation(BASE, "third", settings, tools=tools, attempt=RECHECK)
+
+
+def test_only_the_replay_can_be_checked_again(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="only the replay"):
+        check_ablation("rag0", "why", frozen(tmp_path), attempt=RECHECK)
 
 
 def test_the_replay_proof_of_nothing_is_empty(tmp_path: Path) -> None:
