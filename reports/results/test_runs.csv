@@ -11,3 +11,6 @@ harrison,investigate,2026-11-07T06:25:46+00:00,
 santos,ablation:base,2026-11-07T07:44:23+00:00,"D65: Verifier-on replay from the cache, proves 0 cost"
 santos,ablation:verifier0,2026-11-07T07:44:41+00:00,"D65: Verifier off, once, n = 3, illustrative"
 santos,ablation:base:recheck,2026-11-07T07:54:48+00:00,"D69: replay after the llm.py fix, must stay exact"
+santos,ablation:verifier0:retry1,2026-11-07T07:59:26+00:00,"D69: one retry, the first run failed on an empty response from the endpoint before any output"
+santos,ablation:rag0,2026-11-07T08:00:31+00:00,"D65: RAG off, once, n = 3, illustrative"
+santos,ablation:few_shot1,2026-11-07T08:02:24+00:00,"D65: few-shot Reporter, once, n = 3, illustrative"
