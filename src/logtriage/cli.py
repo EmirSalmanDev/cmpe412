@@ -9,12 +9,14 @@ from typing import Annotated
 
 import typer
 
+from logtriage.agents.llm import CacheMissError
 from logtriage.agents.runner import run_incidents
 from logtriage.app.data import AppOptions, database_path
 from logtriage.app.replay import check_live
 from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, Settings, load_settings
 from logtriage.data.download import InsufficientDiskError, run_download
 from logtriage.data.inventory import run_inventory
+from logtriage.eval.ablations import run_ablation
 from logtriage.ml.detect import run_detect
 from logtriage.prepare import refresh_databases, run_prepare
 from logtriage.rag.attack_index import run_index_attack
@@ -134,6 +136,29 @@ def investigate(
         raise typer.Exit(code=1) from error
     typer.echo(
         f"{len(summary.finished)} reports, {len(summary.failed)} failed, "
+        f"{summary.spent_usd:.4f} USD this run, {summary.total_spent_usd:.4f} USD in total"
+    )
+    if summary.aborted:
+        typer.echo(f"stopped: {summary.aborted}", err=True)
+        raise typer.Exit(code=2)
+
+
+@app.command()
+def ablate(
+    condition: Annotated[
+        str, typer.Option("--condition", help="base, verifier0, rag0, few_shot1.")
+    ],
+    reason: Annotated[str, typer.Option("--reason", help="Why it runs, for the ledger.")],
+    config: ConfigOption = DEFAULT_CONFIG_PATH,
+) -> None:
+    """Run one ablation condition on santos, once, apart from the official reports (D65)."""
+    try:
+        summary = run_ablation(condition, reason, load_settings(config))
+    except (ValueError, FileNotFoundError, KeyError, CacheMissError) as error:
+        typer.echo(f"ablate failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    typer.echo(
+        f"{condition}: {len(summary.finished)} reports, {len(summary.failed)} failed, "
         f"{summary.spent_usd:.4f} USD this run, {summary.total_spent_usd:.4f} USD in total"
     )
     if summary.aborted:

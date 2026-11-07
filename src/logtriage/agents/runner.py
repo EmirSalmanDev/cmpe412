@@ -143,6 +143,11 @@ def check_test_run(
     guards.check_run(guards.INVESTIGATE, testbed, settings, [reports_dir / RUN_FILE], rerun_reason)
 
 
+def default_table(testbed: str, settings: Settings) -> Path:
+    """Return the path of the official run table of a testbed."""
+    return settings.paths.reports_dir / "results" / f"agents_{testbed}.csv"
+
+
 def run_incidents(
     testbed: str,
     settings: Settings,
@@ -172,6 +177,53 @@ def run_incidents(
     reports_dir = settings.paths.processed_dir / testbed / REPORTS_DIR
     check_test_run(testbed, settings, reports_dir, rerun_reason)
     guards.record_run(guards.INVESTIGATE, testbed, settings, rerun_reason)
+    return run_queue(
+        testbed,
+        settings,
+        reports_dir,
+        default_table(testbed, settings),
+        incident_ids=incident_ids,
+        use_cache=use_cache,
+        rerun_reason=rerun_reason,
+        backend=backend,
+        tools=tools,
+    )
+
+
+def run_queue(
+    testbed: str,
+    settings: Settings,
+    reports_dir: Path,
+    table_path: Path,
+    *,
+    incident_ids: list[str] | None = None,
+    use_cache: bool = True,
+    rerun_reason: str | None = None,
+    backend: ChatBackend | None = None,
+    tools: AgentTools | None = None,
+    cache_only: bool = False,
+    expected_fingerprint: str | None = None,
+    stop_on_failure: bool = False,
+) -> RunSummary:
+    """Run the graph over incidents, with no guard: callers check and record first.
+
+    Args:
+        testbed: Testbed name.
+        settings: Loaded settings.
+        reports_dir: Where the reports and the run summary go.
+        table_path: The run table to write.
+        incident_ids: Only these incidents; all if None.
+        use_cache: False bypasses reading the LLM cache.
+        rerun_reason: Kept in the run summary.
+        backend: Chat model; the configured one if None.
+        tools: Agent tools; opened from the testbed if None.
+        cache_only: Raise on a call the cache cannot answer, so nothing can be paid.
+        expected_fingerprint: Stop if a paid answer comes from another model (D44).
+        stop_on_failure: End the run at the first failed incident, with no retry.
+
+    Returns:
+        The outcome. `aborted` holds the reason if a limit or a failure stopped the run.
+    """
     prompts = load_prompts(settings.agents.few_shot)
     run = run_name(settings, prompts)
     owned = tools is None
@@ -184,6 +236,8 @@ def run_incidents(
         settings.llm,
         settings.agents.condition,
         use_cache,
+        cache_only,
+        expected_fingerprint,
     )
     runtime = AgentRuntime(client, tools, settings, prompts, reports_dir, run)
     graph = build_graph(runtime)
@@ -206,6 +260,9 @@ def run_incidents(
             except (LLMOutputError, openai.APIError) as error:
                 logger.error("%s failed: %s", incident_id, error)
                 summary.failed[incident_id] = str(error)
+                if stop_on_failure:
+                    summary.aborted = f"{incident_id} failed: {error}"
+                    break
                 continue
             summary.finished.append(incident_id)
     finally:
@@ -216,5 +273,5 @@ def run_incidents(
             tools.close()
     reports_dir.mkdir(parents=True, exist_ok=True)
     (reports_dir / RUN_FILE).write_text(json.dumps(asdict(summary), indent=2), encoding="utf-8")
-    write_run_table(reports_dir, settings.paths.reports_dir / "results" / f"agents_{testbed}.csv")
+    write_run_table(reports_dir, table_path)
     return summary

@@ -22,6 +22,9 @@ RUN_FIELDS = ["testbed", "stage", "utc", "reason"]
 DETECT = "detect"
 SUPERVISED = "supervised"
 INVESTIGATE = "investigate"
+ABLATION = "ablation"
+LLM_ONLY = "llm_only"
+LLM_ONLY_CHECK = "llm_only_check"
 
 
 def is_test_testbed(testbed: str, settings: Settings) -> bool:
@@ -83,10 +86,37 @@ def check_run(
         )
 
 
+def check_once(stage: str, testbed: str, settings: Settings) -> None:
+    """Allow a paid evaluation stage once on any testbed, with no override (D65, D66).
+
+    It is not `check_run`: these stages have no `--rerun-reason`, and they run on dev as well.
+
+    Raises:
+        ValueError: In the container, or if the ledger already holds the stage.
+    """
+    check_container(testbed)
+    if any(row["testbed"] == testbed and row["stage"] == stage for row in recorded_runs(settings)):
+        raise ValueError(f"{testbed}: {stage} already ran, and it never runs twice")
+
+
+def record_stage(stage: str, testbed: str, settings: Settings, reason: str) -> None:
+    """Add a paid evaluation stage to the ledger before it starts, on any testbed (D65, D66)."""
+    if not reason.strip():
+        raise ValueError(f"{stage}: a ledger row needs a reason")
+    _append_run(stage, testbed, settings, reason)
+
+
 def record_run(stage: str, testbed: str, settings: Settings, reason: str | None) -> None:
     """Add a run on a test testbed to the ledger, before it starts, so a crash counts as a run."""
     if not is_test_testbed(testbed, settings):
         return
+    _append_run(stage, testbed, settings, reason)
+    if reason:
+        logger.warning("%s on %s runs again: %s", stage, testbed, reason)
+
+
+def _append_run(stage: str, testbed: str, settings: Settings, reason: str | None) -> None:
+    """Write one row of the ledger."""
     path = runs_path(settings)
     path.parent.mkdir(parents=True, exist_ok=True)
     is_new = not path.is_file()
@@ -96,5 +126,3 @@ def record_run(stage: str, testbed: str, settings: Settings, reason: str | None)
             writer.writeheader()
         utc = datetime.now(UTC).isoformat(timespec="seconds")
         writer.writerow({"testbed": testbed, "stage": stage, "utc": utc, "reason": reason or ""})
-    if reason:
-        logger.warning("%s on %s runs again: %s", stage, testbed, reason)
