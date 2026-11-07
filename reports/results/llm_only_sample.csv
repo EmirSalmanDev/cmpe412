@@ -1,0 +1,41 @@
+position,window_start,host,log_type,stratum,phases,lines,lines_kept,labeled_lines,labeled_kept
+1,2022-01-16 14:00:00+00:00,inet-firewall,dns,normal,,75,75,0,0
+2,2022-01-17 11:24:00+00:00,inet-firewall,dns,attack,cracking,116,116,12,12
+3,2022-01-15 18:53:00+00:00,inet-firewall,dns,attack,dnsteal_exfil,24,24,12,12
+4,2022-01-16 10:15:00+00:00,vpn,vpn,normal,,21,21,0,0
+5,2022-01-16 02:20:00+00:00,inet-firewall,dns,attack,dnsteal_exfil,9,9,9,9
+6,2022-01-17 11:15:00+00:00,inet-firewall,dns,attack,network_scans,4,4,4,4
+7,2022-01-17 11:21:00+00:00,inet-firewall,dns,attack,network_scans service_scans,1082,300,783,300
+8,2022-01-17 11:22:00+00:00,inet-firewall,dns,attack,wpscan,268,268,8,8
+9,2022-01-17 00:39:00+00:00,mail,auth,normal,,2,2,0,0
+10,2022-01-17 10:07:00+00:00,vpn,vpn,normal,,21,21,0,0
+11,2022-01-15 19:09:00+00:00,rogersturnbull_mail,auth,normal,,2,2,0,0
+12,2022-01-16 13:37:00+00:00,inet-firewall,dns,normal,,4,4,0,0
+13,2022-01-16 21:17:00+00:00,inet-dns,auth,normal,,2,2,0,0
+14,2022-01-17 11:16:00+00:00,inet-firewall,dns,attack,network_scans,68,68,58,58
+15,2022-01-17 11:22:00+00:00,intranet_server,apache_access,attack,dirb webshell wpscan,7751,300,7750,300
+16,2022-01-15 07:36:00+00:00,inet-firewall,dns,attack,dnsteal_exfil,23,23,9,9
+17,2022-01-17 03:28:00+00:00,inet-firewall,dns,normal,,2,2,0,0
+18,2022-01-15 08:42:00+00:00,inet-firewall,dns,attack,dnsteal_exfil,18,18,12,12
+19,2022-01-15 10:35:00+00:00,mail,audit,normal,,10,10,0,0
+20,2022-01-16 07:24:00+00:00,inet-firewall,dns,normal,,43,43,0,0
+21,2022-01-16 01:56:00+00:00,inet-firewall,dns,attack,dnsteal_exfil,12,12,12,12
+22,2022-01-15 08:38:00+00:00,inet-firewall,dns,attack,dnsteal_exfil,12,12,12,12
+23,2022-01-15 13:14:00+00:00,mail,audit,normal,,2,2,0,0
+24,2022-01-15 22:27:00+00:00,inet-firewall,dns,attack,dnsteal_exfil,12,12,12,12
+25,2022-01-17 11:21:00+00:00,intranet_server,apache_access,attack,service_scans,12,12,12,12
+26,2022-01-15 18:43:00+00:00,mail,audit,normal,,6,6,0,0
+27,2022-01-17 12:02:00+00:00,vpn,vpn,normal,,2,2,0,0
+28,2022-01-16 19:10:00+00:00,webserver,apache_access,normal,,9,9,0,0
+29,2022-01-17 12:34:00+00:00,cloud_share,apache_access,normal,,2,2,0,0
+30,2022-01-16 07:16:00+00:00,internal_share,audit,attack,service_stop,2,2,2,2
+31,2022-01-15 20:30:00+00:00,intranet_server,apache_access,normal,,4,4,0,0
+32,2022-01-17 10:09:00+00:00,intranet_server,audit,normal,,8,8,0,0
+33,2022-01-17 18:50:00+00:00,vpn,vpn,normal,,2,2,0,0
+34,2022-01-17 13:17:00+00:00,mail,auth,normal,,2,2,0,0
+35,2022-01-17 11:24:00+00:00,intranet_server,apache_access,attack,cracking webshell,9,9,9,9
+36,2022-01-17 10:10:00+00:00,webserver,apache_access,normal,,3,3,0,0
+37,2022-01-17 11:58:00+00:00,intranet_server,audit,attack,privilege_escalation,19,19,19,19
+38,2022-01-17 11:15:00+00:00,vpn,vpn,attack,network_scans,28,28,28,28
+39,2022-01-17 11:23:00+00:00,intranet_server,apache_access,attack,webshell,23,23,23,23
+40,2022-01-17 11:58:00+00:00,intranet_server,auth,attack,privilege_escalation,12,12,12,12
