@@ -1,0 +1,18 @@
+testbed,group,variant,detected,phases,recall,missed,source,note
+santos,test,primary,5,9,0.555556,cracking dnsteal_exfil network_scans service_stop,computed,
+santos,test,all_parsed,5,9,0.555556,cracking dnsteal_exfil network_scans service_stop,computed,
+santos,test,without_exfil,5,8,0.625000,cracking network_scans service_stop,computed,
+wardbeck,test,primary,5,9,0.555556,cracking dnsteal_exfil network_scans service_stop,computed,
+wardbeck,test,all_parsed,5,9,0.555556,cracking dnsteal_exfil network_scans service_stop,computed,
+wardbeck,test,without_exfil,5,8,0.625000,cracking network_scans service_stop,computed,
+harrison,test,primary,3,9,0.333333,cracking dnsteal_exfil network_scans service_scans service_stop webshell,computed,
+harrison,test,all_parsed,3,9,0.333333,cracking dnsteal_exfil network_scans service_scans service_stop webshell,computed,
+harrison,test,without_exfil,3,8,0.375000,cracking network_scans service_scans service_stop webshell,computed,
+russellmitchell,dev,primary,6,10,0.600000,dnsteal dnsteal_exfil network_scans service_stop,computed,
+russellmitchell,dev,all_parsed,6,10,0.600000,dnsteal dnsteal_exfil network_scans service_stop,computed,
+russellmitchell,dev,without_exfil,6,9,0.666667,dnsteal network_scans service_stop,computed,
+pooled,pooled,primary,13,27,0.481481,,computed,
+pooled,pooled,all_parsed,13,27,0.481481,,computed,
+pooled,pooled,without_exfil,13,24,0.541667,,computed,
+russellmitchell,dev,unclipped_dns,6,10,0.600000,,"status.md, Key results, M5 secondary","7.47 incidents/day, 17 dns windows, 0 true"
+santos,test,unclipped_dns,7,9,0.777778,,"status.md, Key results, M5 secondary","1.11 incidents/day, 1,012 dns windows, 5 true"

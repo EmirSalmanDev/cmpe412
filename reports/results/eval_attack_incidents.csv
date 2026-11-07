@@ -1,0 +1,9 @@
+testbed,group,incident_id,phases,gold,predicted,verdict,gold_retrieved,top1_strict,top1_lenient,top3_strict,top3_lenient
+santos,test,santos-0002,dirb service_scans webshell wpscan,T1046 T1190 T1505.003 T1595.002 T1595.003,T1046,malicious,True,True,True,True,True
+santos,test,santos-0003,privilege_escalation,T1078 T1078.003 T1548.003,T1548.003,malicious,True,True,True,True,True
+wardbeck,test,wardbeck-0011,dirb service_scans webshell wpscan,T1046 T1190 T1505.003 T1595.002 T1595.003,T1033,malicious,False,False,False,False,False
+wardbeck,test,wardbeck-0013,privilege_escalation,T1078 T1078.003 T1548.003,T1003.008 T1548.003,malicious,True,False,False,True,True
+harrison,test,harrison-0002,dirb wpscan,T1595.002 T1595.003,T1110.004,malicious,False,False,False,False,False
+harrison,test,harrison-0003,privilege_escalation,T1078 T1078.003 T1548.003,T1505.003 T1548.003 T1003.008,malicious,True,False,False,True,True
+russellmitchell,dev,russellmitchell-0004,cracking dirb service_scans webshell wpscan,T1046 T1110.002 T1190 T1505.003 T1595.002 T1595.003,T1071.004,malicious,False,False,False,False,False
+russellmitchell,dev,russellmitchell-0006,privilege_escalation,T1078 T1078.003 T1548.003,T1190 T1003.008 T1548.003,malicious,True,False,False,True,True
