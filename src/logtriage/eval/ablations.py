@@ -36,7 +36,7 @@ EXPECTED_FINGERPRINT = "bc19ba97cbe016479903222bb1578db6"
 MAX_USD_PER_CONDITION = 0.15
 RESULTS_DIR = "results"
 MEMORY_DIR = "memory"
-LEDGER_FILE = "ledger.json"
+LEDGER_FILE = "ledger.jsonl"
 # What a replay cannot repeat: it pays nothing, and takes no time waiting for the model.
 REPLAY_FIELDS = ("spent_usd", "cached_calls", "latency_s")
 
