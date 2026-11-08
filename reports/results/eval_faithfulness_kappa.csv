@@ -1,5 +1,9 @@
-scope,rows,agree,agreement,kappa
-all,424,422,0.995283,0.988003
-santos,87,86,0.988506,0.977002
-wardbeck,202,202,1.000000,1.000000
-harrison,135,134,0.992593,0.980150
+sheet,scope,rows,agree,agreement,kappa,reasons_both,reasons_identical
+full_evidence,all,424,420,0.990566,0.954662,48,6
+full_evidence,santos,87,86,0.988506,0.953301,12,1
+full_evidence,wardbeck,202,201,0.995050,0.975924,23,4
+full_evidence,harrison,135,133,0.985185,0.920354,13,1
+raw_only,all,424,422,0.995283,0.988003,113,10
+raw_only,santos,87,86,0.988506,0.977002,44,4
+raw_only,wardbeck,202,202,1.000000,1.000000,36,4
+raw_only,harrison,135,134,0.992593,0.980150,33,2

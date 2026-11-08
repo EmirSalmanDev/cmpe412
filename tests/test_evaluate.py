@@ -15,7 +15,7 @@ from logtriage.agents.cache import LlmCache
 from logtriage.agents.llm import CacheMissError
 from logtriage.cli import app
 from logtriage.config import load_settings
-from logtriage.eval import ablations, llm_baseline, report, results_text
+from logtriage.eval import ablations, faithfulness, llm_baseline, report, results_text
 from logtriage.eval.report import PaidCallError, check_frozen_inputs, run_evaluate
 
 ROOT = Path(__file__).parents[1]
@@ -117,8 +117,12 @@ def test_one_command_regenerates_everything_without_paying(tmp_path: Path) -> No
     copy = tmp_path / "reports"
     shutil.copytree(ROOT / "reports", copy)
     cached = shutil.copy(settings.paths.cache_dir / "llm.sqlite", tmp_path / "llm.sqlite")
-    for name in ("faithfulness_key.csv", "faithfulness_paired.csv"):
-        shutil.copy(settings.paths.cache_dir / name, tmp_path / name)
+    for sheet in faithfulness.SHEETS:
+        for path in (
+            faithfulness.key_path(settings, sheet),
+            faithfulness.paired_path(settings, sheet),
+        ):
+            shutil.copy(path, tmp_path / path.name)
     settings.paths.reports_dir = copy
     settings.paths.cache_dir = tmp_path
     before = ablations.ledger_state(settings)
@@ -135,13 +139,22 @@ def test_one_command_regenerates_everything_without_paying(tmp_path: Path) -> No
         assert (copy / "results" / path.name).read_bytes() == path.read_bytes(), path.name
 
 
-def test_the_sheet_on_file_names_no_testbed() -> None:
-    path = ROOT / "reports" / "faithfulness" / "claims_sheet.csv"
+@pytest.mark.parametrize("sheet", ["full_evidence", "raw_only"])
+def test_the_sheet_on_file_names_no_testbed(sheet: str) -> None:
+    path = ROOT / "reports" / "faithfulness" / sheet / "claims_sheet.csv"
     text = path.read_text("utf-8").lower()
-    for name in ("santos", "wardbeck", "harrison", "russellmitchell", "verifier"):
+    for name in ("santos", "wardbeck", "harrison", "russellmitchell", "verifier", "note"):
         assert name not in text
     header = text.splitlines()[0]
     assert header == "id,claim,cited_lines"
+
+
+def test_the_two_sheets_share_no_id() -> None:
+    ids = [
+        set(pd.read_csv(ROOT / "reports" / "faithfulness" / sheet / "claims_sheet.csv")["id"])
+        for sheet in ("full_evidence", "raw_only")
+    ]
+    assert not ids[0] & ids[1]
 
 
 def test_the_key_is_not_in_the_repository() -> None:

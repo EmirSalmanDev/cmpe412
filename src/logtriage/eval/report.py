@@ -166,20 +166,35 @@ def tool_table(items: list[TestbedInputs]) -> pd.DataFrame:
 
 
 def ai_tables(settings: Settings) -> dict[str, pd.DataFrame]:
-    """Return every D67 reading, kappa, the disagreements and the reasons, from the saved labels."""
-    directory = faithfulness.sheet_dir(settings)
-    sheet = pd.read_csv(directory / faithfulness.SHEET_FILE, keep_default_na=False)
-    key = pd.read_csv(faithfulness.key_path(settings), keep_default_na=False)
-    paired = pd.read_csv(faithfulness.paired_path(settings), keep_default_na=False)
-    labels = faithfulness.read_labels(directory, set(sheet["id"]))
+    """Return every D67 reading, kappa, the disagreements and the reasons, from the saved labels.
+
+    Both sheets are read (D71): `full_evidence`, the corrected one, and `raw_only`, the earlier
+    one. Each row says which sheet it comes from.
+    """
     testbeds = list(settings.test_testbeds)
+    parts: dict[str, list[pd.DataFrame]] = {}
+    for name in faithfulness.SHEETS:
+        directory = faithfulness.sheet_dir(settings, name)
+        sheet = pd.read_csv(directory / faithfulness.SHEET_FILE, keep_default_na=False)
+        key = pd.read_csv(faithfulness.key_path(settings, name), keep_default_na=False)
+        paired = pd.read_csv(faithfulness.paired_path(settings, name), keep_default_na=False)
+        labels = faithfulness.read_labels(directory, set(sheet["id"]))
+        tables = {
+            "eval_faithfulness_ai": faithfulness.readings_table(key, paired, labels, testbeds),
+            "eval_faithfulness_kappa": faithfulness.agreement_table(key, labels, testbeds),
+            "eval_faithfulness_disagreements": faithfulness.disagreements(sheet, key, labels),
+            "eval_faithfulness_reasons": faithfulness.reason_table(key, labels),
+        }
+        for table_name, table in tables.items():
+            parts.setdefault(table_name, []).append(table.assign(sheet=name))
     return {
-        "eval_faithfulness_ai": faithfulness.readings_table(key, paired, labels, testbeds),
-        "eval_faithfulness_kappa": faithfulness.agreement_table(key, labels, testbeds),
-        "eval_faithfulness_disagreements": faithfulness.disagreements(sheet, key, labels),
-        "eval_faithfulness_reasons": faithfulness.reason_table(key, labels),
-        "eval_faithfulness_sources": faithfulness.source_sensitivity(key, labels, settings),
+        name: _sheet_first(pd.concat(frames, ignore_index=True)) for name, frames in parts.items()
     }
+
+
+def _sheet_first(table: pd.DataFrame) -> pd.DataFrame:
+    """Return a table with its `sheet` column first."""
+    return table[["sheet", *[column for column in table.columns if column != "sheet"]]]
 
 
 def run_evaluate(settings: Settings) -> EvaluateSummary:

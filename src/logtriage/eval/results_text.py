@@ -11,6 +11,16 @@ import pandas as pd
 TEST_TESTBEDS = ("santos", "wardbeck", "harrison")
 ALL_ROWS = (*TEST_TESTBEDS, "pooled", "russellmitchell")
 THRESHOLD = 0.90
+FULL = "full_evidence"
+RAW_ONLY = "raw_only"
+READING_NAMES = {
+    "verifier_on": "Verifier on, final claims",
+    "verifier_off": "Verifier off, santos run",
+    "paired_first_draft": "Rewritten reports, first draft",
+    "paired_final": "Rewritten reports, final",
+    "paired_draft_only": "Claims only in the first draft",
+    "paired_final_only": "Claims only in the final report",
+}
 # Quoted from status.md: they come from saved scores, read once, and no table holds them (D28).
 VPN_CEILINGS = (
     ("santos", 0.992063, 0.992063),
@@ -373,7 +383,7 @@ def windows_section(s: Saved) -> str:
                 )
             )
     return (
-        "### Windows\n\n**Window metrics are never pooled over testbeds (§10.7).** `pooled` below "
+        "**Window metrics are never pooled over testbeds (§10.7).** `pooled` below "
         "means the log types of one testbed. `dns` is shown apart because of the contaminated "
         "baseline (D16). The other log types and the rows with label-ambiguous windows are in "
         "`reports/results/eval_windows.csv`.\n\n"
@@ -513,9 +523,19 @@ def ablation_section(s: Saved) -> str:
     )
 
 
-def faithfulness_section(s: Saved) -> str:
-    """Return auto and AI-annotated faithfulness."""
-    auto = [
+def reached(value: float) -> str:
+    """Say whether a share reaches the 90% of the fixed readings."""
+    return "reaches 90%" if value >= THRESHOLD else "is below 90%"
+
+
+def relation(left: float, right: float) -> str:
+    """Compare two shares in words."""
+    return "higher than" if left > right else "equal to" if left == right else "lower than"
+
+
+def auto_rows(s: Saved) -> list[tuple]:
+    """Return the rows of auto faithfulness."""
+    return [
         (
             row["testbed"],
             row["reports"],
@@ -526,64 +546,104 @@ def faithfulness_section(s: Saved) -> str:
         )
         for _, row in s.eval_faithfulness_auto.iterrows()
     ]
-    ai = s.eval_faithfulness_ai
-    names = {
-        "verifier_on": "Verifier on, final claims",
-        "verifier_off": "Verifier off, santos run",
-        "paired_first_draft": "Rewritten reports, first draft",
-        "paired_final": "Rewritten reports, final",
-        "paired_draft_only": "Claims only in the first draft",
-        "paired_final_only": "Claims only in the final report",
-    }
+
+
+def reading_rows(ai: pd.DataFrame, earlier: pd.DataFrame | None = None) -> list[tuple]:
+    """Return the rows of a sheet's readings, with the earlier sheet's share beside them."""
     rows = []
-    for reading, label in names.items():
+    for reading, label in READING_NAMES.items():
         for _, row in ai[ai["reading"] == reading].iterrows():
-            if row["claims"]:
-                rows.append(
-                    (
-                        label,
-                        row["testbed"],
-                        row["claims"],
-                        pct(row["share_both"]),
-                        pct(row["share_a"]),
-                        pct(row["share_b"]),
-                    )
-                )
+            if not row["claims"]:
+                continue
+            cells = [
+                label,
+                row["testbed"],
+                row["claims"],
+                pct(row["share_both"]),
+                pct(row["share_a"]),
+                pct(row["share_b"]),
+            ]
+            if earlier is not None:
+                old = one(earlier, reading=reading, testbed=row["testbed"])
+                cells.append(pct(old["share_both"]))
+            rows.append(tuple(cells))
+    return rows
+
+
+def reading_bullets(ai: pd.DataFrame) -> str:
+    """Return the readings fixed before any rating (D67), in words."""
     on_pooled = one(ai, reading="verifier_on", testbed="pooled")
     on_santos = one(ai, reading="verifier_on", testbed="santos")
     off_santos = one(ai, reading="verifier_off", testbed="santos")
     first = one(ai, reading="paired_first_draft", testbed="pooled")
     final = one(ai, reading="paired_final", testbed="pooled")
-    kappa = s.eval_faithfulness_kappa
-    every = one(kappa, scope="all")
-    kappas = [
+    return (
+        f"- **≥ 90%, pooled Verifier-on:** {pct(on_pooled['share_both'])} "
+        f"{reached(on_pooled['share_both'])}.\n"
+        f"- **≥ 90%, santos Verifier-on:** {pct(on_santos['share_both'])} "
+        f"{reached(on_santos['share_both'])}.\n"
+        f"- **On and off on santos (primary, confounded):** {pct(on_santos['share_both'])} on, "
+        f"{relation(on_santos['share_both'], off_santos['share_both'])} "
+        f"{pct(off_santos['share_both'])} off. These are two different runs, and on santos the "
+        "Verifier changed nothing in the official run (0 rewrites), so this gap cannot show a "
+        "Verifier effect.\n"
+        f"- **Paired drafts (secondary, same evidence):** on the 8 rewritten reports, "
+        f"{pct(first['share_both'])} of first-draft claims and {pct(final['share_both'])} of "
+        "final claims. This isolates the Verifier, but only where it acted, and the reports are "
+        "the ones it flagged.\n"
+    )
+
+
+def crossing_note(full: pd.DataFrame, raw: pd.DataFrame) -> str:
+    """Say which fixed readings the corrected sheet moves across 90%, since it came after."""
+    crossed = []
+    for testbed in ("pooled", "santos"):
+        new = one(full, reading="verifier_on", testbed=testbed)["share_both"]
+        old = one(raw, reading="verifier_on", testbed=testbed)["share_both"]
+        if (new >= THRESHOLD) != (old >= THRESHOLD):
+            crossed.append(f"{testbed} Verifier-on ({pct(old)} to {pct(new)})")
+    if not crossed:
+        return ""
+    return (
+        f"- **Read with care:** the corrected sheet moves {' and '.join(crossed)} across 90%, "
+        "and it was chosen after the earlier labels were seen. This is still not the frozen "
+        "manual-faithfulness target, which stays NOT MEASURED.\n"
+    )
+
+
+def kappa_rows(kappa: pd.DataFrame) -> list[tuple]:
+    """Return the rows of agreement between the raters."""
+    return [
         (row["scope"], row["rows"], row["agree"], pct(row["agreement"]), num(row["kappa"]))
         for _, row in kappa.iterrows()
     ]
+
+
+def faithfulness_section(s: Saved) -> str:
+    """Return auto and AI-annotated faithfulness, the corrected sheet first (D71)."""
+    ai = s.eval_faithfulness_ai
+    full, raw = ai[ai["sheet"] == FULL], ai[ai["sheet"] == RAW_ONLY]
+    kappa = s.eval_faithfulness_kappa
+    full_kappa, raw_kappa = kappa[kappa["sheet"] == FULL], kappa[kappa["sheet"] == RAW_ONLY]
+    every, raw_every = one(full_kappa, scope="all"), one(raw_kappa, scope="all")
+    split = int(every["rows"]) - int(every["agree"])
+    raw_split = int(raw_every["rows"]) - int(raw_every["agree"])
     reasons = s.eval_faithfulness_reasons.pivot_table(
-        index="reason_code", columns="rater", values="claims", aggfunc="sum", fill_value=0
+        index="reason_code",
+        columns=["sheet", "rater"],
+        values="claims",
+        aggfunc="sum",
+        fill_value=0,
     )
-    reason_rows = [(name, row["a"], row["b"]) for name, row in reasons.iterrows()]
-    sources = [
+    reason_rows = [
         (
-            "on" if row["arm"] == "verifier_on" else "off",
-            row["testbed"],
-            row["claims"],
-            pct(row["share_both"]),
-            row["source_not_shown_both"],
-            row["host_right_in_metadata"],
-            pct(row["share_if_host_shown"]),
+            name,
+            *(row.get((sheet, rater), 0) for sheet in (FULL, RAW_ONLY) for rater in ("a", "b")),
         )
-        for _, row in s.eval_faithfulness_sources.iterrows()
+        for name, row in reasons.iterrows()
     ]
-    identical = int(every["rows"]) - int(every["agree"])
-
-    def reached(value: float) -> str:
-        return "reaches 90%" if value >= THRESHOLD else "is below 90%"
-
-    def relation(left: float, right: float) -> str:
-        return "higher than" if left > right else "equal to" if left == right else "lower than"
-
+    readings_head = ("Reading", "Testbed", "Claims", "Both raters", "Rater a", "Rater b")
+    kappa_head = ("Scope", "Rows", "Agree", "Share", "Cohen's κ")
     return (
         "## 6. Faithfulness\n\n### Auto faithfulness, **self-assessment**\n\nThe Verifier's own "
         "saved judgments, found by rebuilding each request key, with no LLM call. All 34 reports "
@@ -598,7 +658,7 @@ def faithfulness_section(s: Saved) -> str:
                 "Share",
                 "Last round supported",
             ),
-            auto,
+            auto_rows(s),
         )  # fmt: skip
         + "\n\n### AI-annotated faithfulness\n\n**This is not manual faithfulness, which is NOT "
         "MEASURED (D67), and it is not a target reading.** There are no human annotators: "
@@ -607,52 +667,50 @@ def faithfulness_section(s: Saved) -> str:
         "by two independent AI subagents, each given only the sheet and the rubric, blind to "
         "testbed name and condition. The readings were fixed before any rating: a claim counts "
         "as supported only if both raters say so.\n\n"
-        + table(("Reading", "Testbed", "Claims", "Both raters", "Rater a", "Rater b"), rows)
-        + f"\n\n- **≥ 90%, pooled Verifier-on:** {pct(on_pooled['share_both'])} "
-        f"{reached(on_pooled['share_both'])}.\n"
-        f"- **≥ 90%, santos Verifier-on:** {pct(on_santos['share_both'])} "
-        f"{reached(on_santos['share_both'])}.\n"
-        f"- **On and off on santos (primary, confounded):** {pct(on_santos['share_both'])} on, "
-        f"{relation(on_santos['share_both'], off_santos['share_both'])} "
-        f"{pct(off_santos['share_both'])} off. These are two different runs, and on santos the "
-        "Verifier changed nothing in the official run (0 rewrites), so this gap cannot show a "
-        "Verifier effect.\n"
-        f"- **Paired drafts (secondary, same evidence):** on the 8 rewritten reports, "
-        f"{pct(first['share_both'])} of first-draft claims and {pct(final['share_both'])} of "
-        "final claims. This isolates the Verifier, but only where it acted, and the reports are "
-        "the ones it flagged.\n\n"
-        "Agreement between the raters, on rows of the sheet:\n\n"
-        + table(("Scope", "Rows", "Agree", "Share", "Cohen's κ"), kappas)
-        + f"\n\nThe {identical} disagreements are in "
-        "`reports/results/eval_faithfulness_disagreements.csv`. **Do not read this κ as "
-        "independent confirmation.** Both raters are the same underlying model with the same "
-        "strict rubric, so they share their errors. Their reason texts differ, so they did not "
-        "copy each other, but a κ this high shows consistency, not correctness.\n\n"
-        "**Limit of the sheet: raw text only.** As fixed before rating, raters saw the raw text "
-        "of the cited lines, not the host, file or parsed time that the Verifier saw. A claim "
-        "that names a host the line text does not show is `not_supported` under the rubric, even "
-        "when the host is right. So these shares are harsher than the Verifier's, and the "
-        "self-assessment above and this reading are not on the same footing. Most of the low "
-        "santos share comes from this. Dates and address ranges can still hint at a testbed. "
+        "**Corrected reading: full Evidence (D71).** §10.2 rates a claim against its cited "
+        "lines, and a cited line is an Evidence object (§5.7) with a host, log type, file, time "
+        "and raw text. The first sheet showed the raw text only, so a claim naming a host or a "
+        "time was `not_supported` even where the Evidence shows it. That was a measurement bug, "
+        "not a change to the system, a definition or a target. The corrected sheet shows the "
+        "host, log type, file, time and raw text of each cited line, with new random ids, to "
+        "two fresh raters, under the same rubric plus one line: host, file and time shown in "
+        "the Evidence count as shown. **The fix was decided after the labels of the first sheet "
+        "had been seen.** Both readings are reported; the earlier one follows below.\n\n"
+        + table((*readings_head, "Both raters, raw only (earlier)"), reading_rows(full, raw))
+        + "\n\n"
+        + reading_bullets(full)
+        + crossing_note(full, raw)
+        + "\nAgreement between the raters, on rows of the sheet:\n\n"
+        + table(kappa_head, kappa_rows(full_kappa))
+        + f"\n\nThe {split} disagreements are in "
+        "`reports/results/eval_faithfulness_disagreements.csv` (column `sheet`). **Do not read "
+        "this κ as independent confirmation.** Both raters are the same underlying model with "
+        "the same strict rubric, so they share their errors, and a κ this high shows "
+        f"consistency, not correctness. Of {every['reasons_both']} rows where both wrote a "
+        f"reason, {every['reasons_identical']} have the same text. Dates and address ranges can "
+        "still hint at a testbed.\n\n"
         "Causes given for `not_supported`, counted over claims; this changes no reading:\n\n"
-        + table(("Cause", "Rater a", "Rater b"), reason_rows)
-        + "\n\n**Post hoc, not a reading.** Claims both raters marked `source_not_shown` and "
-        "whose named host matches the saved metadata of a cited line would have passed on that "
-        "point. Counting them shows the size of the effect only; it was computed after the "
-        "labels were seen, and the readings above stand as fixed:\n\n"
         + table(
             (
-                "Verifier",
-                "Testbed",
-                "Claims",
-                "Both raters",
-                "Source not shown, both",
-                "Host right in metadata",
-                "Share if the host were shown",
+                "Cause",
+                "Full Evidence, rater a",
+                "Full Evidence, rater b",
+                "Raw only, rater a",
+                "Raw only, rater b",
             ),
-            sources,
+            reason_rows,
         )  # fmt: skip
-        + "\n"
+        + "\n\n### Earlier version: raw text only (D67 sheet)\n\n"
+        "The first sheet showed only the raw text of each cited line, not the host, file or "
+        "parsed time that the Verifier saw, so a claim that names a host the line text does not "
+        "show was `not_supported` even when the host is right. Kept as rated, with its own "
+        "raters and ids, in `reports/faithfulness/raw_only/`:\n\n"
+        + table(readings_head, reading_rows(raw))
+        + "\n\n"
+        + reading_bullets(raw)
+        + f"\nκ {num(raw_every['kappa'])}, {raw_every['agree']} of {raw_every['rows']} rows "
+        f"agree, {raw_split} disagreements. The post-hoc host table that went with this sheet "
+        "is replaced by the corrected reading above (D71).\n"
     )
 
 
@@ -696,6 +754,10 @@ def limits_section(s: Saved) -> str:
         + table(("Testbed", "Ceiling", "Best eval score"), ceilings)
         + "\n\n- **Window metrics are never pooled** across testbeds; incidents per day and "
         "alert reduction neither.\n"
+        "- **D59.** The frozen supervised `dns` models need `n_unseen_templates` and "
+        "`ratio_unseen_templates`, which `wardbeck` and `harrison` drop as constant; both columns "
+        "were restored as 0 there, their true value, since no `dns` line of either testbed is an "
+        "unseen template.\n"
         "- **D53 limit.** The container refuses every test testbed through a marker file that "
         "user `app` cannot delete. Someone who rebuilds the image or starts it as root gets past "
         "it, so it is a guard against accidents, not a security boundary.\n"
@@ -705,7 +767,8 @@ def limits_section(s: Saved) -> str:
         "checked evidence.\n"
         "- **D67.** Manual faithfulness and its target are NOT MEASURED, because there are no "
         "human annotators. `reports/targets.md` was not edited, and the AI-annotated number is "
-        "named as what it is.\n"
+        "named as what it is. Its corrected sheet (D71) was decided after the first sheet's "
+        "labels were seen; both readings are in section 6.\n"
         "- **D68.** Human evaluation is NOT PERFORMED, with no AI substitute, because usefulness "
         "and readability are questions about human readers.\n"
         "- **The model is a rolling alias (D44).** Every report and every paid call of M11 shows "

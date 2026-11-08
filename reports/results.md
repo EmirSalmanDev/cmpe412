@@ -107,8 +107,6 @@ The 2 pooled top-3 misses are `wardbeck-0011`, `harrison-0002`. In both, no gold
 
 ## 3. Windows
 
-### Windows
-
 **Window metrics are never pooled over testbeds (§10.7).** `pooled` below means the log types of one testbed. `dns` is shown apart because of the contaminated baseline (D16). The other log types and the rows with label-ambiguous windows are in `reports/results/eval_windows.csv`.
 
 | Testbed | Scope | Windows | Attack | Flagged | P | R | F1 | PR-AUC |
@@ -206,6 +204,61 @@ The Verifier's own saved judgments, found by rebuilding each request key, with n
 
 **This is not manual faithfulness, which is NOT MEASURED (D67), and it is not a target reading.** There are no human annotators: 424 distinct claims (every claim of the 27 test reports, the santos Verifier-off claims and the draft-only claims of the 8 rewritten reports) were rated by two independent AI subagents, each given only the sheet and the rubric, blind to testbed name and condition. The readings were fixed before any rating: a claim counts as supported only if both raters say so.
 
+**Corrected reading: full Evidence (D71).** §10.2 rates a claim against its cited lines, and a cited line is an Evidence object (§5.7) with a host, log type, file, time and raw text. The first sheet showed the raw text only, so a claim naming a host or a time was `not_supported` even where the Evidence shows it. That was a measurement bug, not a change to the system, a definition or a target. The corrected sheet shows the host, log type, file, time and raw text of each cited line, with new random ids, to two fresh raters, under the same rubric plus one line: host, file and time shown in the Evidence count as shown. **The fix was decided after the labels of the first sheet had been seen.** Both readings are reported; the earlier one follows below.
+
+| Reading | Testbed | Claims | Both raters | Rater a | Rater b | Both raters, raw only (earlier) |
+|---|---|---|---|---|---|---|
+| Verifier on, final claims | santos | 45 | 86.7% | 88.9% | 86.7% | 46.7% |
+| Verifier on, final claims | wardbeck | 195 | 90.8% | 91.3% | 90.8% | 84.6% |
+| Verifier on, final claims | harrison | 127 | 93.7% | 95.3% | 93.7% | 78.7% |
+| Verifier on, final claims | pooled | 367 | 91.3% | 92.4% | 91.3% | 77.9% |
+| Verifier off, santos run | santos | 42 | 83.3% | 83.3% | 83.3% | 50.0% |
+| Rewritten reports, first draft | wardbeck | 55 | 83.6% | 83.6% | 83.6% | 72.7% |
+| Rewritten reports, first draft | harrison | 62 | 83.9% | 85.5% | 83.9% | 85.5% |
+| Rewritten reports, first draft | pooled | 117 | 83.8% | 84.6% | 83.8% | 79.5% |
+| Rewritten reports, final | wardbeck | 55 | 92.7% | 92.7% | 92.7% | 81.8% |
+| Rewritten reports, final | harrison | 60 | 95.0% | 96.7% | 95.0% | 96.7% |
+| Rewritten reports, final | pooled | 115 | 93.9% | 94.8% | 93.9% | 89.6% |
+| Claims only in the first draft | wardbeck | 7 | 14.3% | 14.3% | 14.3% | 14.3% |
+| Claims only in the first draft | harrison | 8 | 12.5% | 12.5% | 12.5% | 12.5% |
+| Claims only in the first draft | pooled | 15 | 13.3% | 13.3% | 13.3% | 13.3% |
+| Claims only in the final report | wardbeck | 7 | 85.7% | 85.7% | 85.7% | 85.7% |
+| Claims only in the final report | harrison | 6 | 100.0% | 100.0% | 100.0% | 100.0% |
+| Claims only in the final report | pooled | 13 | 92.3% | 92.3% | 92.3% | 92.3% |
+
+- **≥ 90%, pooled Verifier-on:** 91.3% reaches 90%.
+- **≥ 90%, santos Verifier-on:** 86.7% is below 90%.
+- **On and off on santos (primary, confounded):** 86.7% on, higher than 83.3% off. These are two different runs, and on santos the Verifier changed nothing in the official run (0 rewrites), so this gap cannot show a Verifier effect.
+- **Paired drafts (secondary, same evidence):** on the 8 rewritten reports, 83.8% of first-draft claims and 93.9% of final claims. This isolates the Verifier, but only where it acted, and the reports are the ones it flagged.
+- **Read with care:** the corrected sheet moves pooled Verifier-on (77.9% to 91.3%) across 90%, and it was chosen after the earlier labels were seen. This is still not the frozen manual-faithfulness target, which stays NOT MEASURED.
+
+Agreement between the raters, on rows of the sheet:
+
+| Scope | Rows | Agree | Share | Cohen's κ |
+|---|---|---|---|---|
+| all | 424 | 420 | 99.1% | 0.955 |
+| santos | 87 | 86 | 98.9% | 0.953 |
+| wardbeck | 202 | 201 | 99.5% | 0.976 |
+| harrison | 135 | 133 | 98.5% | 0.920 |
+
+The 4 disagreements are in `reports/results/eval_faithfulness_disagreements.csv` (column `sheet`). **Do not read this κ as independent confirmation.** Both raters are the same underlying model with the same strict rubric, so they share their errors, and a κ this high shows consistency, not correctness. Of 48 rows where both wrote a reason, 6 have the same text. Dates and address ranges can still hint at a testbed.
+
+Causes given for `not_supported`, counted over claims; this changes no reading:
+
+| Cause | Full Evidence, rater a | Full Evidence, rater b | Raw only, rater a | Raw only, rater b |
+|---|---|---|---|---|
+| absence | 3 | 2 | 3 | 2 |
+| count_or_list | 4 | 6 | 10 | 4 |
+| fact_not_in_lines | 31 | 34 | 13 | 26 |
+| inference | 4 | 5 | 4 | 6 |
+| other | 1 | 4 | 15 | 17 |
+| source_not_shown | 1 | 1 | 60 | 60 |
+| time_not_shown | 4 | 0 | 8 | 0 |
+
+### Earlier version: raw text only (D67 sheet)
+
+The first sheet showed only the raw text of each cited line, not the host, file or parsed time that the Verifier saw, so a claim that names a host the line text does not show was `not_supported` even when the host is right. Kept as rated, with its own raters and ids, in `reports/faithfulness/raw_only/`:
+
 | Reading | Testbed | Claims | Both raters | Rater a | Rater b |
 |---|---|---|---|---|---|
 | Verifier on, final claims | santos | 45 | 46.7% | 46.7% | 46.7% |
@@ -231,38 +284,7 @@ The Verifier's own saved judgments, found by rebuilding each request key, with n
 - **On and off on santos (primary, confounded):** 46.7% on, lower than 50.0% off. These are two different runs, and on santos the Verifier changed nothing in the official run (0 rewrites), so this gap cannot show a Verifier effect.
 - **Paired drafts (secondary, same evidence):** on the 8 rewritten reports, 79.5% of first-draft claims and 89.6% of final claims. This isolates the Verifier, but only where it acted, and the reports are the ones it flagged.
 
-Agreement between the raters, on rows of the sheet:
-
-| Scope | Rows | Agree | Share | Cohen's κ |
-|---|---|---|---|---|
-| all | 424 | 422 | 99.5% | 0.988 |
-| santos | 87 | 86 | 98.9% | 0.977 |
-| wardbeck | 202 | 202 | 100.0% | 1.000 |
-| harrison | 135 | 134 | 99.3% | 0.980 |
-
-The 2 disagreements are in `reports/results/eval_faithfulness_disagreements.csv`. **Do not read this κ as independent confirmation.** Both raters are the same underlying model with the same strict rubric, so they share their errors. Their reason texts differ, so they did not copy each other, but a κ this high shows consistency, not correctness.
-
-**Limit of the sheet: raw text only.** As fixed before rating, raters saw the raw text of the cited lines, not the host, file or parsed time that the Verifier saw. A claim that names a host the line text does not show is `not_supported` under the rubric, even when the host is right. So these shares are harsher than the Verifier's, and the self-assessment above and this reading are not on the same footing. Most of the low santos share comes from this. Dates and address ranges can still hint at a testbed. Causes given for `not_supported`, counted over claims; this changes no reading:
-
-| Cause | Rater a | Rater b |
-|---|---|---|
-| absence | 3 | 2 |
-| count_or_list | 10 | 4 |
-| fact_not_in_lines | 13 | 26 |
-| inference | 4 | 6 |
-| other | 15 | 17 |
-| source_not_shown | 60 | 60 |
-| time_not_shown | 8 | 0 |
-
-**Post hoc, not a reading.** Claims both raters marked `source_not_shown` and whose named host matches the saved metadata of a cited line would have passed on that point. Counting them shows the size of the effect only; it was computed after the labels were seen, and the readings above stand as fixed:
-
-| Verifier | Testbed | Claims | Both raters | Source not shown, both | Host right in metadata | Share if the host were shown |
-|---|---|---|---|---|---|---|
-| on | santos | 45 | 46.7% | 16 | 16 | 82.2% |
-| on | wardbeck | 195 | 84.6% | 8 | 8 | 88.7% |
-| on | harrison | 127 | 78.7% | 22 | 22 | 96.1% |
-| off | santos | 42 | 50.0% | 14 | 14 | 83.3% |
-| on | pooled | 367 | 77.9% | 46 | 46 | 90.5% |
+κ 0.988, 422 of 424 rows agree, 2 disagreements. The post-hoc host table that went with this sheet is replaced by the corrected reading above (D71).
 
 ## 7. Limits of these numbers
 
@@ -280,9 +302,10 @@ The 2 disagreements are in `reports/results/eval_faithfulness_disagreements.csv`
 | harrison | 0.995318 | 0.974719 |
 
 - **Window metrics are never pooled** across testbeds; incidents per day and alert reduction neither.
+- **D59.** The frozen supervised `dns` models need `n_unseen_templates` and `ratio_unseen_templates`, which `wardbeck` and `harrison` drop as constant; both columns were restored as 0 there, their true value, since no `dns` line of either testbed is an unseen template.
 - **D53 limit.** The container refuses every test testbed through a marker file that user `app` cannot delete. Someone who rebuilds the image or starts it as root gets past it, so it is a guard against accidents, not a security boundary.
 - **Incident memory was never used.** `similar_incidents` was called 0 times in 268 tool calls over the 34 official reports, so that path has not run on the real model.
 - **Chat answers are in no metric (D49).** Code checks that a cited line exists, not that it shows the claim, and there is no Verifier in the chat. Do not read chat text as checked evidence.
-- **D67.** Manual faithfulness and its target are NOT MEASURED, because there are no human annotators. `reports/targets.md` was not edited, and the AI-annotated number is named as what it is.
+- **D67.** Manual faithfulness and its target are NOT MEASURED, because there are no human annotators. `reports/targets.md` was not edited, and the AI-annotated number is named as what it is. Its corrected sheet (D71) was decided after the first sheet's labels were seen; both readings are in section 6.
 - **D68.** Human evaluation is NOT PERFORMED, with no AI substitute, because usefulness and readability are questions about human readers.
 - **The model is a rolling alias (D44).** Every report and every paid call of M11 shows `system_fingerprint` `bc19ba97cbe016479903222bb1578db6`. It is not bit-exact at temperature 0, so only the cache makes reruns exact.
