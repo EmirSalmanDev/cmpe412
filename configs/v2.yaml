@@ -1,16 +1,19 @@
-# v2 detection configuration (reports/v2_plan.md, D74-D77). It holds only what differs from
+# v2 detection configuration (reports/v2_plan.md, D74-D78). It holds only what differs from
 # v1: every other value comes from `base`, so the two cannot drift apart.
 # configs/default.yaml stays v1, the official version.
 #
-# NOT FROZEN YET. Before the dev selection (§4) this file holds the value of every candidate;
-# `python -m logtriage.eval.tuning --v2` takes each subset of them in turn. After the selection
-# it is rewritten with the chosen candidates, q and gap_minutes, and then frozen.
+# FROZEN 2026-11-08 (D78), chosen on russellmitchell by the rule of reports/v2_plan.md §4,
+# over all 240 rows of reports/results/v2_dev_selection.csv: configuration b+d, q 0.996,
+# gap 30, 7 of 10 dev phases, 21 incidents (11.20 per day). Candidate (a), cross-fitted
+# calibration, tied on phases and incidents (a+b+d) and lost on fewer candidates, so it is
+# not part of v2: `ml.thin_calibration` stays the v1 value (D28). Do not edit these values.
 base: default.yaml
 
 ml:
-  # (a) Cross-fitted calibration for thin log types; it replaces D28's mixed reference (D75).
-  thin_calibration: cross_fit
-  # (b) A finer q grid under the §6.5 rule.
+  # (b) The finer q grid under the §6.5 rule; q below is one of its new points.
   q_grid: [0.95, 0.97, 0.98, 0.99, 0.995, 0.996, 0.997, 0.998, 0.999]
   # (d) The unseen systemd unit feature of `audit` (D76).
   optional_features: [n_unseen_units]
+  # Chosen on dev (D78).
+  q: 0.996
+  gap_minutes: 30

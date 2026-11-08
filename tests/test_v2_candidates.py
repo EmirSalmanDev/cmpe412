@@ -70,6 +70,15 @@ def test_v2_differs_from_v1_in_detection_settings_only() -> None:
     assert changed <= {"thin_calibration", "q_grid", "optional_features", "q", "gap_minutes"}
 
 
+def test_v2_is_frozen_at_the_dev_choice() -> None:
+    """The row chosen by the §4 rule (D78): b+d, q 0.996, gap 30. Changing it breaks this."""
+    ml = load_settings(REPO / "configs" / "v2.yaml", env_file=None).ml
+    assert (ml.q, ml.gap_minutes) == (0.996, 30)
+    assert ml.q_grid == V2_GRID
+    assert ml.optional_features == ["n_unseen_units"]
+    assert ml.thin_calibration == "oof_reference"
+
+
 # (d) n_unseen_units --------------------------------------------------------------------------
 
 SERVICE_TAIL = 'comm="systemd" exe="/lib/systemd/systemd" hostname=? addr=? terminal=? res=success'
