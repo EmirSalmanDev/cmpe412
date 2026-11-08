@@ -642,8 +642,11 @@ Read: §10, §11.
 Tasks: metrics, baselines, ablations, LLM-only baseline, AI-annotated faithfulness, `evaluate` command, `05_evaluation.ipynb`, `reports/results.md` (changed: see status.md D67, D68).
 Accept: every metric in §10.2 and every baseline/ablation in §10.3–10.4 has a number, except manual faithfulness, marked NOT MEASURED, and human evaluation, marked NOT PERFORMED, in results.md and status.md (changed: see status.md D67, D68); results regenerate from cache with one command.
 
-### M12 — Stretch (`m12-stretch`, optional)
-DeepLog-style LSTM next-template model on one log type; long-term memory evaluation ("similar incident" usefulness). Only after M11 is merged.
+### M12 — v2: detection improvement on dev, measured once on shaw against v1 (`m12-v2`) (changed: see status.md D74)
+Read: §4.3, §6.3–§6.6, §10.1, §10.5, §10.7, §14.3, `reports/v2_plan.md`.
+Tasks: diagnose dev phase misses from saved files; write `reports/v2_plan.md` (candidates, selection rule, shaw protocol, cost, what counts as helping) and commit it before any candidate is measured; implement the candidates in `ml/`, label-free and the same rule on every testbed; select on russellmitchell only by the §6.5 rule; then shaw, the next unseen testbed of the D55 order: prepare, EDA and frozen denominators in `reports/targets_shaw.md` before any detection, then v1 and v2 each run once through `guards.py`. Agents stay as in v1 (frozen prompts, retrieval, `deepseek-flash`); only detection changes.
+Accept: `reports/v2_plan.md` committed before the first candidate number; v2 chosen on dev by the pre-declared rule; shaw v1 and v2 each run once with ledger rows; results reported against the readings fixed in `reports/v2_plan.md`. v1 results on santos, `wardbeck` and `harrison` stay the official v1 results; any v2 number there is secondary "seen data" only.
+Dropped: the DeepLog stretch. Memory evaluation is moot, since `similar_incidents` was never called (status.md Open questions).
 
 ### M13 — Finalize (`m13-final`)
 README complete (architecture figure, results table, how to reproduce), all notebooks executed in order from a clean state, license/attribution, final status.md, an AI browser check of the dashboard pages (changed: see status.md D68).
