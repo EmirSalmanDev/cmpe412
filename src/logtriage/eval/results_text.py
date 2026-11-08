@@ -594,6 +594,23 @@ def reading_bullets(ai: pd.DataFrame) -> str:
     )
 
 
+def crossing_note(full: pd.DataFrame, raw: pd.DataFrame) -> str:
+    """Say which fixed readings the corrected sheet moves across 90%, since it came after."""
+    crossed = []
+    for testbed in ("pooled", "santos"):
+        new = one(full, reading="verifier_on", testbed=testbed)["share_both"]
+        old = one(raw, reading="verifier_on", testbed=testbed)["share_both"]
+        if (new >= THRESHOLD) != (old >= THRESHOLD):
+            crossed.append(f"{testbed} Verifier-on ({pct(old)} to {pct(new)})")
+    if not crossed:
+        return ""
+    return (
+        f"- **Read with care:** the corrected sheet moves {' and '.join(crossed)} across 90%, "
+        "and it was chosen after the earlier labels were seen. This is still not the frozen "
+        "manual-faithfulness target, which stays NOT MEASURED.\n"
+    )
+
+
 def kappa_rows(kappa: pd.DataFrame) -> list[tuple]:
     """Return the rows of agreement between the raters."""
     return [
@@ -662,6 +679,7 @@ def faithfulness_section(s: Saved) -> str:
         + table((*readings_head, "Both raters, raw only (earlier)"), reading_rows(full, raw))
         + "\n\n"
         + reading_bullets(full)
+        + crossing_note(full, raw)
         + "\nAgreement between the raters, on rows of the sheet:\n\n"
         + table(kappa_head, kappa_rows(full_kappa))
         + f"\n\nThe {split} disagreements are in "
