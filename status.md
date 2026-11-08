@@ -4,9 +4,9 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** none. **Project complete**, tagged `v1.0` (M13 merged, tag `m13-done`)
-- **Branch:** none
-- **Next step:** none required. M12 Stretch is optional and **not started**; if it is ever started, branch `m12-stretch` from `main`
+- **Current milestone:** M12 v2: detection improvement on dev, measured once on shaw against v1 (D74). `v1.0` stays the released version
+- **Branch:** `m12-v2`
+- **Next step:** v2 session 2: implement and select on dev. Implement candidates (a), (b), (d) of `reports/v2_plan.md` (committed `a97fa6d`, sha256 `dd963a40...7ced0c`) with v1 mode byte-identical on dev, then run the 8 configurations once on russellmitchell and apply the §6.5 rule as declared there. Nothing on santos, `wardbeck`, `harrison`; no shaw download before selection
 - **Blockers:** none
 
 ## Milestones
@@ -23,7 +23,7 @@ Format rules: newest entries first in the logs; numbers with their testbed; link
 - [x] M10 Docker
 - [x] M10b Extra test testbeds
 - [x] M11 Evaluation
-- [ ] M12 Stretch (optional, not started)
+- [ ] M12 v2: detection improvement on dev, measured once on shaw (D74), in progress
 - [x] M13 Finalize
 
 ## Recorded facts
@@ -73,6 +73,7 @@ Fill these in when they are known; they are referenced by plan §7.1, §8.1 and 
 
 ## Key results
 (Add headline numbers per milestone, e.g. "M5 santos: phase recall 7/9, 18 incidents/day".)
+- M12 dev diagnosis (saved files and memory only, `reports/v2_plan.md` §2): dev misses `service_stop` because its `audit` window is a feature row identical to 79 other eval windows (unit `put` masked by the template); `network_scans` because 25 of 119 D28 OOF LOF scores lie above its `vpn` window (0 of 24 calib), score 0.941725; `dnsteal_exfil` (0.987493) and `dnsteal` (0.977162) by low scores from the contaminated baseline, not the clip. Dev has no D28 ceiling (all five types reach 1.0 on every model); only `vpn` is thin. No `q` in (0.995, 0.999) can add a dev phase on v1 scores. 311 files of `data/processed` and `reports/results` hash-identical before and after; ledger 485 calls, 0.54517 USD
 - M13 unchanged, checked before step 2, after the notebooks, after the dashboard check, after the clone runs and after the final test run: sha256 of all 311 files under `data/processed` and `reports/results` identical; ledger 485 calls, 0.545170 USD, 481 cached answers; `llm.sqlite` and `chat.sqlite` byte-identical (the app left an empty `chat.sqlite-wal` and a `-shm`). No paid call in M13
 - M13 fresh clone (temporary directory, macOS, no `.env`, no key in the environment, `data/` copied as APFS clones): `uv sync` from the lock (225 packages); ruff check and format clean; CI selection `-m "not live and not data"` 1,094 pass, 159 deselected; with `data/`, `-m "not live"` 1,246 pass, 1 skipped (D73), 6 deselected. `logtriage evaluate`: 21 tables and `results.md`, all 48 committed files of `reports/results/` and `results.md` byte-identical, 0 paid calls
 - M13 dev reproduction, in the clone only: `prepare` then `detect` on russellmitchell. `scores.parquet`, `incidents.parquet`, every `lines_*`, `windows_*`, `labels.parquet`, `detect_report.json`, scalers, vocabularies and Drain3 state byte-identical to the saved files. Not byte-identical: `agent.duckdb` and `eval.duckdb` (all 16 tables equal row for row both ways, 18 view definitions equal) and `prepare_report.json` (only `seconds` and `lines_per_second` differ). `investigate` replayed from the cache through `run_incidents` with a refusing backend: 7 of 7 reports, 0 USD, ledger unchanged; every field equal but `meta.latency_s` (milliseconds), `run_summary.json` `total_spent_usd` (the ledger total at run time) and the `latency_s` column of `agents_russellmitchell.csv` (4 of 7 rows, 0.01 s). Not reproduced, by rule: anything that scores or investigates a test testbed; not repeated: download, Docker (M10)
@@ -303,6 +304,7 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 
 ## Session log
 Format: `YYYY-MM-DD · milestone · what was done · next`.
+- 2026-11-08 · M12 · Session 1, diagnosis and pre-declaration only: D74 redefines M12 as v2 (plan §13 M12); branch `m12-v2`; per-phase dev diagnosis and D28 explanation from saved files and in-memory computation on russellmitchell; `reports/v2_plan.md` committed before any candidate exists: candidates (a) cross-fitted calibration for thin types, (b) finer `q` grid, (d) `n_unseen_units` in `audit`, no DNS change (c); selection rule, shaw protocol, cost (stop 2.00 USD), what counts as helping. No code, config or result change, no LLM call, nothing on santos, `wardbeck`, `harrison`, shaw not downloaded · v2 session 2: implement and select on dev
 - 2026-11-08 · M13 · Notebook audit first (D72: `03` no longer refits or re-scores santos), committed before any execution; `01`–`05` executed from fresh kernels; `prepare` rerun test limited to dev (D73); AI browser check of all four dashboard pages on santos, `wardbeck`, `harrison`, 0 errors, screenshots read; fresh-clone reproduction: CI and full tests, `evaluate` byte-identical, dev `prepare` + `detect` byte-identical scores and incidents, dev agents replayed from the cache at 0 USD; README complete, AIT-ADS license corrected to CC BY 4.0 from its record; hashes of 311 files and the ledger unchanged throughout; merged, `m13-done` and `v1.0` tagged. No paid call · Project complete; M12 optional, not started
 - 2026-11-08 · M11 fix · D71: full-Evidence faithfulness sheet, two fresh AI raters, both readings in `results.md` §6; D59 line in §7; duplicated "Windows" heading removed from §3. `logtriage evaluate` only, no paid call, ledger unchanged. Not done: `05_evaluation.ipynb` was not re-run, so its saved outputs still show the raw-only section 6 · Start M13, M12 optional
 - 2026-11-07 · M11 · Session 2, finished after D69: replay exact after the `llm.py` fix, `verifier0` retried once, `rag0`, `few_shot1`, LLM-only draw committed before any call, format check, 40 santos windows; auto faithfulness; blind sheet of 424 claims, two independent AI raters; `evaluate`, `05_evaluation.ipynb`, `reports/results.md`; D69, D70. Spend 0.0806 USD. Rater A's summary said 50 claims per part; its files hold 53 each and match the sheet · Start M13, M12 optional
