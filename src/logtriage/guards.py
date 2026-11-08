@@ -19,14 +19,16 @@ logger = logging.getLogger(__name__)
 CONTAINER_MARKER = Path("/etc/logtriage-container")
 RUNS_FILE = "test_runs.csv"
 RUN_FIELDS = ["testbed", "stage", "utc", "reason"]
+PREPARE = "prepare"
 DETECT = "detect"
 SUPERVISED = "supervised"
 INVESTIGATE = "investigate"
 ABLATION = "ablation"
 LLM_ONLY = "llm_only"
 LLM_ONLY_CHECK = "llm_only_check"
-# These run once on a test testbed, and no retry rule ever covers them (D57, D69).
-ONCE_ONLY = (DETECT, SUPERVISED, INVESTIGATE)
+# These run once on a test testbed, and no retry rule ever covers them (D57, D69). `prepare`
+# joined in M12, so a new test testbed is prepared exactly once (D83).
+ONCE_ONLY = (PREPARE, DETECT, SUPERVISED, INVESTIGATE)
 RETRY_SUFFIX = "retry1"
 RETRY_WAIT = timedelta(minutes=10)
 
@@ -69,7 +71,7 @@ def check_run(
     """Allow a stage on a test testbed once; a repeat needs a reason. Other testbeds pass.
 
     Args:
-        stage: `detect`, `supervised` or `investigate`.
+        stage: `prepare`, `detect`, `supervised` or `investigate`.
         testbed: Testbed name.
         settings: Loaded settings.
         outputs: Files that show the stage already ran, ledger or not.

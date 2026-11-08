@@ -16,7 +16,7 @@ from typing import Any
 import pandas as pd
 
 from logtriage.agents.runner import REPORTS_DIR, default_table, write_run_table
-from logtriage.config import DEV_TESTBED, Settings
+from logtriage.config import DEV_TESTBED, M11_TESTBEDS, Settings
 from logtriage.eval import ablations, faithfulness, llm_baseline
 from logtriage.eval.detection import dev_candidate_recall
 from logtriage.eval.metrics import (
@@ -70,7 +70,7 @@ def check_frozen_inputs(settings: Settings) -> None:
         FileNotFoundError: Naming the missing files.
     """
     names = [*FROZEN_FILES]
-    names += [p.format(t) for t in settings.test_testbeds for p in FROZEN_PATTERNS]
+    names += [p.format(t) for t in M11_TESTBEDS for p in FROZEN_PATTERNS]
     missing = [name for name in names if not (results_dir(settings) / name).is_file()]
     if missing:
         raise FileNotFoundError(f"inputs of once-only stages are missing: {missing}")
@@ -78,7 +78,7 @@ def check_frozen_inputs(settings: Settings) -> None:
 
 def run_tables(settings: Settings) -> None:
     """Write the run tables of the official reports and of the ablations again."""
-    for testbed in [*settings.test_testbeds, DEV_TESTBED]:
+    for testbed in [*M11_TESTBEDS, DEV_TESTBED]:
         directory = settings.paths.processed_dir / testbed / REPORTS_DIR
         write_run_table(directory, default_table(testbed, settings))
     for name in (ablations.BASE, RECHECK_NAME, *PAID_CONDITIONS):
@@ -171,7 +171,7 @@ def ai_tables(settings: Settings) -> dict[str, pd.DataFrame]:
     Both sheets are read (D71): `full_evidence`, the corrected one, and `raw_only`, the earlier
     one. Each row says which sheet it comes from.
     """
-    testbeds = list(settings.test_testbeds)
+    testbeds = list(M11_TESTBEDS)
     parts: dict[str, list[pd.DataFrame]] = {}
     for name in faithfulness.SHEETS:
         directory = faithfulness.sheet_dir(settings, name)
@@ -216,7 +216,7 @@ def run_evaluate(settings: Settings) -> EvaluateSummary:
     llm_baseline.replay_outputs(settings)
     run_tables(settings)
     items = []
-    for testbed in [*settings.test_testbeds, DEV_TESTBED]:
+    for testbed in [*M11_TESTBEDS, DEV_TESTBED]:
         logger.info("reading %s", testbed)
         items.append(load_inputs(testbed, settings))
     tables = build_tables(items, settings)

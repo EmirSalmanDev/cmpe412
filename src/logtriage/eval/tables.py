@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from logtriage.config import DEV_TESTBED, Settings, load_settings
+from logtriage.config import DEV_TESTBED, M11_TESTBEDS, Settings, load_settings
 from logtriage.data.features import REPORT_FILE
 from logtriage.eval import baselines, eda
 from logtriage.eval.detection import DetectionResult, evaluate, truth_context
@@ -428,7 +428,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     settings = load_settings()
     items = []
-    for testbed in [*settings.test_testbeds, DEV_TESTBED]:
+    for testbed in [*M11_TESTBEDS, DEV_TESTBED]:
         logger.info("reading %s", testbed)
         items.append(load_inputs(testbed, settings))
     write_tables(build_tables(items, settings), settings.paths.reports_dir / RESULTS_DIR)

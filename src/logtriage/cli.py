@@ -78,11 +78,15 @@ def inventory(
 
 @app.command()
 def prepare(
-    testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
+    testbed: TestbedOption = DEV_TESTBED,
+    config: ConfigOption = DEFAULT_CONFIG_PATH,
+    rerun_reason: Annotated[
+        str | None, typer.Option("--rerun-reason", help="Why a test testbed is prepared again.")
+    ] = None,
 ) -> None:
     """Parse logs, then build templates, windows, label tables and the DuckDB files."""
     try:
-        out_dir = run_prepare(testbed, load_settings(config))
+        out_dir = run_prepare(testbed, load_settings(config), rerun_reason)
     except (ValueError, FileNotFoundError) as error:
         _report_failure("prepare", error)
         raise typer.Exit(code=1) from error

@@ -451,7 +451,7 @@ The UI never shows labels except on an optional "Evaluation" page clearly marked
 
 `download`, `inventory`, `prepare` (parse + drain + labels + features), `detect` (fit + score + incidents), `index-attack`, `investigate` (agents over incidents), `ablate` and `llm-only` (M11, santos only, once per stage) (changed: see status.md D65, D66), `evaluate`, `app`. Every command takes `--testbed` and `--config`. `app` also takes `--live` (changed: see status.md D51).
 
-Each test testbed runs `detect`, the supervised test stage and `investigate` once. A repeat needs `--rerun-reason`, and every run is written to `reports/results/test_runs.csv` by `logtriage/guards.py`. That ledger carries the guard because `prepare` deletes `scores.parquet` and `incidents.parquet` (changed: see status.md D57).
+Each test testbed runs `detect`, the supervised test stage and `investigate` once. A repeat needs `--rerun-reason`, and every run is written to `reports/results/test_runs.csv` by `logtriage/guards.py`. That ledger carries the guard because `prepare` deletes `scores.parquet` and `incidents.parquet` (changed: see status.md D57). Since M12 `prepare` is guarded the same way: once per test testbed, a ledger row before any output, a repeat or existing processed files need `--rerun-reason`, and the container refuses it (changed: see status.md D83).
 
 ---
 
@@ -522,6 +522,7 @@ Fixed before any result of `wardbeck` or `harrison` exists. Metric definitions (
 
 - Ablations (§10.4) and the LLM-only baseline (§10.3) stay on santos: each test testbed runs the agents once.
 - Data is never pooled: no model, scaler, vocabulary, percentile reference or threshold is shared between testbeds.
+- The three testbeds of this section are fixed (`config.M11_TESTBEDS`). The unseen testbeds of M12 join `test_testbeds`, so every guard covers them, but not this pooled row or `logtriage evaluate`; they are reported by `reports/v2_plan.md` §5–§7 (changed: see status.md D83).
 
 ---
 

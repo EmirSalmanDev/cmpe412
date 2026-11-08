@@ -6,6 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from logtriage import guards
 from logtriage.config import Settings, load_sources
 from logtriage.data.drain import add_templates
 from logtriage.data.features import build_windows
@@ -79,24 +80,32 @@ def refresh_databases(testbed: str, settings: Settings) -> None:
     build_eval_db(out_dir, settings.paths.data_meta_dir / f"phases_{testbed}.csv")
 
 
-def run_prepare(testbed: str, settings: Settings) -> Path:
+def run_prepare(testbed: str, settings: Settings, rerun_reason: str | None = None) -> Path:
     """Build everything under `data/processed/<testbed>/`.
+
+    On a test testbed it runs once: the ledger gets a row before any output is written, and a
+    second run, or a run where processed files already exist, needs a reason (D83).
 
     Args:
         testbed: Testbed name.
         settings: Loaded settings.
+        rerun_reason: Required to prepare a test testbed again; log it in status.md.
 
     Returns:
         The output directory.
 
     Raises:
         FileNotFoundError: If the testbed or its phases file is missing.
+        ValueError: If a test testbed may not be prepared now, or in the container.
     """
     testbed_dir = settings.paths.raw_dir / testbed
     out_dir = settings.paths.processed_dir / testbed
     phases_csv = settings.paths.data_meta_dir / f"phases_{testbed}.csv"
     if not phases_csv.is_file() or not (testbed_dir / "dataset.yaml").is_file():
         raise FileNotFoundError(f"{testbed}: run `logtriage download` and `logtriage inventory`")
+    outputs = [out_dir / "periods.json", out_dir / "prepare_report.json"]
+    guards.check_run(guards.PREPARE, testbed, settings, outputs, rerun_reason)
+    guards.record_run(guards.PREPARE, testbed, settings, rerun_reason)
     phases = read_phases_csv(phases_csv)
     sim_start, sim_end = read_simulation_interval(testbed_dir / "dataset.yaml")
     periods = compute_periods(

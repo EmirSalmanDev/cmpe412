@@ -12,7 +12,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from logtriage.config import DEV_TESTBED, TEST_TESTBED, MLConfig, Settings, load_settings
+from logtriage.config import (
+    DEV_TESTBED,
+    M11_TESTBEDS,
+    TEST_TESTBED,
+    MLConfig,
+    Settings,
+    load_settings,
+)
 from logtriage.data.features import REPORT_FILE
 from logtriage.data.periods import Periods
 from logtriage.eval import baselines, eda
@@ -558,7 +565,7 @@ def render_report(settings: Settings) -> str:
     Returns:
         The report text.
     """
-    new = [name for name in settings.test_testbeds if name != TEST_TESTBED]
+    new = [name for name in M11_TESTBEDS if name != TEST_TESTBED]
     sections, sizes = [], {TEST_TESTBED: SANTOS_PHASES}
     for testbed in new:
         lines, sizes[testbed] = testbed_section(testbed, settings)
@@ -567,10 +574,10 @@ def render_report(settings: Settings) -> str:
         [
             {
                 "variant": variant,
-                **{name: sizes[name][variant] for name in settings.test_testbeds},
-                "pooled": sum(sizes[name][variant] for name in settings.test_testbeds),
+                **{name: sizes[name][variant] for name in M11_TESTBEDS},
+                "pooled": sum(sizes[name][variant] for name in M11_TESTBEDS),
                 "80% of pooled": required_detections(
-                    sum(sizes[name][variant] for name in settings.test_testbeds), RECALL_SHARE
+                    sum(sizes[name][variant] for name in M11_TESTBEDS), RECALL_SHARE
                 ),
             }
             for variant in SANTOS_PHASES
