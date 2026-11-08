@@ -9,6 +9,7 @@ candidates once on the dev testbed, into `v2_dev_selection.csv`. It writes no co
 """
 
 import argparse
+import json
 import logging
 import re
 from pathlib import Path
@@ -16,6 +17,7 @@ from pathlib import Path
 import pandas as pd
 
 from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, MLConfig, Settings, load_settings
+from logtriage.data.features import REPORT_FILE
 from logtriage.eval import eda
 from logtriage.eval.detection import DetectionResult, TruthContext, evaluate, truth_context
 from logtriage.ml.detect import ScoredTestbed, detect, score_testbed
@@ -256,6 +258,12 @@ def select_v2(grid: pd.DataFrame, budget: float) -> pd.Series:
     return ordered.drop(columns="position").iloc[0]
 
 
+def capable_log_types(directory: Path) -> list[str]:
+    """Return the baseline-capable log types of a testbed, in the order `score_testbed` uses."""
+    report = json.loads((directory / REPORT_FILE).read_text(encoding="utf-8"))
+    return [name for name, entry in report.items() if entry["baseline_capable"]]
+
+
 def run_v2_selection(
     base: Settings, v2: Settings, results_dir: Path | None = None
 ) -> tuple[pd.DataFrame, pd.Series]:
@@ -277,8 +285,7 @@ def run_v2_selection(
     output = results / V2_RESULTS_FILE
     if output.exists():
         raise FileExistsError(f"{output} exists: the v2 selection runs once")
-    scored = score_testbed(DEV_TESTBED, base)
-    capable = list(scored.report["log_types"])
+    capable = capable_log_types(base.paths.processed_dir / DEV_TESTBED)
     periods = eda.testbed_periods(DEV_TESTBED, base)
     with eda.connect(DEV_TESTBED, base) as con:
         context = truth_context(con, periods, capable, base)
