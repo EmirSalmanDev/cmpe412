@@ -8,8 +8,9 @@ import numpy as np
 import pandas as pd
 
 from logtriage.config import DEV_TESTBED, Settings
-from logtriage.data.features import OPTIONAL_FEATURES, SCALER_DIR, FeatureScaler
+from logtriage.data.features import SCALER_DIR, FeatureScaler
 from logtriage.data.periods import Periods
+from logtriage.data.store import OPTIONAL_FEATURES
 from logtriage.eval import eda
 from logtriage.eval.metrics import (
     EXFIL_PHASE,

@@ -290,7 +290,7 @@ Other definitions (changed: see status.md D25). `*_paths` features use the path 
 
 Features that turn out to be constant or missing in the real data are dropped per `(testbed, log_type)`, and `features_report.json` lists them. Constant means one value over the windows of all periods: `n_unseen_*` features are 0 on every fit window by construction, so a check on the fit period alone would drop all of them (changed: see status.md D25). Log this in status.md.
 
-`audit` windows also hold `n_unseen_units`: the distinct `unit=` names of `SERVICE_START` and `SERVICE_STOP` records (read from the message, `\bunit=([^ ']+)`, because the template masks them) that are not in the fit vocabulary `units`. It is built, gated (D15) and dropped (D25) like every `n_unseen_*` feature, and it is an **optional** feature (`features.OPTIONAL_FEATURES`): the models use it only when `ml.optional_features` lists it, which v2 (`configs/v2.yaml`) does and v1 does not, so v1 scores are unchanged (changed: see status.md D76, D78).
+`audit` windows also hold `n_unseen_units`: the distinct `unit=` names of `SERVICE_START` and `SERVICE_STOP` records (read from the message, `\bunit=([^ ']+)`, because the template masks them) that are not in the fit vocabulary `units`. It is built, gated (D15) and dropped (D25) like every `n_unseen_*` feature, and it is an **optional** feature (`features.OPTIONAL_FEATURES`): the models use it only when `ml.optional_features` lists it, which v2 (`configs/v2.yaml`) does and v1 does not, so v1 scores are unchanged, and the agents never see it (changed: see status.md D76, D78, D79).
 
 Vocabulary, rarity and "unseen" features (`n_unseen_templates`, `ratio_unseen_templates`, `mean_template_rarity`, `max_template_rarity`, and every `*_unseen_*` feature in the table) are dropped for a `(testbed, log_type)` whose fit period has fewer than `ml.min_fit_lines` parsed lines (`configs/default.yaml`, default 200) (changed: see status.md D15).
 Transform: `log1p` on counts (features named `n_*`), then `RobustScaler` fit on the `fit` windows of a log type, pooled across hosts. Windows keep raw values; the scaler is saved to `data/processed/<testbed>/scalers/<log_type>.json` for M5, and only for baseline-capable types (§6.4). Vocabularies go to `vocabularies/<log_type>.parquet` (changed: see status.md D26).
@@ -375,7 +375,7 @@ Limits (config): investigator ≤ 8 tool calls, evidence ≤ 30 lines, each tool
 
 ### 7.3 Tools (`logtriage/agents/tools.py`)
 
-All tools read only `agent.duckdb`, through `store.connect_agent`: `read_only=True`, `enable_external_access=false`, `lock_configuration=true`, no label tables (changed: see status.md D41), one thread so that results repeat (changed: see status.md D46). Each returns compact text and the line_ids it surfaced. Lines shown to the LLM get eids registered in state.
+All tools read only `agent.duckdb`, through `store.connect_agent`: `read_only=True`, `enable_external_access=false`, `lock_configuration=true`, no label tables (changed: see status.md D41), one thread so that results repeat (changed: see status.md D46). Optional window features (`store.OPTIONAL_FEATURES`, today `n_unseen_units`) are dropped from every agent table, like `period`, in v1 and v2 alike, so the agent tables keep the v1 schema and only detection differs between versions (changed: see status.md D79). Each returns compact text and the line_ids it surfaced. Lines shown to the LLM get eids registered in state.
 
 | tool | behavior |
 |---|---|

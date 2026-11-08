@@ -11,9 +11,10 @@ import pandas as pd
 import pytest
 
 from logtriage.config import MLConfig, Settings, load_settings, read_config_values
-from logtriage.data.features import OPTIONAL_FEATURES, fit_scaler, is_vocabulary_feature
+from logtriage.data.features import fit_scaler, is_vocabulary_feature
 from logtriage.data.parsers import LogFile, parse_file
 from logtriage.data.parsers.common import ParseContext
+from logtriage.data.store import AGENT_HIDDEN_COLUMNS, OPTIONAL_FEATURES, build_agent_db, connect
 from logtriage.eval.detection import DetectionResult
 from logtriage.eval.tuning import (
     CONFIGURATIONS,
@@ -370,3 +371,26 @@ def test_phase_details_name_the_crediting_types_and_dns_only_phases() -> None:
         "credit": "dirb: apache_access dns; network_scans: dns",
         "anomalous_by_type": "apache_access 1; dns 2",
     }
+
+
+# Agent tables (D79) --------------------------------------------------------------------------
+
+
+def test_no_optional_feature_reaches_the_agent_tables(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    build(out, edit=with_service_lines(tmp_path))
+    assert "n_unseen_units" in read_windows(out, "audit").columns  # detection still reads it
+    build_agent_db(out)
+    with connect(out / "agent.duckdb", read_only=True) as con:
+        tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
+        columns = {
+            row[0]
+            for row in con.execute("SELECT column_name FROM information_schema.columns").fetchall()
+        }
+    assert {"windows", "windows_audit"} <= tables
+    assert "n_unique_exe" in columns
+    assert not columns & OPTIONAL_FEATURES
+
+
+def test_every_optional_feature_is_hidden_from_the_agents() -> None:
+    assert OPTIONAL_FEATURES <= set(AGENT_HIDDEN_COLUMNS)

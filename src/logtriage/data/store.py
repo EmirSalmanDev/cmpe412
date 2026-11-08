@@ -32,8 +32,12 @@ LINES_SCHEMA = pa.schema(
 
 
 DETECTION_TABLES = ("scores", "incidents")
+# Window features that only detection reads. They are built into the windows like any feature,
+# the models use them only when `ml.optional_features` lists them (v2), and the agents never see
+# them, in v1 or v2, so the agents stay as in v1 (D76, D79). `features` re-exports this set.
+OPTIONAL_FEATURES = frozenset({"n_unseen_units"})
 # `period` gives away the evaluation boundary, which sits a fixed time before the attack.
-AGENT_HIDDEN_COLUMNS = ("period",)
+AGENT_HIDDEN_COLUMNS = ("period", *sorted(OPTIONAL_FEATURES))
 
 
 def connect(path: Path | str = ":memory:", read_only: bool = False) -> duckdb.DuckDBPyConnection:

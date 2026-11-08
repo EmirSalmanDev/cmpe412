@@ -34,11 +34,6 @@ TEMPLATE_VOCABULARY_FEATURES = frozenset(
 )
 
 
-# Built into the windows like any feature, but used by the models only when listed in
-# `ml.optional_features`, so v1 scores ignore them (reports/v2_plan.md §3 (d), D76).
-OPTIONAL_FEATURES = frozenset({"n_unseen_units"})
-
-
 DERIVED_TABLE = "derived_lines"
 VOCABULARY_TABLE = "vocabulary"
 FEATURE_TABLE = "window_features"
@@ -425,7 +420,7 @@ class FeatureScaler:
         """Return the scaler of the other columns, in the same order.
 
         Every column is scaled on its own, so the columns that stay are transformed exactly
-        as before. v1 scoring uses it to leave out `OPTIONAL_FEATURES`.
+        as before. v1 scoring uses it to leave out `store.OPTIONAL_FEATURES`.
 
         Args:
             names: Columns to leave out. Names the scaler lacks are ignored.

@@ -11,7 +11,8 @@ import pandas as pd
 
 from logtriage import guards
 from logtriage.config import Settings
-from logtriage.data.features import OPTIONAL_FEATURES, REPORT_FILE, SCALER_DIR, FeatureScaler
+from logtriage.data.features import REPORT_FILE, SCALER_DIR, FeatureScaler
+from logtriage.data.store import OPTIONAL_FEATURES
 from logtriage.ml.ensemble import (
     apply_threshold,
     calibrate,
