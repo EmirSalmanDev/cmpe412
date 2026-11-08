@@ -298,6 +298,16 @@ def _cell(value: object) -> str:
     return str(value)
 
 
+def exfil_match_sentence(domains: list[str]) -> str:
+    """Introduce the exfiltration table; with no labeled exfiltration there is no domain."""
+    if not domains:
+        return (
+            f"No `dns` line carries the `{eda.EXFIL_LABEL}` label, so no exfiltration domain is "
+            "known and the domain match below counts nothing:"
+        )
+    return f"Exfiltration by domain match ({', '.join(f'`{name}`' for name in domains)}):"
+
+
 def testbed_section(testbed: str, settings: Settings) -> tuple[list[str], dict[str, int]]:
     """Render the EDA of one new testbed.
 
@@ -394,8 +404,8 @@ def testbed_section(testbed: str, settings: Settings) -> tuple[list[str], dict[s
         "",
         "### Label-ambiguous rule (D17)",
         "",
-        f"`dns` lines of `{AMBIGUOUS_HOST}` with a label: {ambiguous_labels:,}. Exfiltration by "
-        f"domain match ({', '.join(f'`{name}`' for name in domains)}):",
+        f"`dns` lines of `{AMBIGUOUS_HOST}` with a label: {ambiguous_labels:,}. "
+        + exfil_match_sentence(domains),
         "",
         *table(gap),
         "",

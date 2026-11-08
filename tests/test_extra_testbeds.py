@@ -11,6 +11,7 @@ from logtriage.eval.extra_testbeds import (
     ceiling_after,
     ceiling_text,
     denominator_rows,
+    exfil_match_sentence,
     exposure_verdict,
     frozen_feature_section,
     log_type_exposure,
@@ -169,6 +170,13 @@ def test_frozen_targets_are_never_rewritten(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="frozen"):
         write_unseen_report("fox", settings, settings)
     assert (settings.paths.reports_dir / "targets_fox.md").read_text() == "frozen\n"
+
+
+def test_the_exfil_sentence_names_the_domains_or_says_there_are_none() -> None:
+    assert exfil_match_sentence(["brown.com"]) == "Exfiltration by domain match (`brown.com`):"
+    empty = exfil_match_sentence([])
+    assert "No `dns` line carries the `dnsteal` label" in empty
+    assert "()" not in empty
 
 
 def test_the_denominator_rows_give_what_80_percent_needs() -> None:

@@ -16,3 +16,4 @@ santos,ablation:rag0,2026-11-07T08:00:31+00:00,"D65: RAG off, once, n = 3, illus
 santos,ablation:few_shot1,2026-11-07T08:02:24+00:00,"D65: few-shot Reporter, once, n = 3, illustrative"
 russellmitchell,llm_only_check,2026-11-07T08:03:53+00:00,"D66: output format check on 2 dev windows, once"
 santos,llm_only,2026-11-07T08:04:05+00:00,"D66: 40 santos windows, once"
+shaw,prepare,2026-11-08T22:30:30+00:00,
