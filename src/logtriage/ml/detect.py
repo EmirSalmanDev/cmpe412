@@ -11,10 +11,21 @@ import pandas as pd
 
 from logtriage import guards
 from logtriage.config import Settings
-from logtriage.data.features import REPORT_FILE, SCALER_DIR, FeatureScaler
-from logtriage.ml.ensemble import apply_threshold, calibrate, ensemble_score
+from logtriage.data.features import OPTIONAL_FEATURES, REPORT_FILE, SCALER_DIR, FeatureScaler
+from logtriage.ml.ensemble import (
+    apply_threshold,
+    calibrate,
+    cross_fit_calibrate,
+    ensemble_score,
+)
 from logtriage.ml.incidents import KEY, common_entities, group_incidents
-from logtriage.ml.models import MODEL_NAMES, fit_models, out_of_fold_scores, score_models
+from logtriage.ml.models import (
+    MODEL_NAMES,
+    fit_fold_models,
+    fit_models,
+    out_of_fold_scores,
+    score_models,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +33,7 @@ SCORES_FILE = "scores.parquet"
 INCIDENTS_FILE = "incidents.parquet"
 DETECT_REPORT_FILE = "detect_report.json"
 ENTITY_COLUMNS = ["src_ips", "users"]
+CROSS_FIT = "cross_fit"
 
 
 @dataclass
@@ -47,18 +59,32 @@ def score_log_type(
 
     Returns:
         Key, entity columns, `period`, raw scores, percentiles and `score`, and a report entry.
+        With the v1 defaults of `ml.thin_calibration` and `ml.optional_features` the output
+        is that of v1: `OPTIONAL_FEATURES` are left out and thin types follow D28.
+
+    Raises:
+        ValueError: If `ml.optional_features` names a feature that is not optional.
     """
     config = settings.ml
+    unknown = set(config.optional_features) - OPTIONAL_FEATURES
+    if unknown:
+        raise ValueError(f"ml.optional_features names no optional feature: {sorted(unknown)}")
+    scaler = scaler.without(OPTIONAL_FEATURES - set(config.optional_features))
     ordered = windows.sort_values(["window_start", "host"]).reset_index(drop=True)
     matrix = ordered.pipe(scaler.transform, clip=clip)
     is_fit = (ordered["period"] == "fit").to_numpy()
     is_calib = (ordered["period"] == "calib").to_numpy()
-    models = fit_models(matrix[is_fit], config, settings.seed)
-    raw = score_models(models, matrix)
     is_thin = is_calib.sum() < config.min_calib_windows
-    extra = out_of_fold_scores(matrix[is_fit], config, settings.seed) if is_thin else None
-    hosts = ordered["host"].to_numpy()
-    percentiles, sources = calibrate(raw, hosts, is_calib, extra, config)
+    if is_thin and config.thin_calibration == CROSS_FIT:
+        raw, percentiles, extra_report = _cross_fitted(matrix, is_fit, is_calib, settings)
+        sources = {host: "log_type+cross_fit" for host in sorted(set(ordered["host"]))}
+    else:
+        models = fit_models(matrix[is_fit], config, settings.seed)
+        raw = score_models(models, matrix)
+        extra = out_of_fold_scores(matrix[is_fit], config, settings.seed) if is_thin else None
+        hosts = ordered["host"].to_numpy()
+        percentiles, sources = calibrate(raw, hosts, is_calib, extra, config)
+        extra_report = {"pca_components": int(models.pca.n_components_)}
     table = ordered[[*KEY, *ENTITY_COLUMNS, "period"]].copy()
     for name in MODEL_NAMES:
         table[f"score_{name}"] = raw[name]
@@ -71,9 +97,39 @@ def score_log_type(
         "thin": bool(is_thin),
         "reference_size": int(is_calib.sum() + (is_fit.sum() if is_thin else 0)),
         "reference_by_host": sources,
-        "pca_components": int(models.pca.n_components_),
+        **extra_report,
     }
     return table, report
+
+
+def _cross_fitted(
+    matrix: np.ndarray, is_fit: np.ndarray, is_calib: np.ndarray, settings: Settings
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, Any]]:
+    """Score a thin log type with its fold models alone (reports/v2_plan.md §3 (a), D75).
+
+    No final all-fit model scores the type: the only windows such a model did not see are the
+    calib windows, too few to calibrate it. Raw `score_<m>` is the mean of the fold scores.
+
+    Args:
+        matrix: Scaled features of all windows, fit windows in time order.
+        is_fit: Whether each window is a fit window.
+        is_calib: Whether each window is a calib window.
+        settings: Loaded settings.
+
+    Returns:
+        Raw scores, percentiles and the report entries of the fold models.
+    """
+    fit_rows = np.flatnonzero(is_fit)
+    folds = fit_fold_models(matrix[is_fit], settings.ml, settings.seed)
+    blocks = [fit_rows[positions] for positions, _ in folds]
+    fold_scores = [score_models(models, matrix) for _, models in folds]
+    raw, percentiles = cross_fit_calibrate(fold_scores, blocks, is_fit, is_calib)
+    report = {
+        "thin_calibration": CROSS_FIT,
+        "fold_reference_sizes": [int(len(block) + is_calib.sum()) for block in blocks],
+        "pca_components": [int(models.pca.n_components_) for _, models in folds],
+    }
+    return raw, percentiles, report
 
 
 def score_testbed(testbed: str, settings: Settings, clip: bool = True) -> ScoredTestbed:

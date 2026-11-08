@@ -57,6 +57,42 @@ def calibrate(
     return percentiles, sources
 
 
+def cross_fit_calibrate(
+    fold_scores: list[Scores], blocks: list[np.ndarray], is_fit: np.ndarray, is_calib: np.ndarray
+) -> tuple[Scores, Scores]:
+    """Percentiles of a thin log type from fold models only (reports/v2_plan.md §3 (a), D75).
+
+    Fold model `k` was fit on every fit block but block `k`. Its reference is its own scores
+    of block `k` and of the calib windows, all of which it did not see, so each percentile is
+    measured against scores of the same function on unseen data.
+
+    Args:
+        fold_scores: Raw scores of each fold model, per model name, over all windows.
+        blocks: For each fold, the positions of its held-out fit windows among all windows.
+        is_fit: Whether each window is a fit window.
+        is_calib: Whether each window is a calib window.
+
+    Returns:
+        Raw scores and percentiles per model. A fit window of block `k` takes fold `k` alone;
+        every other window takes the mean over the folds, of its raw scores and of its
+        percentiles against each fold's reference.
+    """
+    calib = np.flatnonzero(is_calib)
+    others = ~is_fit
+    raw = {name: np.empty(len(is_fit)) for name in MODEL_NAMES}
+    percentiles = {name: np.empty(len(is_fit)) for name in MODEL_NAMES}
+    for name in MODEL_NAMES:
+        per_fold = []
+        for scores, block in zip(fold_scores, blocks, strict=True):
+            reference = scores[name][np.concatenate([block, calib])]
+            raw[name][block] = scores[name][block]
+            percentiles[name][block] = empirical_cdf(reference, scores[name][block])
+            per_fold.append(empirical_cdf(reference, scores[name][others]))
+        raw[name][others] = np.mean([scores[name][others] for scores in fold_scores], axis=0)
+        percentiles[name][others] = np.mean(per_fold, axis=0)
+    return raw, percentiles
+
+
 def ensemble_score(percentiles: Scores) -> np.ndarray:
     """Return the mean percentile of the models."""
     return np.mean([percentiles[name] for name in MODEL_NAMES], axis=0)

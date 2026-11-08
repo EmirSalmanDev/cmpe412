@@ -1,0 +1,16 @@
+# v2 detection configuration (reports/v2_plan.md, D74-D77). It holds only what differs from
+# v1: every other value comes from `base`, so the two cannot drift apart.
+# configs/default.yaml stays v1, the official version.
+#
+# NOT FROZEN YET. Before the dev selection (§4) this file holds the value of every candidate;
+# `python -m logtriage.eval.tuning --v2` takes each subset of them in turn. After the selection
+# it is rewritten with the chosen candidates, q and gap_minutes, and then frozen.
+base: default.yaml
+
+ml:
+  # (a) Cross-fitted calibration for thin log types; it replaces D28's mixed reference (D75).
+  thin_calibration: cross_fit
+  # (b) A finer q grid under the §6.5 rule.
+  q_grid: [0.95, 0.97, 0.98, 0.99, 0.995, 0.996, 0.997, 0.998, 0.999]
+  # (d) The unseen systemd unit feature of `audit` (D76).
+  optional_features: [n_unseen_units]

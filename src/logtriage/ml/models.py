@@ -72,6 +72,31 @@ def score_models(models: FittedModels, matrix: np.ndarray) -> dict[str, np.ndarr
     }
 
 
+def fold_blocks(n_rows: int, folds: int) -> list[np.ndarray]:
+    """Cut `n_rows` rows in time order into `folds` contiguous blocks (D28)."""
+    return np.array_split(np.arange(n_rows), folds)
+
+
+def fit_fold_models(
+    matrix: np.ndarray, config: MLConfig, seed: int
+) -> list[tuple[np.ndarray, FittedModels]]:
+    """Fit one set of models per block, each on the other blocks of the fit windows.
+
+    Args:
+        matrix: Scaled features of the fit windows, in time order.
+        config: Model settings, with `oof_folds`.
+        seed: Random seed.
+
+    Returns:
+        For each block, its row positions in `matrix` and the models that did not see it.
+    """
+    fitted = []
+    for fold in fold_blocks(len(matrix), config.oof_folds):
+        rest = np.setdiff1d(np.arange(len(matrix)), fold)
+        fitted.append((fold, fit_models(matrix[rest], config, seed)))
+    return fitted
+
+
 def out_of_fold_scores(matrix: np.ndarray, config: MLConfig, seed: int) -> dict[str, np.ndarray]:
     """Score fit windows with models that did not see them (D28).
 
@@ -84,11 +109,9 @@ def out_of_fold_scores(matrix: np.ndarray, config: MLConfig, seed: int) -> dict[
         Raw scores per model, one per row of `matrix`. Each contiguous time block is scored by
         models fit on the other blocks.
     """
-    folds = np.array_split(np.arange(len(matrix)), config.oof_folds)
     scores = {name: np.empty(len(matrix)) for name in MODEL_NAMES}
-    for fold in folds:
-        rest = np.setdiff1d(np.arange(len(matrix)), fold)
-        held_out = score_models(fit_models(matrix[rest], config, seed), matrix[fold])
+    for fold, models in fit_fold_models(matrix, config, seed):
+        held_out = score_models(models, matrix[fold])
         for name in MODEL_NAMES:
             scores[name][fold] = held_out[name]
     return scores
