@@ -72,7 +72,8 @@ def tools(tmp_path: Path) -> Iterator[AgentTools]:
 
 def test_the_config_lists_the_test_testbeds_and_not_dev() -> None:
     assert TEST_TESTBEDS[:3] == ["santos", "wardbeck", "harrison"]
-    assert "shaw" in TEST_TESTBEDS  # M12, D74, D83
+    assert TEST_TESTBEDS[3:] == ["shaw", "fox"]  # M12: D74, D83, D85
+    assert "wheeler" not in TEST_TESTBEDS  # fails the D55 criteria (D84)
     assert DEV_TESTBED not in TEST_TESTBEDS
     assert set(TEST_TESTBEDS) <= set(REAL.download.sources)
     extract = REAL.download.sources["ait_ads"].extract

@@ -22,7 +22,7 @@ DEV_TESTBED = "russellmitchell"
 # The test testbed of the frozen targets. All test testbeds are in `Settings.test_testbeds` (D56).
 TEST_TESTBED = "santos"
 # The test testbeds of the M11 evaluation and of the pooled row of plan 10.7, fixed by D56. Later
-# test testbeds (M12: shaw and the second unseen one) join `test_testbeds`, so every guard covers
+# test testbeds (M12: shaw and fox) join `test_testbeds`, so every guard covers
 # them, but not this list: the official v1 results and `logtriage evaluate` stay as they are (D83).
 M11_TESTBEDS = ("santos", "wardbeck", "harrison")
 
