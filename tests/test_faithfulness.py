@@ -108,9 +108,33 @@ def test_the_mask_hides_testbeds(text: str) -> None:
 def test_a_claim_row_shows_its_lines_and_marks_an_unknown_citation(tmp_path: Path) -> None:
     _, report = run_with_rewrite(tmp_path)
     report.summary[0].evidence = ["E1", "E99"]
-    rows = f.claim_rows("santos", "x-0001", f.ON, report, {"E1": "line at santos"})
-    lines = json.loads(rows[0]["lines"])
-    assert lines == ["line at <org>", "(no such line)"]
+    report.evidence[0].raw = "line at santos"
+    raw = f.shown_lines(report.evidence, f.RAW_ONLY)
+    rows = f.claim_rows("santos", "x-0001", f.ON, report, raw)
+    assert json.loads(rows[0]["lines"]) == ["line at <org>", "(no such line)"]
+    full = f.shown_lines(report.evidence, f.FULL)
+    lines = json.loads(f.claim_rows("santos", "x-0001", f.ON, report, full)[0]["lines"])
+    assert lines[0]["raw"] == "line at <org>"
+    assert lines[1] == "(no such line)"
+
+
+def test_the_full_sheet_shows_the_evidence_fields_and_nothing_else(tmp_path: Path) -> None:
+    _, report = run_with_rewrite(tmp_path)
+    item = report.evidence[0].model_copy(
+        update={"host": "mail.santos", "line_id": "mail.santos|logs/santos/auth.log|17"}
+    )
+    shown = f.shown_line(item, f.FULL)
+    assert list(shown) == ["host", "log_type", "file", "ts", "raw"]
+    assert shown["host"] == "mail.<org>"
+    assert shown["file"] == "logs/<org>/auth.log"
+    assert shown["ts"] == f"{item.ts:%Y-%m-%d %H:%M:%S} UTC"
+    assert shown["log_type"] == item.log_type
+    assert item.note not in json.dumps(shown)
+    assert f.shown_line(item, f.RAW_ONLY) == f.mask(item.raw)
+
+
+def test_the_file_comes_from_the_line_id() -> None:
+    assert f.file_of("mail|logs/auth.log.1|273") == "logs/auth.log.1"
 
 
 def claims_table() -> pd.DataFrame:
@@ -139,6 +163,45 @@ def test_the_sheet_is_blind_and_each_distinct_claim_appears_once() -> None:
     pd.testing.assert_frame_equal(sheet, again)
 
 
+def test_each_sheet_draws_its_own_ids() -> None:
+    raw, _ = f.build_sheet(claims_table(), [42, *f.SHEET_STREAMS[f.RAW_ONLY]])
+    plain, _ = f.build_sheet(claims_table(), 42)
+    full, _ = f.build_sheet(claims_table(), [42, *f.SHEET_STREAMS[f.FULL]])
+    pd.testing.assert_frame_equal(raw, plain)
+    assert not set(raw["id"]) & set(full["id"])
+
+
+def sheet_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    claims = claims_table()
+    paired = claims[claims["arm"] == f.DRAFT_ONLY]
+    monkeypatch.setattr(f, "collect_claims", lambda *_: (claims, paired))
+
+
+def test_a_sheet_is_written_once_with_its_key_under_the_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sheet_inputs(monkeypatch)
+    settings = settings_for(tmp_path)
+    path = f.write_sheet(settings, f.FULL)
+    assert path == settings.paths.reports_dir / "faithfulness" / f.FULL / f.SHEET_FILE
+    assert f.key_path(settings, f.FULL).is_file()
+    assert f.paired_path(settings, f.FULL).is_file()
+    assert not f.key_path(settings, f.FULL).is_relative_to(settings.paths.reports_dir)
+    with pytest.raises(FileExistsError):
+        f.write_sheet(settings, f.FULL)
+
+
+def test_a_sheet_may_not_reuse_the_ids_of_another(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sheet_inputs(monkeypatch)
+    settings = settings_for(tmp_path)
+    f.write_sheet(settings, f.FULL)
+    monkeypatch.setitem(f.SHEET_STREAMS, f.RAW_ONLY, f.SHEET_STREAMS[f.FULL])
+    with pytest.raises(ValueError, match="ids shared"):
+        f.write_sheet(settings, f.RAW_ONLY)
+
+
 def test_a_first_draft_claim_must_be_on_the_sheet() -> None:
     sheet, _ = f.build_sheet(claims_table(), 42)
     paired = pd.DataFrame(
@@ -157,6 +220,13 @@ def test_parts_hold_the_claims_and_their_lines_only(tmp_path: Path) -> None:
         assert name not in text
     assert text.count("### c") == 5
     assert "LINE: k" in text
+
+
+def test_a_part_shows_the_fields_of_a_full_line(tmp_path: Path) -> None:
+    line = {"host": "mail", "log_type": "auth", "file": "a.log", "ts": "t UTC", "raw": "r"}
+    sheet = pd.DataFrame({"id": ["c1"], "claim": ["x"], "cited_lines": [json.dumps([line])]})
+    text = f.rater_parts(sheet, tmp_path)[0].read_text(encoding="utf-8")
+    assert "LINE: host=mail; log_type=auth; file=a.log; ts=t UTC\n  raw: r" in text
 
 
 def write_labels(directory: Path, ids: list[str], rater: str, supported: set[str]) -> None:
@@ -227,42 +297,3 @@ def test_kappa_matches_the_library(tmp_path: Path) -> None:
     assert table.loc["all", "rows"] == 5
     assert table.loc["all", "agree"] == 4
     assert table.loc["santos", "rows"] == 1
-
-
-def test_a_named_host_must_be_a_whole_name() -> None:
-    assert f.named_source_is_right("a probe to cloud_share and more", ["cloud_share"])
-    assert not f.named_source_is_right("a probe to cloud_share2", ["cloud_share"])
-    assert not f.named_source_is_right("a probe to mail-gw", ["mail"])
-    assert not f.named_source_is_right("a probe", [])
-
-
-def test_the_sensitivity_counts_only_hosts_the_metadata_confirms(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _, report = run_with_rewrite(tmp_path)
-    report.summary[0].text = "a page on web"
-    report.timeline[0].claim.text = "a page on elsewhere"
-    monkeypatch.setattr(f, "arm_reports", lambda *_: {"x-0001": report})
-    key = pd.DataFrame(
-        {
-            "id": ["c1", "c2", "c3"],
-            "arm": f.ON,
-            "testbed": "santos",
-            "incident_id": "x-0001",
-            "claim_key": ["summary:0", "timeline:0", "technique:0"],
-        }
-    )
-    labels = pd.DataFrame(
-        {
-            "id": ["c1", "c2", "c3"],
-            "label_a": [f.NOT_SUPPORTED, f.NOT_SUPPORTED, f.SUPPORTED],
-            "label_b": [f.NOT_SUPPORTED, f.NOT_SUPPORTED, f.SUPPORTED],
-            "reason_code_a": ["source_not_shown", "source_not_shown", "shown"],
-            "reason_code_b": ["source_not_shown", "source_not_shown", "shown"],
-        }
-    )
-    table = f.source_sensitivity(key, labels, settings_for(tmp_path)).set_index("testbed")
-    assert table.loc["santos", "source_not_shown_both"] == 2
-    assert table.loc["santos", "host_right_in_metadata"] == 1
-    assert table.loc["santos", "share_both"] == pytest.approx(1 / 3)
-    assert table.loc["santos", "share_if_host_shown"] == pytest.approx(2 / 3)
