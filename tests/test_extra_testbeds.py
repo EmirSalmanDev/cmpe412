@@ -10,12 +10,15 @@ from logtriage.eval.extra_testbeds import (
     audit_check,
     ceiling_after,
     ceiling_text,
+    denominator_rows,
     exposure_verdict,
     frozen_feature_section,
     log_type_exposure,
     read_windows,
+    render_unseen_report,
     steps_allowed,
     stream_exposure,
+    write_unseen_report,
 )
 
 ROOT = Path(__file__).parents[1]
@@ -130,3 +133,53 @@ def test_every_new_testbed_can_feed_the_frozen_supervised_models() -> None:
     settings = load_settings(ROOT / "configs" / "default.yaml", env_file=None)
     new = [name for name in settings.test_testbeds if name != "santos"]
     assert "`dns`" in " ".join(frozen_feature_section(new, settings))
+
+
+# Targets of the unseen M12 testbeds (D83, D85).
+
+
+def unseen_settings(tmp_path: Path):
+    settings = load_settings(ROOT / "configs" / "default.yaml", env_file=None)
+    settings.paths.processed_dir = tmp_path / "processed"
+    settings.paths.reports_dir = tmp_path / "reports"
+    settings.paths.reports_dir.mkdir()
+    return settings
+
+
+@pytest.mark.parametrize("testbed", ["santos", "harrison", "russellmitchell", "wheeler"])
+def test_targets_are_written_for_unseen_test_testbeds_only(tmp_path: Path, testbed: str) -> None:
+    settings = unseen_settings(tmp_path)
+    with pytest.raises(ValueError, match="not an unseen"):
+        write_unseen_report(testbed, settings, settings)
+
+
+@pytest.mark.parametrize("name", ["scores.parquet", "incidents.parquet", "v2"])
+def test_targets_are_never_frozen_after_a_detection(tmp_path: Path, name: str) -> None:
+    settings = unseen_settings(tmp_path)
+    directory = settings.paths.processed_dir / "shaw"
+    directory.mkdir(parents=True)
+    (directory / name).mkdir() if name == "v2" else (directory / name).write_text("")
+    with pytest.raises(ValueError, match="detection outputs exist"):
+        write_unseen_report("shaw", settings, settings)
+
+
+def test_frozen_targets_are_never_rewritten(tmp_path: Path) -> None:
+    settings = unseen_settings(tmp_path)
+    (settings.paths.reports_dir / "targets_fox.md").write_text("frozen\n")
+    with pytest.raises(ValueError, match="frozen"):
+        write_unseen_report("fox", settings, settings)
+    assert (settings.paths.reports_dir / "targets_fox.md").read_text() == "frozen\n"
+
+
+def test_the_denominator_rows_give_what_80_percent_needs() -> None:
+    rows = denominator_rows({"primary": 9, "all parsed": 10, "without exfil": 8})
+    assert rows["80% needs"].tolist() == [8, 8, 7]
+
+
+@pytest.mark.data
+@pytest.mark.parametrize("testbed", ["shaw", "fox"])
+def test_the_committed_targets_come_from_the_counts(testbed: str) -> None:
+    settings = load_settings(ROOT / "configs" / "default.yaml", env_file=None)
+    v2 = load_settings(ROOT / "configs" / "v2.yaml", env_file=None)
+    committed = (ROOT / "reports" / f"targets_{testbed}.md").read_text(encoding="utf-8")
+    assert committed == render_unseen_report(testbed, settings, v2)
