@@ -7,6 +7,7 @@ Written 2026-11-08 on branch `m12-v2` (D74), **before any candidate was implemen
 - Development and selection happen on russellmitchell (dev) only.
 - v1's results on santos, `wardbeck` and `harrison` stay the official v1 results. Those testbeds have been seen, so a v2 number on them could only be a secondary "seen data" figure. M12 produces none.
 - The clean measure is **shaw**, the next unseen testbed in the committed seed-42 order of D55 (wardbeck, harrison, **shaw**, wheeler, fox, wilson). v1 and v2 each run once there.
+- **wheeler** joins shaw as a second unseen test testbed, under the same protocol (changed: see status.md D77, decided before any shaw or wheeler data was seen; §5 to §7).
 - The agents stay as in v1: frozen prompts, retrieval and `deepseek-flash`. Only detection changes.
 
 ## 2. Diagnosis on dev
@@ -113,18 +114,20 @@ Label-free count on dev, by unit name only: two eval units are not in the fit vo
 - **Output:** all rows go to `reports/results/v2_dev_selection.csv`, committed.
 - **v1 check:** the v1 rows must equal `reports/results/tuning_dev.csv` exactly, or the session stops.
 - **Rule:** the §6.5 rule, unchanged, over all rows of all configurations. Take the highest dev phase recall with incidents per day ≤ 25; ties go to fewer incidents. Remaining ties go to fewer candidates (v1 first), then to the existing order (higher `q`, smaller gap).
-- **v2 is the chosen row.** If that row is v1 itself, v2 did not help on dev. M12 then stops after dev with that result, and shaw is not downloaded, because there would be nothing to compare.
+- **v2 is the chosen row.** If that row is v1 itself, v2 did not help on dev. M12 then stops after dev with that result, and neither shaw nor wheeler is downloaded, because there would be nothing to compare (changed: see status.md D77).
 - **Nothing else:** no candidate is tuned. Fold count, the 200 trigger, the unit regex and the grid points are fixed above, and a failed candidate is reported, not repaired.
 
-## 5. Shaw protocol
+## 5. Shaw and wheeler protocol (changed: see status.md D77)
+
+shaw and wheeler, the next two unseen testbeds of the D55 order, are both test testbeds. Every step below applies to each of them, separately, and nothing is pooled before evaluation.
 
 1. **Before downloading:**
    - Log the decision.
-   - Add shaw to `test_testbeds`, `download.sources` and the AIT-ADS extraction, so every guard of D57 covers it. That includes `prompts_frozen`, the container marker and the once-only ledger.
-   - Check feasibility by the D55 criteria, from the zip directory and the `labels.csv` row count only: `dataset.yaml`, 8 label files, the six log families, 10 phase rows.
-   - If shaw is infeasible, the next in order, wheeler, takes its place, with no other change.
-2. **Prepare:** download, extract, `inventory` and `prepare` with the v2 code. Windows then hold the (d) column, and v1 mode ignores it.
-3. **Freeze before any detection.** Write the following to `reports/targets_shaw.md`, then commit it and record its sha256 in status.md:
+   - Add shaw and wheeler to `test_testbeds`, `download.sources` and the AIT-ADS extraction, so every guard of D57 covers both. That includes `prompts_frozen`, the container marker and the once-only ledger.
+   - Check the feasibility of each by the D55 criteria, from the zip directory and the `labels.csv` row count only: `dataset.yaml`, 8 label files, the six log families, 10 phase rows.
+   - If either is infeasible, the next unchecked testbed in the order (fox, then wilson) takes its place, with no other change.
+2. **Prepare** each: download, extract, `inventory` and `prepare` with the v2 code. Windows then hold the (d) column, and v1 mode ignores it.
+3. **Freeze before any detection** on either testbed. Write the following to `reports/targets_shaw.md` and `reports/targets_wheeler.md`, then commit both and record their sha256 in status.md:
    - EDA, periods and gap (any fallback logged as in D58);
    - phases with traces and the three denominators;
    - the budget of 25 per day × eval days;
@@ -132,47 +135,50 @@ Label-free count on dev, by unit name only: two eval units are not in the fit vo
    - the D28 exposure from counts.
 
    The targets and definitions are those of `reports/targets.md`, unchanged.
-4. **v1 runs once on shaw, each step through `guards.py` with its own row in `reports/results/test_runs.csv` before it starts:**
+4. **v1 runs once on each testbed, each step through `guards.py` with its own row in `reports/results/test_runs.csv` before it starts:**
    - `detect`, with v1's `configs/default.yaml` in v1 mode;
    - the supervised test stage, with the frozen v1 models;
    - `investigate`, into the official memory.
 
-   Before shaw, v1 mode must reproduce dev's saved `scores.parquet` and `incidents.parquet` byte for byte.
-5. **v2 runs once on shaw:**
+   Before either testbed, v1 mode must reproduce dev's saved `scores.parquet` and `incidents.parquet` byte for byte.
+5. **v2 runs once on each testbed:**
    - `detect` with `configs/v2.yaml`;
    - `investigate`, both under their own stage names (`detect:v2`, `investigate:v2`) with ledger rows;
-   - outputs under `data/processed/shaw/v2/` and their own Chroma store, as for the ablations (D65), so v2 never touches v1's files or memory.
+   - outputs under `data/processed/<testbed>/v2/` and their own Chroma store, as for the ablations (D65), so v2 never touches v1's files or memory.
 
    A v2 incident identical to a v1 one may hit the LLM cache. That is the same request, and the cache counts it as such.
-6. **Evaluate** from saved outputs: phase recall (primary, all parsed, without exfiltration, with per-type credit), incidents per day, alert reduction, ATT&CK top-3 and verdicts, for v1 and v2 side by side.
-   - AI-annotated faithfulness is not run on shaw, since the agents are unchanged.
+6. **Evaluate** from saved outputs: phase recall (primary, all parsed, without exfiltration, with per-type credit), incidents per day, alert reduction, ATT&CK top-3 and verdicts, for v1 and v2 side by side, per testbed and as the sum over shaw and wheeler (phase recall as detected over denominators summed; incidents per day per testbed only).
+   - AI-annotated faithfulness is not run on shaw or wheeler, since the agents are unchanged.
    - No second run of any stage. A failed paid stage follows D69, and a failed `detect` or `investigate` stops.
 
 ## 6. Cost estimate
 
 - **LLM:**
   - Per incident, from M11: mean 0.0067–0.0073 USD and p90 0.0094 off-peak, about double at peak.
-  - v1 on shaw: v1 gave 3, 14 and 10 incidents on the test testbeds, so about 3–15 incidents and ≤ 0.15 USD off-peak.
-  - v2 at most fills the budget: 25 per day × about 1.7–3.3 eval days is ≤ 83 incidents, ≤ 0.78 USD at the off-peak p90, ≤ 1.56 at peak.
+  - v1 on each of shaw and wheeler: v1 gave 3, 14 and 10 incidents on the test testbeds, so about 3–15 incidents and ≤ 0.15 USD off-peak per testbed, ≤ 0.30 for both.
+  - v2 at most fills the budget: 25 per day × about 1.7–3.3 eval days is ≤ 83 incidents per testbed, ≤ 0.78 USD at the off-peak p90, ≤ 1.56 at peak; for both testbeds ≤ 1.56 off-peak, ≤ 3.12 at peak (changed: see status.md D77).
   - Dev selection makes no LLM call.
   - **Stop for M12: 2.00 USD of new ledger spend.** The cumulative 10 USD stop also holds (now 0.5452).
-  - Paid shaw runs go off-peak.
-- **Data:** the shaw zip is about 17 GB, if like `wardbeck` and `harrison`, with about 3–4 h of download at the speed seen in M10b. Expect about 0.2–0.5 GB extracted and 0.4–0.5 GB processed, against 628 GB free. Its size is checked by a range request before downloading.
+  - Paid shaw and wheeler runs go off-peak. The worst case of both testbeds off-peak, about 1.86 USD (0.30 + 1.56), stays under the 2.00 stop; at peak it would not, which is one more reason for off-peak.
+- **Data:** each zip is about 17 GB, if like `wardbeck` and `harrison`, about 34 GB for both, with about 3–4 h of download each at the speed seen in M10b. Expect about 0.2–0.5 GB extracted and 0.4–0.5 GB processed per testbed, against 628 GB free. Each size is checked by a range request before downloading.
 - **Compute:** about one dev scoring pass per configuration. The 5 fold fits of (a) apply to thin types only, so each pass takes minutes.
 
-## 7. What counts as v2 helping (fixed now)
+## 7. What counts as v2 helping (fixed now; changed: see status.md D77)
 
-The comparison is on shaw only, v2 against v1, with the frozen definitions and the primary denominator.
-- **Helps:** v2 credits more phases than v1, at least one extra phase is credited through a log type other than `dns`, and v2 stays within 25 incidents per day.
-- **Does not help:** the same number of phases, or a gain that comes only through `dns` credit.
-- **Hurts:** fewer phases than v1, or more than 25 incidents per day.
+The comparison is on shaw and wheeler only, v2 against v1, with the frozen definitions and the primary denominator. The verdict reads the **sum over shaw and wheeler**, and the per-testbed numbers are always shown beside it.
+- **Helps:** all of
+  - v2 credits more phases than v1 in total over shaw and wheeler;
+  - at least one extra phase is credited through a log type other than `dns`;
+  - v2 stays within 25 incidents per day on each testbed.
+- **Does not help:** the same number of phases in total, or a total gain that comes only through `dns` credit.
+- **Hurts:** fewer phases than v1 in total, or more than 25 incidents per day on either testbed.
 - **Always reported:**
-  - any phase v1 detects and v2 loses, even when the count is equal;
-  - the frozen ≥ 80% target for both;
+  - any phase v1 detects that v2 loses, on either testbed, even when the total is equal or higher;
+  - the frozen ≥ 80% target for both, per testbed;
   - phase recall without exfiltration;
-  - incidents per day, ATT&CK top-3 and cost.
-- **Limits:** this is one testbed with about 9 phases and one run each, so a difference of one phase is an observation, not a statistical result. Dev numbers are the selection metric and optimistic by construction. They are never presented as evidence that v2 helps.
-- **The verdict changes no setting.** `configs/default.yaml` stays v1, the official version, and v2 is merged as `configs/v2.yaml` with its code, whatever shaw shows.
+  - incidents per day, ATT&CK top-3 and cost, per testbed.
+- **Limits:** these are two testbeds with about 9 phases each and one run each, so a difference of one or two phases is an observation, not a statistical result. Dev numbers are the selection metric and optimistic by construction. They are never presented as evidence that v2 helps.
+- **The verdict changes no setting.** `configs/default.yaml` stays v1, the official version, and v2 is merged as `configs/v2.yaml` with its code, whatever shaw and wheeler show.
 
 ## 8. Not sure
 
