@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from logtriage.config import load_settings
+from logtriage.config import DEV_TESTBED, load_settings
 from logtriage.data.periods import load_periods
 from logtriage.data.store import connect
 from logtriage.prepare import run_prepare
@@ -127,6 +127,8 @@ def test_agent_db_exposes_no_ground_truth(testbed: str, monkeypatch: pytest.Monk
 def test_rerun_gives_identical_template_ids(
     testbed: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    if testbed != DEV_TESTBED:
+        pytest.skip("prepare never runs on a test testbed, not even in a temporary folder (D73)")
     monkeypatch.chdir(ROOT)
     settings = load_settings("configs/default.yaml", env_file=None)
     settings.paths.processed_dir = tmp_path
