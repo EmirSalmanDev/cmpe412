@@ -125,7 +125,7 @@ shaw and wheeler, the next two unseen testbeds of the D55 order, are both test t
    - Log the decision.
    - Add shaw and wheeler to `test_testbeds`, `download.sources` and the AIT-ADS extraction, so every guard of D57 covers both. That includes `prompts_frozen`, the container marker and the once-only ledger.
    - Check the feasibility of each by the D55 criteria, from the zip directory and the `labels.csv` row count only: `dataset.yaml`, 8 label files, the six log families, 10 phase rows.
-   - If either is infeasible, the next unchecked testbed in the order (fox, then wilson) takes its place, with no other change.
+   - If either is infeasible, the next unchecked testbed in the order (fox, then wilson) takes its place, with no other change. Feasibility failure as D55 defines it, or a download that cannot fit on disk, is the only reason to replace a testbed: never a result, never anything seen in detection (changed: see status.md D80).
 2. **Prepare** each: download, extract, `inventory` and `prepare` with the v2 code. Windows then hold the (d) column, and v1 mode ignores it.
 3. **Freeze before any detection** on either testbed. Write the following to `reports/targets_shaw.md` and `reports/targets_wheeler.md`, then commit both and record their sha256 in status.md:
    - EDA, periods and gap (any fallback logged as in D58);
@@ -159,6 +159,7 @@ shaw and wheeler, the next two unseen testbeds of the D55 order, are both test t
   - v2 at most fills the budget: 25 per day × about 1.7–3.3 eval days is ≤ 83 incidents per testbed, ≤ 0.78 USD at the off-peak p90, ≤ 1.56 at peak; for both testbeds ≤ 1.56 off-peak, ≤ 3.12 at peak (changed: see status.md D77).
   - Dev selection makes no LLM call.
   - **Stop for M12: 2.00 USD of new ledger spend.** The cumulative 10 USD stop also holds (now 0.5452).
+  - **Before any paid call of session 3B**, the cost is re-estimated from the real incident counts per testbed and mode (v1, v2; shaw, wheeler). If the projected total would pass the stop, stop and ask (changed: see status.md D82).
   - Paid shaw and wheeler runs go off-peak. The worst case of both testbeds off-peak, about 1.86 USD (0.30 + 1.56), stays under the 2.00 stop; at peak it would not, which is one more reason for off-peak.
 - **Data:** each zip is about 17 GB, if like `wardbeck` and `harrison`, about 34 GB for both, with about 3–4 h of download each at the speed seen in M10b. Expect about 0.2–0.5 GB extracted and 0.4–0.5 GB processed per testbed, against 628 GB free. Each size is checked by a range request before downloading.
 - **Compute:** about one dev scoring pass per configuration. The 5 fold fits of (a) apply to thin types only, so each pass takes minutes.
@@ -177,6 +178,7 @@ The comparison is on shaw and wheeler only, v2 against v1, with the frozen defin
   - the frozen ≥ 80% target for both, per testbed;
   - phase recall without exfiltration;
   - incidents per day, ATT&CK top-3 and cost, per testbed.
+- **Expected outcome, written before any shaw or wheeler data exists:** the dev gain rests on one phase (`service_stop`) caught at a single `q` step, with 6 `fstrim` false positives, and (d) was found on dev labels. A null or negative result is therefore an expected and acceptable outcome, and is reported as such (changed: see status.md D81).
 - **Limits:** these are two testbeds with about 9 phases each and one run each, so a difference of one or two phases is an observation, not a statistical result. Dev numbers are the selection metric and optimistic by construction. They are never presented as evidence that v2 helps.
 - **The verdict changes no setting.** `configs/default.yaml` stays v1, the official version, and v2 is merged as `configs/v2.yaml` with its code, whatever shaw and wheeler show.
 
