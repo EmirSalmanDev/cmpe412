@@ -1,0 +1,11 @@
+incident_id,verdict,confidence,claims,summary_claims,timeline_claims,technique_claims,removed_claims,draft_claims,draft_unknown_eid_claims,verifier_rounds,evidence_lines,tool_calls,techniques,llm_calls,retries,tokens_in,tokens_cached,tokens_out,cost_usd,latency_s
+shaw-0001,uncertain,0.4,17,4,13,0,0,17,0,0,18,8,,8,0,45548,15488,3690,0.013539,24.55
+shaw-0002,uncertain,0.4,14,4,10,0,0,14,0,0,21,8,,8,0,35938,13440,3465,0.010988,23.16
+shaw-0003,uncertain,0.4,12,4,8,0,0,12,0,0,12,8,,8,0,37629,11776,3159,0.011617,23.25
+shaw-0004,uncertain,0.4,10,4,6,0,0,10,0,1,10,8,,10,0,45617,17280,4257,0.013713,30.17
+shaw-0005,uncertain,0.4,7,4,3,0,0,7,0,0,17,8,,8,0,40106,13824,2422,0.010874,20.7
+shaw-0006,uncertain,0.4,11,4,7,0,0,11,0,0,17,8,,8,0,34412,11776,3218,0.010723,22.73
+shaw-0007,uncertain,0.4,13,4,9,0,0,13,0,0,12,8,,8,0,36295,12160,3257,0.011222,24.15
+shaw-0008,malicious,0.9,21,4,16,1,0,21,0,0,20,8,T1608.001,8,0,48731,15744,5201,0.016232,32.16
+shaw-0009,uncertain,0.4,10,3,7,0,0,11,0,1,17,8,,10,0,45956,19840,4459,0.013305,30.93
+shaw-0010,uncertain,0.4,14,4,10,0,0,14,0,1,14,8,,10,0,45158,15616,5077,0.015049,32.87
