@@ -1,0 +1,7 @@
+mode,testbed,group,reports,draft_claims,unknown_eid_claims,hallucinated_share
+v1,shaw,test,10,130,0,0.000000
+v1,fox,test,11,155,0,0.000000
+v1,sum,sum,21,285,0,0.000000
+v2,shaw,test,14,180,0,0.000000
+v2,fox,test,24,284,0,0.000000
+v2,sum,sum,38,464,0,0.000000

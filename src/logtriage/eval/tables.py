@@ -15,8 +15,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from logtriage.config import DEV_TESTBED, M11_TESTBEDS, Settings, load_settings
+from logtriage.config import DEV_TESTBED, M11_TESTBEDS, V1_MODE, Settings, load_settings
 from logtriage.data.features import REPORT_FILE
+from logtriage.data.store import detection_dir
 from logtriage.eval import baselines, eda
 from logtriage.eval.detection import DetectionResult, evaluate, truth_context
 from logtriage.eval.metrics import (
@@ -78,12 +79,14 @@ def load_reports(directory: Path, testbed: str) -> dict[str, dict]:
     return {path.stem: json.loads(path.read_text(encoding="utf-8")) for path in paths}
 
 
-def load_inputs(testbed: str, settings: Settings) -> TestbedInputs:
+def load_inputs(testbed: str, settings: Settings, mode: str = V1_MODE) -> TestbedInputs:
     """Read the saved outputs of a testbed. Nothing is written or scored.
 
     Args:
         testbed: Testbed name.
         settings: Loaded settings.
+        mode: Whose incidents, scores and reports to read: v1's, in the testbed's folder, or
+            v2's, under `v2/` (D86, D90). Ground truth and alerts are the testbed's either way.
 
     Returns:
         Its inputs, with the alerts of the evaluation period only.
@@ -109,9 +112,10 @@ def load_inputs(testbed: str, settings: Settings) -> TestbedInputs:
         ).df()
     for column in ("start_utc", "end_utc"):
         intervals[column] = pd.to_datetime(intervals[column], utc=True)
-    incidents = pd.read_parquet(directory / "incidents.parquet")
-    scores = pd.read_parquet(directory / "scores.parquet")
-    reports = load_reports(directory, testbed)
+    outputs = detection_dir(directory, mode)
+    incidents = pd.read_parquet(outputs / "incidents.parquet")
+    scores = pd.read_parquet(outputs / "scores.parquet")
+    reports = load_reports(outputs, testbed)
     if set(reports) != set(incidents["incident_id"]):
         raise ValueError(f"{testbed}: reports and incidents differ")
     alerts = baselines.load_ids_alerts(settings.paths.raw_dir / "ait_ads", testbed)

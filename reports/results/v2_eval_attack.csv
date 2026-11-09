@@ -1,0 +1,7 @@
+mode,testbed,group,malicious_incidents,top1_strict_hits,top1_strict,top1_lenient_hits,top1_lenient,top3_strict_hits,top3_strict,top3_lenient_hits,top3_lenient
+v1,shaw,test,1,0,0.000000,0,0.000000,0,0.000000,0,0.000000
+v1,fox,test,2,1,0.500000,1,0.500000,1,0.500000,1,0.500000
+v1,sum,sum,3,1,0.333333,1,0.333333,1,0.333333,1,0.333333
+v2,shaw,test,1,0,0.000000,0,0.000000,0,0.000000,0,0.000000
+v2,fox,test,1,0,0.000000,0,0.000000,0,0.000000,0,0.000000
+v2,sum,sum,2,0,0.000000,0,0.000000,0,0.000000,0,0.000000

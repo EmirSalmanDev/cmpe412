@@ -20,8 +20,11 @@ from logtriage.eval import eda
 from logtriage.eval.detection import evaluate, truth_context
 from logtriage.eval.metrics import AMBIGUOUS_LOG_TYPE, EXFIL_PHASE
 from logtriage.eval.tables import capable_log_types
-from logtriage.ml.detect import DETECT_REPORT_FILE, INCIDENTS_FILE, SCORES_FILE
 
+# The files of `ml.detect`, named here so that evaluation never loads the scoring code (D57).
+SCORES_FILE = "scores.parquet"
+INCIDENTS_FILE = "incidents.parquet"
+DETECT_REPORT_FILE = "detect_report.json"
 UNSEEN_TESTBEDS = ("shaw", "fox")
 MODES = (V1_MODE, V2_MODE)
 BUDGET_PER_DAY = 25

@@ -1,0 +1,17 @@
+mode,testbed,tool,calls
+v1,shaw,ip_profile,11
+v1,shaw,log_search,11
+v1,shaw,run_sql,58
+v1,shaw,similar_incidents,0
+v1,fox,ip_profile,12
+v1,fox,log_search,13
+v1,fox,run_sql,61
+v1,fox,similar_incidents,0
+v2,shaw,ip_profile,15
+v2,shaw,log_search,15
+v2,shaw,run_sql,82
+v2,shaw,similar_incidents,0
+v2,fox,ip_profile,27
+v2,fox,log_search,27
+v2,fox,run_sql,138
+v2,fox,similar_incidents,0

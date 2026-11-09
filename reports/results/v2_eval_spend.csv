@@ -1,0 +1,5 @@
+mode,testbed,reports,llm_calls,cached_calls,paid_usd,fingerprints
+v1,shaw,10,86,0,0.127261,bc19ba97cbe016479903222bb1578db6
+v1,fox,11,94,0,0.146555,bc19ba97cbe016479903222bb1578db6
+v2,shaw,14,122,16,0.156990,bc19ba97cbe016479903222bb1578db6
+v2,fox,24,212,0,0.304451,bc19ba97cbe016479903222bb1578db6

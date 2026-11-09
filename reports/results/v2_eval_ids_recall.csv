@@ -1,0 +1,37 @@
+mode,testbed,group,label,variant,detected,phases,recall,missed
+v1,shaw,test,event,primary,7,8,0.875000,service_scans
+v1,shaw,test,event,all_parsed,7,8,0.875000,service_scans
+v1,shaw,test,event,without_exfil,7,8,0.875000,service_scans
+v1,shaw,test,time,primary,8,8,1.000000,
+v1,shaw,test,time,all_parsed,8,8,1.000000,
+v1,shaw,test,time,without_exfil,8,8,1.000000,
+v1,fox,test,event,primary,7,9,0.777778,dnsteal_exfil network_scans
+v1,fox,test,event,all_parsed,7,9,0.777778,dnsteal_exfil network_scans
+v1,fox,test,event,without_exfil,7,8,0.875000,network_scans
+v1,fox,test,time,primary,9,9,1.000000,
+v1,fox,test,time,all_parsed,9,9,1.000000,
+v1,fox,test,time,without_exfil,8,8,1.000000,
+v1,sum,sum,event,primary,14,17,0.823529,
+v1,sum,sum,event,all_parsed,14,17,0.823529,
+v1,sum,sum,event,without_exfil,14,16,0.875000,
+v1,sum,sum,time,primary,17,17,1.000000,
+v1,sum,sum,time,all_parsed,17,17,1.000000,
+v1,sum,sum,time,without_exfil,16,16,1.000000,
+v2,shaw,test,event,primary,7,8,0.875000,service_scans
+v2,shaw,test,event,all_parsed,7,8,0.875000,service_scans
+v2,shaw,test,event,without_exfil,7,8,0.875000,service_scans
+v2,shaw,test,time,primary,8,8,1.000000,
+v2,shaw,test,time,all_parsed,8,8,1.000000,
+v2,shaw,test,time,without_exfil,8,8,1.000000,
+v2,fox,test,event,primary,7,9,0.777778,dnsteal_exfil network_scans
+v2,fox,test,event,all_parsed,7,9,0.777778,dnsteal_exfil network_scans
+v2,fox,test,event,without_exfil,7,8,0.875000,network_scans
+v2,fox,test,time,primary,9,9,1.000000,
+v2,fox,test,time,all_parsed,9,9,1.000000,
+v2,fox,test,time,without_exfil,8,8,1.000000,
+v2,sum,sum,event,primary,14,17,0.823529,
+v2,sum,sum,event,all_parsed,14,17,0.823529,
+v2,sum,sum,event,without_exfil,14,16,0.875000,
+v2,sum,sum,time,primary,17,17,1.000000,
+v2,sum,sum,time,all_parsed,17,17,1.000000,
+v2,sum,sum,time,without_exfil,16,16,1.000000,
