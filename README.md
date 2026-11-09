@@ -38,7 +38,7 @@ flowchart LR
 
 Ground truth (labels, phases) is read only by the evaluation, tuning on dev, the supervised reference and the EDA; never by features, models, agent tools or prompts (plan §5.2, enforced by `tests/test_isolation.py`). Every LLM call goes through a cache and a spending ledger (`data/cache/llm.sqlite`), so reruns are exact and free.
 
-**Testbeds.** `russellmitchell` is the dev testbed: every choice was made there. `santos` is the test testbed of the frozen targets (`reports/targets.md`), and `wardbeck` and `harrison` are extra test testbeds (D55, D56). Each test testbed ran `detect`, the supervised stage and `investigate` once; the guards refuse a second run.
+**Testbeds.** `russellmitchell` is the dev testbed: every choice was made there. `santos` is the test testbed of the frozen targets (`reports/targets.md`), `wardbeck` and `harrison` are extra test testbeds (D55, D56), and `shaw` and `fox` are the unseen test testbeds of M12 (v2). Each test testbed ran `detect`, the supervised stage and `investigate` once; the guards refuse a second run.
 
 ## Results
 
@@ -91,7 +91,9 @@ Set `DEEPSEEK_API_KEY` in `.env` only if you will call the LLM. This file is git
 
 `data/` is not in git. Instead of downloading about 85 GB of archives, get the data bundle: one zip, `cmpe412-data-bundle-2026-11-09.zip`, 792 MB (792,453,451 bytes), 4.8 GB unpacked, 750 files.
 
-Download link: (to be added by the maintainer)
+Download link: https://drive.google.com/file/d/15h60rb1mtGtIFSME_K3aMRPNrTzubZtW/view?usp=sharing
+
+See `docs/data_bundle/DATA_README.md` for the contents, install and verification of the bundle.
 
 It holds `data/` as it stood after M12 (`v2.0`): `data/processed/` for all six testbeds, the ATT&CK index `data/index/`, the LLM cache and ledger `data/cache/`, the run logs `data/logs/`, the AIT-ADS alerts and published labels `data/raw/ait_ads/`, the ATT&CK bundle `data/raw/attack/`, and the raw logs of `russellmitchell` and `santos` (`santos` only because `tests/test_data_inventory.py` reads it). It leaves out `data/raw/zips/` and the raw logs of `wardbeck`, `harrison`, `shaw` and `fox`, which no allowed command reads. With it, `uv run pytest -m "not live"` (data tests included), the dashboard, replay, `evaluate` and the dev pipeline on `russellmitchell` run without a download and without a key; the embedding model (about 130 MB) still comes from Hugging Face at first use.
 
@@ -180,7 +182,7 @@ The first run builds the image, about 3.8 GB, which needs network. Then open htt
 - **Network:** a running container needs none, except the chat to reach the LLM. The embedding model is in the image and Hugging Face offline mode is on.
 - **Writes:** the chat writes to `data/cache/`, so on Linux that folder must be writable by user id 1000, which the container runs as.
 - **Building data** stays a command-line job: `docker compose run --rm app logtriage prepare --testbed russellmitchell`, or run it locally.
-- **Test testbeds:** the container never runs `detect`, the supervised test stage or the agents on santos, wardbeck or harrison. They refuse, even with `--rerun-reason`, and so does `app --live`.
+- **Test testbeds:** the container never runs `detect`, the supervised test stage or the agents on santos, wardbeck, harrison, shaw or fox. They refuse, even with `--rerun-reason`, and so does `app --live`.
 
 ## LLM and models
 
