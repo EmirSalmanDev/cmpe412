@@ -27,3 +27,4 @@ uv run logtriage --help
 - One branch per milestone: `m<N>-<slug>` from `main`. Small Conventional Commits (`feat(data): ...`).
 - Merge to `main` with `--no-ff` only when ruff + tests pass and the acceptance criteria are met. Then tag `m<N>-done`, push if a remote exists, delete the branch.
 - Never force-push or rewrite `main` history.
+- Never add `Co-Authored-By`, `Claude-Session` or "Generated with Claude Code" lines to commits, tags or PR text. Claude and Anthropic must not appear as author, co-author or contributor (D95). `.claude/settings.json` sets `attribution` to empty strings for the same reason.
