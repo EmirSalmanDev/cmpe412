@@ -18,6 +18,8 @@ Measured once per version on shaw and fox (`reports/results_v2.md`):
 - v2 credits **9 of 17** attack phases, v1 **8 of 17**. The one gain is fox `cracking`, through the lower `q`; the new `audit` feature transferred nothing to either testbed.
 - v2 more than doubled incidents on fox, 11 to 24, still within the budget of 25 per day.
 - Neither version reaches the 80% phase-recall target on either testbed.
+- Agent-level metrics did not improve: summed over shaw and fox, ATT&CK top-3 strict goes from 1 of 3 malicious incidents to 0 of 2, and verdict F1 from 0.261 to 0.100, because v2 adds incidents with no attack in them (uncertain on true benign, 17 to 36). The counts are small, and no cause is claimed for the ATT&CK change.
+- The IDS baseline's phase recall (shaw 7/8 to 8/8, fox 7/9 to 9/9) is higher than either version's (v1: shaw 3/8, fox 5/9; v2: shaw 3/8, fox 6/9), as in v1's results.
 - This is an observation from one run per testbed, not a statistical result. Faithfulness was not measured on shaw or fox.
 
 The four LLM runs of M12 (v1 and v2 `investigate` on shaw and fox, 59 reports) cost 0.7353 USD, all at peak rates.
