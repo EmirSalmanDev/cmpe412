@@ -1,20 +1,26 @@
-testbed,stage,utc,reason
-santos,detect,2026-11-06T06:13:00+00:00,"Before this ledger: M5, last run by the time of scores.parquet"
-santos,supervised,2026-11-06T06:46:37+00:00,"Before this ledger: three runs, see D40; the time is the commit of run 1"
-santos,investigate,2026-11-06T08:59:30+00:00,"Before this ledger: the accidental run of D47"
-wardbeck,detect,2026-11-07T05:47:50+00:00,
-harrison,detect,2026-11-07T05:48:15+00:00,
-wardbeck,supervised,2026-11-07T05:48:43+00:00,
-harrison,supervised,2026-11-07T05:49:19+00:00,
-wardbeck,investigate,2026-11-07T06:19:07+00:00,
-harrison,investigate,2026-11-07T06:25:46+00:00,
-santos,ablation:base,2026-11-07T07:44:23+00:00,"D65: Verifier-on replay from the cache, proves 0 cost"
-santos,ablation:verifier0,2026-11-07T07:44:41+00:00,"D65: Verifier off, once, n = 3, illustrative"
-santos,ablation:base:recheck,2026-11-07T07:54:48+00:00,"D69: replay after the llm.py fix, must stay exact"
-santos,ablation:verifier0:retry1,2026-11-07T07:59:26+00:00,"D69: one retry, the first run failed on an empty response from the endpoint before any output"
-santos,ablation:rag0,2026-11-07T08:00:31+00:00,"D65: RAG off, once, n = 3, illustrative"
-santos,ablation:few_shot1,2026-11-07T08:02:24+00:00,"D65: few-shot Reporter, once, n = 3, illustrative"
-russellmitchell,llm_only_check,2026-11-07T08:03:53+00:00,"D66: output format check on 2 dev windows, once"
-santos,llm_only,2026-11-07T08:04:05+00:00,"D66: 40 santos windows, once"
-shaw,prepare,2026-11-08T22:30:30+00:00,
-fox,prepare,2026-11-08T23:16:23+00:00,
+testbed,stage,utc,reason,mode,commit,config_sha256,base_sha256
+santos,detect,2026-11-06T06:13:00+00:00,"Before this ledger: M5, last run by the time of scores.parquet",,,,
+santos,supervised,2026-11-06T06:46:37+00:00,"Before this ledger: three runs, see D40; the time is the commit of run 1",,,,
+santos,investigate,2026-11-06T08:59:30+00:00,Before this ledger: the accidental run of D47,,,,
+wardbeck,detect,2026-11-07T05:47:50+00:00,,,,,
+harrison,detect,2026-11-07T05:48:15+00:00,,,,,
+wardbeck,supervised,2026-11-07T05:48:43+00:00,,,,,
+harrison,supervised,2026-11-07T05:49:19+00:00,,,,,
+wardbeck,investigate,2026-11-07T06:19:07+00:00,,,,,
+harrison,investigate,2026-11-07T06:25:46+00:00,,,,,
+santos,ablation:base,2026-11-07T07:44:23+00:00,"D65: Verifier-on replay from the cache, proves 0 cost",,,,
+santos,ablation:verifier0,2026-11-07T07:44:41+00:00,"D65: Verifier off, once, n = 3, illustrative",,,,
+santos,ablation:base:recheck,2026-11-07T07:54:48+00:00,"D69: replay after the llm.py fix, must stay exact",,,,
+santos,ablation:verifier0:retry1,2026-11-07T07:59:26+00:00,"D69: one retry, the first run failed on an empty response from the endpoint before any output",,,,
+santos,ablation:rag0,2026-11-07T08:00:31+00:00,"D65: RAG off, once, n = 3, illustrative",,,,
+santos,ablation:few_shot1,2026-11-07T08:02:24+00:00,"D65: few-shot Reporter, once, n = 3, illustrative",,,,
+russellmitchell,llm_only_check,2026-11-07T08:03:53+00:00,"D66: output format check on 2 dev windows, once",,,,
+santos,llm_only,2026-11-07T08:04:05+00:00,"D66: 40 santos windows, once",,,,
+shaw,prepare,2026-11-08T22:30:30+00:00,,,,,
+fox,prepare,2026-11-08T23:16:23+00:00,,,,,
+shaw,detect,2026-11-09T07:32:51+00:00,,v1,843c21e778dbdf04bfb6e355d975de77cfe72ae3,e81ca2a476e8dc08a7dac7ac632084e28262b1a6073abc52810b4755f33a657b,
+shaw,supervised,2026-11-09T07:33:00+00:00,,v1,843c21e778dbdf04bfb6e355d975de77cfe72ae3,e81ca2a476e8dc08a7dac7ac632084e28262b1a6073abc52810b4755f33a657b,
+shaw,detect:v2,2026-11-09T07:33:07+00:00,,v2,843c21e778dbdf04bfb6e355d975de77cfe72ae3,1cf127f8f1e4b564688b884d82eb7276b493b8224a2e174c7f9d219b9187e88c,e81ca2a476e8dc08a7dac7ac632084e28262b1a6073abc52810b4755f33a657b
+fox,detect,2026-11-09T07:33:26+00:00,,v1,843c21e778dbdf04bfb6e355d975de77cfe72ae3,e81ca2a476e8dc08a7dac7ac632084e28262b1a6073abc52810b4755f33a657b,
+fox,supervised,2026-11-09T07:33:32+00:00,,v1,843c21e778dbdf04bfb6e355d975de77cfe72ae3,e81ca2a476e8dc08a7dac7ac632084e28262b1a6073abc52810b4755f33a657b,
+fox,detect:v2,2026-11-09T07:33:35+00:00,,v2,843c21e778dbdf04bfb6e355d975de77cfe72ae3,1cf127f8f1e4b564688b884d82eb7276b493b8224a2e174c7f9d219b9187e88c,e81ca2a476e8dc08a7dac7ac632084e28262b1a6073abc52810b4755f33a657b

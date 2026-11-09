@@ -1,0 +1,9 @@
+method,log_types,phases_scope,phases_flagged,phases,flagged,not_flagged
+ensemble,apache_access audit auth dns vpn,all_phases,5,9,service_scans wpscan dirb webshell privilege_escalation,dnsteal_exfil service_stop network_scans cracking
+ensemble,apache_access audit auth dns vpn,without_exfil,5,8,service_scans wpscan dirb webshell privilege_escalation,service_stop network_scans cracking
+ensemble,dns,all_phases,0,9,,dnsteal_exfil service_stop network_scans service_scans wpscan dirb webshell cracking privilege_escalation
+ensemble,dns,without_exfil,0,8,,service_stop network_scans service_scans wpscan dirb webshell cracking privilege_escalation
+rf,dns,all_phases,2,9,dnsteal_exfil service_stop,network_scans service_scans wpscan dirb webshell cracking privilege_escalation
+rf,dns,without_exfil,1,8,service_stop,network_scans service_scans wpscan dirb webshell cracking privilege_escalation
+xgb,dns,all_phases,2,9,dnsteal_exfil service_stop,network_scans service_scans wpscan dirb webshell cracking privilege_escalation
+xgb,dns,without_exfil,1,8,service_stop,network_scans service_scans wpscan dirb webshell cracking privilege_escalation

@@ -1,0 +1,5 @@
+testbed,mode,q,gap_minutes,phases,detected,recall,required_80,target_80_met,credited,missed,dns_only,all_parsed_detected,all_parsed_phases,without_exfil_detected,without_exfil_phases,incidents,eval_days,incidents_per_day,within_budget,flagged_eval_windows,flagged_by_log_type
+shaw,v1,0.999,30,8,3,0.375,7,False,wpscan dirb webshell,service_stop network_scans service_scans cracking privilege_escalation,,3,8,3,8,10,3.119444,3.2057,True,14,apache_access:14
+shaw,v2,0.996,30,8,3,0.375,7,False,wpscan dirb webshell,service_stop network_scans service_scans cracking privilege_escalation,,3,8,3,8,14,3.119444,4.488,True,18,apache_access:14 audit:2 auth:1 dns:1
+fox,v1,0.999,30,9,5,0.5555555555555556,8,False,service_scans wpscan dirb webshell privilege_escalation,dnsteal_exfil service_stop network_scans cracking,,5,9,5,8,11,3.62169,3.0373,True,36,apache_access:33 audit:1 auth:2
+fox,v2,0.996,30,9,6,0.6666666666666666,8,False,service_scans wpscan dirb webshell cracking privilege_escalation,dnsteal_exfil service_stop network_scans,,6,9,6,8,24,3.62169,6.6267,True,54,apache_access:51 audit:1 auth:2
