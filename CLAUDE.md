@@ -14,6 +14,7 @@ ML anomaly detection on AIT-LDS security logs + a LangGraph agent (DeepSeek V4 F
 - Never commit `data/`, `.env`, secrets or files > 5 MB. The API key comes only from env `DEEPSEEK_API_KEY`.
 - If `data/` (or part of it) is missing, never recreate test-testbed data: no `prepare`, `detect`, `investigate` or supervised stage on any test testbed (`santos`, `wardbeck`, `harrison`, `shaw`, `fox`), and never use `--rerun-reason`. Stop and read `docs/data_bundle/DATA_README.md` (do not read `docs/data_bundle/MANIFEST.txt` into context, it is about 28k tokens; use the verify command from DATA_README instead). Ask the user to download the zip from the README link ("Getting the data") in a browser and put it in the repository root, then extract it there and verify it.
 - Unit tests use `tests/fixtures/`, no network, no real LLM (use fakes). Mark tests needing the real API `@pytest.mark.live`, tests needing `data/` or downloaded models `@pytest.mark.data`.
+- Teammates: the project is complete. A teammate's session does not create milestone branches, merge to `main`, tag or push to `main` unless the maintainer asks; work on a personal branch or a fork. The test-testbed rules above apply in full.
 - If a plan decision is wrong, follow plan §14.3: change it, log it in status.md, update plan.md in the same commit. Never deviate silently. Never change evaluation definitions or frozen targets to improve results.
 
 ## Commands

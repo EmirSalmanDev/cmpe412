@@ -66,7 +66,13 @@ results invalid. Read the saved outputs instead: `evaluate`, the dashboard and t
    ```
    (On Windows: "Extract all" into the repository folder.) If a `data/` folder already exists,
    extract into an empty copy of the repository instead of mixing the two.
-3. Run `uv run pytest -m "not live"`.
+3. Verify every file, as in "How to verify" below, before the first test run.
+4. Run `uv run pytest -m "not live"`.
+
+Verify before the first test run: `tests/test_data_rag.py` opens the ATT&CK index with a writable
+Chroma client, which rewrites `data/index/chroma/chroma.sqlite3` (two rows in Chroma's own lock table)
+and the HNSW file `data_level0.bin`, so these two files no longer match the manifest after a test
+run; the indexed content does not change.
 
 ## How to verify
 

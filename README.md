@@ -4,7 +4,7 @@ LogTriage finds attacks in security logs and explains them with evidence. Unsupe
 
 **This project was built by AI.** The code, the experiments, the evaluation, this README and the faithfulness annotation were all done by AI (Claude Code), directed by the repository owner, who made the decisions marked "decided by the user" in `status.md`. **No human annotators or raters took part.** So the manual faithfulness target is **NOT MEASURED** (D67), and the human evaluation of usefulness and readability is **NOT PERFORMED** (D68). The AI-annotated faithfulness below is a different measure, rated by two AI subagents, and does not stand in for either. The dashboard check of M13 was an AI browser check, not a human one.
 
-`plan.md` holds the design, `status.md` the decision log (D1–D95) and every recorded number, and `reports/results.md` the full results of v1, the official version. `reports/results_v2.md` holds the v1 and v2 comparison of M12.
+`plan.md` holds the design, `status.md` the decision log (D1–D97) and every recorded number, and `reports/results.md` the full results of v1, the official version. `reports/results_v2.md` holds the v1 and v2 comparison of M12.
 
 ## Architecture
 
@@ -38,7 +38,7 @@ flowchart LR
 
 Ground truth (labels, phases) is read only by the evaluation, tuning on dev, the supervised reference and the EDA; never by features, models, agent tools or prompts (plan §5.2, enforced by `tests/test_isolation.py`). Every LLM call goes through a cache and a spending ledger (`data/cache/llm.sqlite`), so reruns are exact and free.
 
-**Testbeds.** `russellmitchell` is the dev testbed: every choice was made there. `santos` is the test testbed of the frozen targets (`reports/targets.md`), `wardbeck` and `harrison` are extra test testbeds (D55, D56), and `shaw` and `fox` are the unseen test testbeds of M12 (v2). Each test testbed ran `detect`, the supervised stage and `investigate` once; the guards refuse a second run.
+**Testbeds.** `russellmitchell` is the dev testbed: every choice was made there. `santos` is the test testbed of the frozen targets (`reports/targets.md`), `wardbeck` and `harrison` are extra test testbeds (D55, D56), and `shaw` and `fox` are the unseen test testbeds of M12 (v2). Each test testbed ran `prepare`, `detect`, the supervised stage and `investigate` once; the guards refuse a second run.
 
 ## Results
 
@@ -60,7 +60,7 @@ Other results, not targets:
 - **IDS baseline:** the AIT-ADS alerts reach a phase recall of 7 of 9 (event-based, a lower bound) to 9 of 9 (time-based) on santos, above ours, with 30,774 raw alerts per day.
 - **Verdicts:** no report says `benign`, so verdict F1 equals the ML-only baseline (santos 0.800, pooled 0.387). `malicious` was said only of truly malicious incidents.
 - **Missed on all three test testbeds:** `dnsteal_exfil`, because the DNS tunnel runs through the whole training period (D16), and `network_scans`, `service_stop` and `cracking`.
-- **Cost:** about 0.007 USD and 30 s per incident at off-peak rates; 0.5452 USD in the ledger for the whole project.
+- **Cost:** about 0.007 USD and 30 s per incident at off-peak rates; 1.2804 USD over 983 calls in the ledger for the whole project (0.5452 USD at v1.0; M12 added 0.7353 USD at peak rates), plus about 0.035 USD unledgered, against a 10 USD stop.
 
 ## v2 (M12)
 
@@ -142,8 +142,8 @@ These steps were run on 2026-11-08 (M13) in a fresh clone in a temporary directo
    uv run ruff check . && uv run ruff format --check .
    uv run pytest -m "not live and not data"
    ```
-   1,094 tests pass. GitHub Actions runs these commands on Ubuntu.
-2. **Add the data.** Copy `data/` (from the commands above, or from an existing checkout) into the clone. Then `uv run pytest -m "not live"`: 1,246 pass and 1 is skipped (the `prepare` rerun check on santos, D73).
+   1,094 tests pass (count from M13, v1.0). GitHub Actions runs these commands on Ubuntu.
+2. **Add the data.** Get `data/` from the data bundle ("Getting the data" above: download, extract in the repository root, verify), or copy it from an existing checkout. In M13 it was copied. Then `uv run pytest -m "not live"`: 1,246 pass and 1 is skipped (the `prepare` rerun check on santos, D73; counts from M13, v1.0).
 3. **Evaluation.** `uv run logtriage evaluate` rewrites 21 tables and `reports/results.md`. Every committed file under `reports/results/` and `reports/results.md` came out byte-identical, and the ledger stayed at 485 calls and 0.5452 USD: 0 paid calls.
 4. **Dev pipeline from raw data.** `uv run logtriage prepare --testbed russellmitchell`, then `uv run logtriage detect --testbed russellmitchell`. `scores.parquet` and `incidents.parquet` are byte-identical to the saved dev files, and so are every `lines_*` and `windows_*` table, `labels.parquet`, `detect_report.json`, the scalers, vocabularies and Drain3 state. `agent.duckdb` and `eval.duckdb` are not byte-identical, as DuckDB files never are, but every table and view holds the same rows. `prepare_report.json` differs only in its timing fields.
 5. **Dev agents from the cache.** The agents replay through `run_incidents`, the function behind `investigate`, with a model backend that raises if it is ever called:
@@ -188,7 +188,7 @@ The first run builds the image, about 3.8 GB, which needs network. Then open htt
 
 - **LLM:** DeepSeek `deepseek-flash` through the OpenAI-compatible API at `https://api.deepseek.com`, with thinking disabled and temperature 0 (D44). The name is a rolling alias; on 2026-11-06 it was served by DeepSeek-V4.1-Flash-1017, and every report records `system_fingerprint` `bc19ba97cbe016479903222bb1578db6`. It is not bit-exact at temperature 0, so only the cache makes reruns exact. Prompts: investigator-1, mapper-1, reporter-2, verifier-3, frozen before any test testbed ran; chat-1 for the chat.
 - **Embeddings:** `BAAI/bge-small-en-v1.5`, revision `5c38ec7c405ec4b44b94cc5a9bb96e735b38267a`, for ATT&CK retrieval with BM25 fusion (D43).
-- **Spend:** 0.5452 USD over 485 paid calls in the ledger, plus about 0.035 USD of early unledgered calls, against a 10 USD stop.
+- **Spend:** 1.280427 USD over 983 paid calls in the ledger (0.5452 USD over 485 calls at M13 / v1.0; M12 added 0.735257 USD, all at peak rates), plus about 0.035 USD of early unledgered calls, against a 10 USD stop.
 
 ## Settings
 
