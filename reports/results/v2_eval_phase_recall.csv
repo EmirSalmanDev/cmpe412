@@ -1,0 +1,19 @@
+mode,testbed,group,variant,detected,phases,recall,missed
+v1,shaw,test,primary,3,8,0.375000,cracking network_scans privilege_escalation service_scans service_stop
+v1,shaw,test,all_parsed,3,8,0.375000,cracking network_scans privilege_escalation service_scans service_stop
+v1,shaw,test,without_exfil,3,8,0.375000,cracking network_scans privilege_escalation service_scans service_stop
+v1,fox,test,primary,5,9,0.555556,cracking dnsteal_exfil network_scans service_stop
+v1,fox,test,all_parsed,5,9,0.555556,cracking dnsteal_exfil network_scans service_stop
+v1,fox,test,without_exfil,5,8,0.625000,cracking network_scans service_stop
+v1,sum,sum,primary,8,17,0.470588,
+v1,sum,sum,all_parsed,8,17,0.470588,
+v1,sum,sum,without_exfil,8,16,0.500000,
+v2,shaw,test,primary,3,8,0.375000,cracking network_scans privilege_escalation service_scans service_stop
+v2,shaw,test,all_parsed,3,8,0.375000,cracking network_scans privilege_escalation service_scans service_stop
+v2,shaw,test,without_exfil,3,8,0.375000,cracking network_scans privilege_escalation service_scans service_stop
+v2,fox,test,primary,6,9,0.666667,dnsteal_exfil network_scans service_stop
+v2,fox,test,all_parsed,6,9,0.666667,dnsteal_exfil network_scans service_stop
+v2,fox,test,without_exfil,6,8,0.750000,network_scans service_stop
+v2,sum,sum,primary,9,17,0.529412,
+v2,sum,sum,all_parsed,9,17,0.529412,
+v2,sum,sum,without_exfil,9,16,0.562500,

@@ -34,7 +34,7 @@ from logtriage.agents.schemas import (
     VerifierOutput,
     draft_claims,
 )
-from logtriage.config import DEV_TESTBED, Settings
+from logtriage.config import DEV_TESTBED, M11_TESTBEDS, Settings
 from logtriage.eval.ablations import ABLATION_TESTBED, output_dir, report_files
 
 ON = "verifier_on"
@@ -234,13 +234,13 @@ def _auto_row(testbed: str, group: str, reports: list[list[Round]]) -> dict[str,
 
 def auto_table(settings: Settings) -> pd.DataFrame:
     """Return auto faithfulness per testbed and pooled (plan 10.2), from saved answers only."""
-    testbeds = [*settings.test_testbeds, DEV_TESTBED]
+    testbeds = [*M11_TESTBEDS, DEV_TESTBED]
     traced = trace_testbeds(settings, testbeds)
     rows = [
         _auto_row(name, "dev" if name == DEV_TESTBED else "test", list(traced[name].values()))
         for name in testbeds
     ]
-    tests = [item for name in settings.test_testbeds for item in traced[name].values()]
+    tests = [item for name in M11_TESTBEDS for item in traced[name].values()]
     rows.append(_auto_row(POOLED, POOLED, tests))
     return pd.DataFrame(rows)
 
@@ -332,10 +332,10 @@ def collect_claims(settings: Settings, sheet: str = FULL) -> tuple[pd.DataFrame,
         the draft-only claims; and all first-draft claims of the reports the Verifier rewrote,
         which are the off side of the paired reading.
     """
-    traced = trace_testbeds(settings, settings.test_testbeds)
+    traced = trace_testbeds(settings, M11_TESTBEDS)
     rows: list[dict[str, Any]] = []
     paired: list[dict[str, Any]] = []
-    for testbed in settings.test_testbeds:
+    for testbed in M11_TESTBEDS:
         for name, report in load_official(testbed, settings).items():
             lines = shown_lines(report.evidence, sheet)
             final = claim_rows(testbed, name, ON, report, lines)

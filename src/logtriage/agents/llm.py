@@ -17,6 +17,9 @@ from logtriage.config import LLMConfig, PricingConfig, Settings, TokenPrices
 REASONING = "reasoning_content"
 JSON_MODE = {"type": "json_object"}
 FEEDBACK_CHARS = 1500
+# The served model of every official report (Recorded facts, D44). Paid runs compared with them
+# stop if another model answers: the ablations and LLM-only (D65, D66), and the M12 runs (D89).
+EXPECTED_FINGERPRINT = "bc19ba97cbe016479903222bb1578db6"
 Parsed = TypeVar("Parsed", bound=BaseModel)
 
 

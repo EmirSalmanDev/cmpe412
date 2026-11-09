@@ -141,14 +141,18 @@ AUTH = FeatureSet(
     },
 )
 # An execve shows as a SYSCALL record, which carries the uid and exe that EXECVE records lack.
+# systemd names the unit of a SERVICE_START or SERVICE_STOP record only inside its `msg='...'`
+# text, as `unit=<name>`, and the template masks it, so `unit` is read from the message.
 AUDIT = FeatureSet(
     derived={
         "record": _field("type"),
         "exe": _field("exe"),
         "uid": _field("uid"),
         "is_execve": "record = 'SYSCALL' AND regexp_matches(message, '\\bsyscall=59\\b')",
+        "unit": "CASE WHEN record IN ('SERVICE_START', 'SERVICE_STOP') "
+        "THEN NULLIF(regexp_extract(message, '\\bunit=([^ '']+)', 1), '') END",
     },
-    vocabularies={"exe": "exe"},
+    vocabularies={"exe": "exe", "units": "unit"},
     aggregates={
         "n_execve": "count(*) FILTER (is_execve)",
         "n_execve_web_user": "count(*) FILTER (is_execve AND uid = '33')",
@@ -157,6 +161,7 @@ AUDIT = FeatureSet(
         "n_user_auth_events": "count(*) FILTER "
         "(record IN ('USER_AUTH', 'USER_START', 'CRED_ACQ', 'USER_CMD'))",
         "n_root_execve": "count(*) FILTER (is_execve AND uid = '0')",
+        "n_unseen_units": "count(DISTINCT unit) FILTER (unseen_units)",
     },
 )
 # OpenVPN writes UNDEF before a peer has authenticated: a placeholder, not a user.
@@ -410,6 +415,30 @@ class FeatureScaler:
             positions = [self.columns.index(name) for name in self.one_sided]
             scaled[:, positions] = np.maximum(scaled[:, positions], 0.0)
         return scaled
+
+    def without(self, names: Iterable[str]) -> "FeatureScaler":
+        """Return the scaler of the other columns, in the same order.
+
+        Every column is scaled on its own, so the columns that stay are transformed exactly
+        as before. v1 scoring uses it to leave out `store.OPTIONAL_FEATURES`.
+
+        Args:
+            names: Columns to leave out. Names the scaler lacks are ignored.
+
+        Returns:
+            This scaler if no column is left out, otherwise a smaller one.
+        """
+        dropped = set(names) & set(self.columns)
+        if not dropped:
+            return self
+        positions = [index for index, name in enumerate(self.columns) if name not in dropped]
+        return FeatureScaler(
+            [self.columns[index] for index in positions],
+            [name for name in self.count_columns if name not in dropped],
+            [self.center[index] for index in positions],
+            [self.scale[index] for index in positions],
+            [name for name in self.one_sided if name not in dropped],
+        )
 
     def save(self, path: Path) -> None:
         """Write the scaler as JSON."""

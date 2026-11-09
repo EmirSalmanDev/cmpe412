@@ -6,8 +6,9 @@
 seed: 42
 
 # Test testbeds, none of them tuned on. santos keeps the frozen targets of reports/targets.md;
-# every guard treats all of them alike (plan 4.3, D56).
-test_testbeds: [santos, wardbeck, harrison]
+# every guard treats all of them alike (plan 4.3, D56). shaw and fox are the unseen testbeds of M12 (D74,
+# D83), and fox replaces wheeler (D85); the M11 evaluation keeps its own three (config.M11_TESTBEDS).
+test_testbeds: [santos, wardbeck, harrison, shaw, fox]
 
 # LLM policy (plan 7.1). Model, prices and parameters verified on 2026-11-06 (status.md).
 llm:
@@ -217,11 +218,17 @@ download:
     harrison:
       record: 5789064
       files: [harrison.zip]
+    shaw:
+      record: 5789064
+      files: [shaw.zip]
+    fox:
+      record: 5789064
+      files: [fox.zip]
     ait_ads:
       record: 8263181
       files: [ait_ads.zip, labels.csv]
       # Only the alerts of the testbeds in use; the zip holds all eight scenarios.
-      extract: [russellmitchell_*.json, santos_*.json, wardbeck_*.json, harrison_*.json]
+      extract: [russellmitchell_*.json, santos_*.json, wardbeck_*.json, harrison_*.json, shaw_*.json, fox_*.json]
   max_retries: 3
   backoff_seconds: 10
   timeout_seconds: 60

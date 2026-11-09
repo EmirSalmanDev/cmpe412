@@ -21,6 +21,15 @@ DEFAULT_ENV_FILE = Path(".env")
 DEV_TESTBED = "russellmitchell"
 # The test testbed of the frozen targets. All test testbeds are in `Settings.test_testbeds` (D56).
 TEST_TESTBED = "santos"
+# The test testbeds of the M11 evaluation and of the pooled row of plan 10.7, fixed by D56. Later
+# test testbeds (M12: shaw and fox) join `test_testbeds`, so every guard covers
+# them, but not this list: the official v1 results and `logtriage evaluate` stay as they are (D83).
+M11_TESTBEDS = ("santos", "wardbeck", "harrison")
+# The frozen v2 detection config (D78). Detection reads its mode from the config file, so a run
+# with this file is v2 and writes apart from v1; any other file is v1 (D86).
+V2_CONFIG_PATH = Path("configs/v2.yaml")
+V1_MODE = "v1"
+V2_MODE = "v2"
 
 
 class PlaceholderSection(BaseModel):
@@ -131,6 +140,11 @@ class MLConfig(PlaceholderSection):
     q_grid: list[float] = Field(default_factory=lambda: [0.95, 0.97, 0.98, 0.99, 0.995, 0.999])
     gap_grid: list[int] = Field(default_factory=lambda: [5, 10, 15, 30])
     common_entity_share: float = 0.5
+    # v2 switches (reports/v2_plan.md §3). The defaults are v1, so `configs/default.yaml` needs
+    # no key for them. `oof_reference` is D28; `cross_fit` is candidate (a) (D75).
+    thin_calibration: Literal["oof_reference", "cross_fit"] = "oof_reference"
+    # Window features the models use only when listed here, such as `n_unseen_units` (D76).
+    optional_features: list[str] = Field(default_factory=list)
     supervised: SupervisedConfig = Field(default_factory=SupervisedConfig)
 
 
@@ -276,6 +290,9 @@ class Settings(BaseSettings):
     phases: PhasesConfig = Field(default_factory=PhasesConfig)
     drain: DrainConfig = Field(default_factory=DrainConfig)
     deepseek_api_key: SecretStr | None = Field(default=None, validation_alias="DEEPSEEK_API_KEY")
+    # The YAML files the settings were read from, the named file first, then its `base` chain.
+    # Set by `load_settings`; empty for settings built in code.
+    config_files: list[Path] = Field(default_factory=list)
 
     @classmethod
     def settings_customise_sources(
@@ -334,6 +351,68 @@ def load_sources(path: Path | str) -> LogSources:
         return LogSources.model_validate(yaml.safe_load(handle))
 
 
+BASE_KEY = "base"
+
+
+def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Return `base` with `override` laid over it; nested mappings merge, other values replace."""
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def read_config_values(config_path: Path | str, seen: tuple[Path, ...] = ()) -> dict[str, Any]:
+    """Read a YAML config, resolving its optional `base` file first.
+
+    A config with `base: default.yaml` holds only what differs from that file, which is read
+    relative to the config's own folder. `configs/v2.yaml` uses it, so it cannot drift from v1.
+
+    Args:
+        config_path: YAML config file.
+        seen: Files already on the chain, to refuse a loop.
+
+    Returns:
+        The merged values, without the `base` key.
+
+    Raises:
+        ValueError: If the chain of `base` files loops.
+    """
+    path = Path(config_path).resolve()
+    if path in seen:
+        raise ValueError(f"{config_path}: the chain of base configs loops")
+    with path.open(encoding="utf-8") as handle:
+        values: dict[str, Any] = yaml.safe_load(handle) or {}
+    base = values.pop(BASE_KEY, None)
+    if base is None:
+        return values
+    return deep_merge(read_config_values(path.parent / base, (*seen, path)), values)
+
+
+def config_chain(config_path: Path | str) -> list[Path]:
+    """Return a config file and the `base` files it extends, the named file first."""
+    chain: list[Path] = []
+    path: Path | None = Path(config_path)
+    while path is not None:
+        if path.resolve() in [item.resolve() for item in chain]:
+            raise ValueError(f"{config_path}: the chain of base configs loops")
+        chain.append(path)
+        with path.open(encoding="utf-8") as handle:
+            base = (yaml.safe_load(handle) or {}).get(BASE_KEY)
+        path = None if base is None else path.parent / base
+    return chain
+
+
+def detection_mode(settings: "Settings") -> str:
+    """Return `v2` for settings read from `configs/v2.yaml`, else `v1` (D86)."""
+    files = settings.config_files
+    is_v2 = bool(files) and files[0].resolve() == V2_CONFIG_PATH.resolve()
+    return V2_MODE if is_v2 else V1_MODE
+
+
 def load_settings(
     config_path: Path | str = DEFAULT_CONFIG_PATH,
     env_file: Path | str | None = DEFAULT_ENV_FILE,
@@ -341,14 +420,14 @@ def load_settings(
     """Load settings from a YAML file, applying `.env` and environment overrides.
 
     Args:
-        config_path: YAML config file.
+        config_path: YAML config file, optionally naming a `base` file it extends.
         env_file: Dotenv file to read, or None to skip it. A missing file is ignored.
 
     Returns:
         The validated settings.
     """
-    with Path(config_path).open(encoding="utf-8") as handle:
-        values: dict[str, Any] = yaml.safe_load(handle) or {}
+    values = read_config_values(config_path)
     # The API key must come from the environment, never from a config file.
     values = {key: value for key, value in values.items() if key.lower() != "deepseek_api_key"}
+    values["config_files"] = config_chain(config_path)
     return Settings(_env_file=env_file, **values)

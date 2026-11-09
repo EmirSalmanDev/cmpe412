@@ -17,7 +17,7 @@ from logtriage.agents.llm import (
     FingerprintChangedError,
     LLMOutputError,
 )
-from logtriage.agents.runner import run_incidents
+from logtriage.agents.runner import expected_fingerprint, run_incidents
 from logtriage.app.data import AppOptions, database_path
 from logtriage.app.replay import check_live
 from logtriage.config import DEFAULT_CONFIG_PATH, DEV_TESTBED, Settings, load_settings
@@ -78,11 +78,15 @@ def inventory(
 
 @app.command()
 def prepare(
-    testbed: TestbedOption = DEV_TESTBED, config: ConfigOption = DEFAULT_CONFIG_PATH
+    testbed: TestbedOption = DEV_TESTBED,
+    config: ConfigOption = DEFAULT_CONFIG_PATH,
+    rerun_reason: Annotated[
+        str | None, typer.Option("--rerun-reason", help="Why a test testbed is prepared again.")
+    ] = None,
 ) -> None:
     """Parse logs, then build templates, windows, label tables and the DuckDB files."""
     try:
-        out_dir = run_prepare(testbed, load_settings(config))
+        out_dir = run_prepare(testbed, load_settings(config), rerun_reason)
     except (ValueError, FileNotFoundError) as error:
         _report_failure("prepare", error)
         raise typer.Exit(code=1) from error
@@ -133,18 +137,27 @@ def investigate(
         str | None, typer.Option("--rerun-reason", help="Why a test testbed runs again.")
     ] = None,
 ) -> None:
-    """Run the agents over incidents, highest priority first."""
+    """Run the agents over incidents, highest priority first.
+
+    `--config configs/v2.yaml` investigates v2's incidents, apart from v1's (D90). On the M12
+    testbeds a paid answer from another model than the M11 one stops the run (D89).
+    """
     try:
+        settings = load_settings(config)
         summary = run_incidents(
             testbed,
-            load_settings(config),
+            settings,
             incident_ids=incident,
             use_cache=not no_cache,
             rerun_reason=rerun_reason,
+            expected_fingerprint=expected_fingerprint(testbed, settings),
         )
     except (ValueError, FileNotFoundError, KeyError) as error:
         _report_failure("investigate", error)
         raise typer.Exit(code=1) from error
+    except FingerprintChangedError as error:
+        _report_failure("investigate", error)
+        raise typer.Exit(code=3) from error
     typer.echo(
         f"{len(summary.finished)} reports, {len(summary.failed)} failed, "
         f"{summary.spent_usd:.4f} USD this run, {summary.total_spent_usd:.4f} USD in total"

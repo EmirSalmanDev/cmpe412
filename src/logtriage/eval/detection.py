@@ -10,6 +10,7 @@ import pandas as pd
 from logtriage.config import DEV_TESTBED, Settings
 from logtriage.data.features import SCALER_DIR, FeatureScaler
 from logtriage.data.periods import Periods
+from logtriage.data.store import OPTIONAL_FEATURES
 from logtriage.eval import eda
 from logtriage.eval.metrics import (
     EXFIL_PHASE,
@@ -134,6 +135,7 @@ def embedding_inputs(
     windows = pd.read_parquet(directory / f"windows_{log_type}.parquet")
     windows = windows[windows["period"] == "eval"].reset_index(drop=True)
     scaler = FeatureScaler.load(directory / SCALER_DIR / f"{log_type}.json")
+    scaler = scaler.without(OPTIONAL_FEATURES - set(settings.ml.optional_features))
     merged = windows[["host", "log_type", "window_start"]].merge(
         truth, how="left", on=["host", "log_type", "window_start"]
     )

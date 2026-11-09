@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from logtriage.agents.llm import DeepSeekChat
+from logtriage.agents.llm import EXPECTED_FINGERPRINT, DeepSeekChat, FingerprintChangedError
 from logtriage.agents.runner import RunSummary
 from logtriage.cli import app
 from logtriage.config import load_settings
@@ -90,7 +90,38 @@ def test_investigate_passes_its_options_to_the_runner(monkeypatch: pytest.Monkey
         "incident_ids": ["a"],
         "use_cache": False,
         "rerun_reason": "why",
+        "expected_fingerprint": None,  # not an M12 testbed (D89)
     }
+
+
+@pytest.mark.parametrize(
+    ("testbed", "expected"),
+    [("shaw", EXPECTED_FINGERPRINT), ("fox", EXPECTED_FINGERPRINT), ("santos", None)],
+)
+def test_investigate_keeps_the_m11_model_on_the_m12_testbeds(
+    monkeypatch: pytest.MonkeyPatch, testbed: str, expected: str | None
+) -> None:
+    seen = {}
+
+    def fake_run(testbed: str, settings: object, **options: object) -> RunSummary:
+        seen.update(options)
+        return RunSummary(testbed, "run")
+
+    monkeypatch.setattr("logtriage.cli.run_incidents", fake_run)
+    result = runner.invoke(app, ["investigate", "--testbed", testbed, "--config", str(CONFIG)])
+    assert result.exit_code == 0
+    assert seen["expected_fingerprint"] == expected
+
+
+def test_investigate_stops_with_its_own_code_when_the_model_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def changed(*args: object, **kwargs: object) -> RunSummary:
+        raise FingerprintChangedError("reporter: system_fingerprint x, expected y")
+
+    monkeypatch.setattr("logtriage.cli.run_incidents", changed)
+    result = runner.invoke(app, ["investigate", "--testbed", "shaw", "--config", str(CONFIG)])
+    assert result.exit_code == 3
 
 
 def test_investigate_exits_with_an_error_when_the_budget_stops_it(

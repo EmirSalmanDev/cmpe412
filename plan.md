@@ -290,6 +290,8 @@ Other definitions (changed: see status.md D25). `*_paths` features use the path 
 
 Features that turn out to be constant or missing in the real data are dropped per `(testbed, log_type)`, and `features_report.json` lists them. Constant means one value over the windows of all periods: `n_unseen_*` features are 0 on every fit window by construction, so a check on the fit period alone would drop all of them (changed: see status.md D25). Log this in status.md.
 
+`audit` windows also hold `n_unseen_units`: the distinct `unit=` names of `SERVICE_START` and `SERVICE_STOP` records (read from the message, `\bunit=([^ ']+)`, because the template masks them) that are not in the fit vocabulary `units`. It is built, gated (D15) and dropped (D25) like every `n_unseen_*` feature, and it is an **optional** feature (`features.OPTIONAL_FEATURES`): the models use it only when `ml.optional_features` lists it, which v2 (`configs/v2.yaml`) does and v1 does not, so v1 scores are unchanged, and the agents never see it (changed: see status.md D76, D78, D79).
+
 Vocabulary, rarity and "unseen" features (`n_unseen_templates`, `ratio_unseen_templates`, `mean_template_rarity`, `max_template_rarity`, and every `*_unseen_*` feature in the table) are dropped for a `(testbed, log_type)` whose fit period has fewer than `ml.min_fit_lines` parsed lines (`configs/default.yaml`, default 200) (changed: see status.md D15).
 Transform: `log1p` on counts (features named `n_*`), then `RobustScaler` fit on the `fit` windows of a log type, pooled across hosts. Windows keep raw values; the scaler is saved to `data/processed/<testbed>/scalers/<log_type>.json` for M5, and only for baseline-capable types (§6.4). Vocabularies go to `vocabularies/<log_type>.parquet` (changed: see status.md D26).
 The DNS features `mean_qname_len`, `max_label_len`, `mean_label_entropy`, `max_label_entropy`, `ratio_unique_qnames` and `top_domain_share` are one-sided: negative scaled values are clipped at 0 (`features.one_sided_features`), on every testbed. They rise with an attack by nature, and the baseline holds the tunnel, so a value below it only means the tunnel stopped. Raw window values are not clipped. Unclipped DNS numbers are reported as a secondary variant and used for no selection (changed: see status.md D29). That variant is for russellmitchell and santos only: on `wardbeck` and `harrison` it would need a second scoring pass (changed: see status.md D61).
@@ -310,8 +312,9 @@ Hyperparameter search (small grid) only on the dev testbed, choosing by phase re
 
 - For each model, `pct_m(x)` = empirical CDF of the model's scores on the calibration slice. Calibrate per `(host, log_type)` when that stream has ≥ 200 calibration windows, otherwise per `log_type`.
 - A log type with fewer than `ml.min_calib_windows` (200) calibration windows adds out-of-fold scores of its fit windows to its reference: `ml.oof_folds` contiguous time blocks, each scored by models fit on the other blocks. The final models stay fit on all fit windows, and baseline capability (§6.4) does not change (changed: see status.md D28).
+- `ml.thin_calibration: cross_fit` (candidate (a) of `reports/v2_plan.md`, D75) replaces that reference for a thin type: its fold models alone score it, each against its own held-out block and the calib windows. It was implemented and measured on dev and **not chosen** for v2, so v1 and v2 both keep D28 (changed: see status.md D78).
 - `score = mean(pct_if, pct_lof, pct_pca)`.
-- `is_anomalous = score ≥ q`. `q` is chosen on dev (in `eval/tuning.py`) from {0.95, 0.97, 0.98, 0.99, 0.995, 0.999} to maximize phase recall subject to incidents/day ≤ the budget fixed in M3 (default 25); ties → fewer incidents. The same `q` is used on test.
+- `is_anomalous = score ≥ q`. `q` is chosen on dev (in `eval/tuning.py`) from {0.95, 0.97, 0.98, 0.99, 0.995, 0.999} to maximize phase recall subject to incidents/day ≤ the budget fixed in M3 (default 25); ties → fewer incidents. The same `q` is used on test. v2 adds 0.996, 0.997 and 0.998 to the grid and was chosen at `q` 0.996, gap 30 (changed: see status.md D78).
 
 ### 6.6 Incident grouping (`logtriage/ml/incidents.py`)
 
@@ -372,7 +375,7 @@ Limits (config): investigator ≤ 8 tool calls, evidence ≤ 30 lines, each tool
 
 ### 7.3 Tools (`logtriage/agents/tools.py`)
 
-All tools read only `agent.duckdb`, through `store.connect_agent`: `read_only=True`, `enable_external_access=false`, `lock_configuration=true`, no label tables (changed: see status.md D41), one thread so that results repeat (changed: see status.md D46). Each returns compact text and the line_ids it surfaced. Lines shown to the LLM get eids registered in state.
+All tools read only `agent.duckdb`, through `store.connect_agent`: `read_only=True`, `enable_external_access=false`, `lock_configuration=true`, no label tables (changed: see status.md D41), one thread so that results repeat (changed: see status.md D46). Optional window features (`store.OPTIONAL_FEATURES`, today `n_unseen_units`) are dropped from every agent table, like `period`, in v1 and v2 alike, so the agent tables keep the v1 schema and only detection differs between versions (changed: see status.md D79). Each returns compact text and the line_ids it surfaced. Lines shown to the LLM get eids registered in state.
 
 | tool | behavior |
 |---|---|
@@ -448,7 +451,7 @@ The UI never shows labels except on an optional "Evaluation" page clearly marked
 
 `download`, `inventory`, `prepare` (parse + drain + labels + features), `detect` (fit + score + incidents), `index-attack`, `investigate` (agents over incidents), `ablate` and `llm-only` (M11, santos only, once per stage) (changed: see status.md D65, D66), `evaluate`, `app`. Every command takes `--testbed` and `--config`. `app` also takes `--live` (changed: see status.md D51).
 
-Each test testbed runs `detect`, the supervised test stage and `investigate` once. A repeat needs `--rerun-reason`, and every run is written to `reports/results/test_runs.csv` by `logtriage/guards.py`. That ledger carries the guard because `prepare` deletes `scores.parquet` and `incidents.parquet` (changed: see status.md D57).
+Each test testbed runs `detect`, the supervised test stage and `investigate` once. A repeat needs `--rerun-reason`, and every run is written to `reports/results/test_runs.csv` by `logtriage/guards.py`. That ledger carries the guard because `prepare` deletes `scores.parquet` and `incidents.parquet` (changed: see status.md D57). Since M12 `prepare` is guarded the same way: once per test testbed, a ledger row before any output, a repeat or existing processed files need `--rerun-reason`, and the container refuses it (changed: see status.md D83). Since M12 the ledger also records each run's `mode` (v1 or v2), `commit` and the sha256 of its config file and of the file it extends; `detect` with `configs/v2.yaml` is the v2 mode, writes to `data/processed/<testbed>/v2/` and is recorded as `detect:v2`, once (changed: see status.md D86). `investigate` with `configs/v2.yaml` investigates v2's incidents from `v2/agent.duckdb`, writes to `v2/reports/` and `reports/results/agents_<testbed>_v2.csv`, keeps its incident memory in `v2/memory/`, and is recorded as `investigate:v2`, once; on the M12 testbeds a paid answer from another model than the M11 one stops it (changed: see status.md D89, D90).
 
 ---
 
@@ -519,6 +522,7 @@ Fixed before any result of `wardbeck` or `harrison` exists. Metric definitions (
 
 - Ablations (§10.4) and the LLM-only baseline (§10.3) stay on santos: each test testbed runs the agents once.
 - Data is never pooled: no model, scaler, vocabulary, percentile reference or threshold is shared between testbeds.
+- The three testbeds of this section are fixed (`config.M11_TESTBEDS`). The unseen testbeds of M12 join `test_testbeds`, so every guard covers them, but not this pooled row or `logtriage evaluate`; they are reported by `reports/v2_plan.md` §5–§7 (changed: see status.md D83).
 
 ---
 
@@ -642,8 +646,12 @@ Read: §10, §11.
 Tasks: metrics, baselines, ablations, LLM-only baseline, AI-annotated faithfulness, `evaluate` command, `05_evaluation.ipynb`, `reports/results.md` (changed: see status.md D67, D68).
 Accept: every metric in §10.2 and every baseline/ablation in §10.3–10.4 has a number, except manual faithfulness, marked NOT MEASURED, and human evaluation, marked NOT PERFORMED, in results.md and status.md (changed: see status.md D67, D68); results regenerate from cache with one command.
 
-### M12 — Stretch (`m12-stretch`, optional)
-DeepLog-style LSTM next-template model on one log type; long-term memory evaluation ("similar incident" usefulness). Only after M11 is merged.
+### M12 — v2: detection improvement on dev, measured once on shaw and fox against v1 (`m12-v2`) (changed: see status.md D74, D77, D85)
+Read: §4.3, §6.3–§6.6, §10.1, §10.5, §10.7, §14.3, `reports/v2_plan.md`.
+Tasks: diagnose dev phase misses from saved files; write `reports/v2_plan.md` (candidates, selection rule, shaw protocol, cost, what counts as helping) and commit it before any candidate is measured; implement the candidates in `ml/`, label-free and the same rule on every testbed; select on russellmitchell only by the §6.5 rule; then shaw and fox, the first two feasible unseen testbeds of the D55 order (wheeler fails the D55 criteria): prepare, EDA and frozen denominators in `reports/targets_shaw.md` and `reports/targets_fox.md` before any detection, then v1 and v2 each run once on each through `guards.py`. Agents stay as in v1 (frozen prompts, retrieval, `deepseek-flash`); only detection changes.
+Accept: `reports/v2_plan.md` committed before the first candidate number; v2 chosen on dev by the pre-declared rule; on shaw and on fox, v1 and v2 each run once with ledger rows; results reported against the readings fixed in `reports/v2_plan.md`. v1 results on santos, `wardbeck` and `harrison` stay the official v1 results; any v2 number there is secondary "seen data" only.
+Dropped: the DeepLog stretch. Memory evaluation is moot, since `similar_incidents` was never called (status.md Open questions).
+Status (changed: see status.md D86–D93): v2 frozen on dev (D78: b+d, `q` 0.996, gap 30); shaw and fox prepared and frozen; v1 and v2 each ran `detect` and `investigate` once on both, v1 also the supervised stage. `reports/results_v2.md`, generated by `python -m logtriage.eval.results_v2`, reads §7 as written: v1 8 of 17 phases, v2 9 of 17 ("helps", one phase, through candidate b). `configs/default.yaml` stays v1 and v2 ships as the opt-in `configs/v2.yaml` (D93). Faithfulness is not measured on shaw or fox (D91).
 
 ### M13 — Finalize (`m13-final`)
 README complete (architecture figure, results table, how to reproduce), all notebooks executed in order from a clean state, license/attribution, final status.md, an AI browser check of the dashboard pages (changed: see status.md D68).

@@ -607,7 +607,9 @@ def test_a_constant_feature_is_dropped_but_unseen_ones_stay(tmp_path: Path) -> N
     assert "n_unseen_domains" in report["dns"]["features"]
     assert "n_failed_login" in report["auth"]["features"]
     assert "ratio_5xx" in report["apache_access"]["features"]
-    assert report["audit"]["dropped_constant"] == []
+    # The fixture's one systemd unit is in the fit period, so `n_unseen_units` (D76) is 0 on
+    # every window and drops as constant, by the rule that keeps the other unseen features.
+    assert report["audit"]["dropped_constant"] == ["n_unseen_units"]
 
 
 def test_constant_features_are_reported(tmp_path: Path) -> None:

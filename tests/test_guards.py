@@ -11,11 +11,12 @@ from typer.testing import CliRunner
 
 from agent_fakes import FakeChat, open_tools, settings_for
 from logtriage import guards
+from logtriage import prepare as prepare_module
 from logtriage.agents.runner import check_test_run, run_incidents
 from logtriage.agents.tools import AgentTools
 from logtriage.app.replay import check_live
 from logtriage.cli import app
-from logtriage.config import DEV_TESTBED, TEST_TESTBED, Settings, load_settings
+from logtriage.config import DEV_TESTBED, M11_TESTBEDS, TEST_TESTBED, Settings, load_settings
 from logtriage.ml import detect as detect_module
 from logtriage.ml import supervised as supervised_module
 from logtriage.ml.detect import INCIDENTS_FILE, SCORES_FILE, run_detect
@@ -27,6 +28,7 @@ from logtriage.ml.supervised import (
     run_dev,
     run_test,
 )
+from logtriage.prepare import run_prepare
 from test_detect import ML, make_windows, write_testbed
 
 ROOT = Path(__file__).parents[1]
@@ -68,10 +70,95 @@ def tools(tmp_path: Path) -> Iterator[AgentTools]:
     instance.close()
 
 
-def test_the_config_lists_the_three_test_testbeds_and_not_dev() -> None:
-    assert TEST_TESTBEDS == ["santos", "wardbeck", "harrison"]
+def test_the_config_lists_the_test_testbeds_and_not_dev() -> None:
+    assert TEST_TESTBEDS[:3] == ["santos", "wardbeck", "harrison"]
+    assert TEST_TESTBEDS[3:] == ["shaw", "fox"]  # M12: D74, D83, D85
+    assert "wheeler" not in TEST_TESTBEDS  # fails the D55 criteria (D84)
     assert DEV_TESTBED not in TEST_TESTBEDS
     assert set(TEST_TESTBEDS) <= set(REAL.download.sources)
+    extract = REAL.download.sources["ait_ads"].extract
+    assert all(f"{name}_*.json" in extract for name in TEST_TESTBEDS)
+
+
+def test_the_m11_evaluation_keeps_its_three_test_testbeds() -> None:
+    assert M11_TESTBEDS == ("santos", "wardbeck", "harrison")
+    assert set(M11_TESTBEDS) <= set(TEST_TESTBEDS)
+
+
+# Prepare guard (D83).
+
+
+class PastTheGuard(Exception):
+    """Raised by a stand-in for the first step after the guard."""
+
+
+@pytest.fixture
+def prepare_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
+    """Settings whose testbeds all have their inputs, and a pipeline that stops after the guard."""
+    settings = settings_at(tmp_path)
+    settings.paths.raw_dir = tmp_path / "raw"
+    settings.paths.data_meta_dir = tmp_path / "meta"
+    settings.paths.data_meta_dir.mkdir()
+    for name in [DEV_TESTBED, *TEST_TESTBEDS]:
+        (settings.paths.raw_dir / name).mkdir(parents=True)
+        (settings.paths.raw_dir / name / "dataset.yaml").write_text("name: x\n")
+        (settings.paths.data_meta_dir / f"phases_{name}.csv").write_text("")
+
+    def stop(*_: object) -> None:
+        raise PastTheGuard
+
+    monkeypatch.setattr(prepare_module, "read_phases_csv", stop)
+    return settings
+
+
+@pytest.mark.parametrize("testbed", TEST_TESTBEDS)
+def test_prepare_runs_once_on_every_test_testbed(testbed: str, prepare_inputs: Settings) -> None:
+    with pytest.raises(PastTheGuard):
+        run_prepare(testbed, prepare_inputs)
+    assert [row["stage"] for row in guards.recorded_runs(prepare_inputs)] == [guards.PREPARE]
+    with pytest.raises(ValueError, match="rerun-reason"):
+        run_prepare(testbed, prepare_inputs)
+    with pytest.raises(PastTheGuard):
+        run_prepare(testbed, prepare_inputs, rerun_reason="why")
+    assert [row["reason"] for row in guards.recorded_runs(prepare_inputs)] == ["", "why"]
+
+
+def test_prepare_outputs_refuse_a_test_testbed_without_a_ledger_row(
+    prepare_inputs: Settings,
+) -> None:
+    directory = prepare_inputs.paths.processed_dir / "santos"
+    directory.mkdir(parents=True)
+    (directory / "periods.json").write_text("{}")
+    with pytest.raises(ValueError, match="rerun-reason"):
+        run_prepare("santos", prepare_inputs)
+    assert guards.recorded_runs(prepare_inputs) == []
+
+
+def test_prepare_on_dev_is_neither_refused_nor_recorded(prepare_inputs: Settings) -> None:
+    for _ in range(2):
+        with pytest.raises(PastTheGuard):
+            run_prepare(DEV_TESTBED, prepare_inputs)
+    assert guards.recorded_runs(prepare_inputs) == []
+
+
+def test_the_container_never_prepares_a_test_testbed(
+    prepare_inputs: Settings, marker: Path
+) -> None:
+    with pytest.raises(ValueError, match="container"):
+        run_prepare("shaw", prepare_inputs, rerun_reason="why")
+    assert guards.recorded_runs(prepare_inputs) == []
+
+
+def test_a_missing_download_does_not_use_up_the_run(prepare_inputs: Settings) -> None:
+    (prepare_inputs.paths.raw_dir / "shaw" / "dataset.yaml").unlink()
+    with pytest.raises(FileNotFoundError):
+        run_prepare("shaw", prepare_inputs)
+    assert guards.recorded_runs(prepare_inputs) == []
+
+
+def test_prepare_is_never_retried_by_the_d69_rule() -> None:
+    assert guards.PREPARE in guards.ONCE_ONLY
+    assert not guards.is_paid_evaluation_stage(guards.PREPARE)
 
 
 def test_the_committed_ledger_holds_every_santos_stage() -> None:

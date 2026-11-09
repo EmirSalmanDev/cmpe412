@@ -1,0 +1,5 @@
+mode,testbed,group,days,incidents,anomalous_windows,raw_alerts,grouped_alerts,incidents_per_day,anomalous_windows_per_day,raw_alerts_per_day,grouped_alerts_per_day,reduction_vs_windows,reduction_vs_raw_alerts,reduction_vs_grouped_alerts,within_budget,meets_reduction
+v1,shaw,test,3.119444,10,14,41436,368,3.205699,4.487979,13283.134461,117.969724,0.285714,0.999759,0.972826,True,True
+v1,fox,test,3.621690,11,36,461092,515,3.037256,9.940111,127314.050506,142.198815,0.694444,0.999976,0.978641,True,True
+v2,shaw,test,3.119444,14,18,41436,368,4.487979,5.770258,13283.134461,117.969724,0.222222,0.999662,0.961957,True,True
+v2,fox,test,3.621690,24,54,461092,515,6.626741,14.910167,127314.050506,142.198815,0.555556,0.999948,0.953398,True,True

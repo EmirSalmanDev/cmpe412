@@ -1,0 +1,6 @@
+mode,testbed,group,incident_id,phases,gold,predicted,verdict,gold_retrieved,top1_strict,top1_lenient,top3_strict,top3_lenient
+v1,shaw,test,shaw-0008,dirb webshell wpscan,T1190 T1505.003 T1595.002 T1595.003,T1608.001,malicious,False,False,False,False,False
+v1,fox,test,fox-0007,dirb service_scans webshell wpscan,T1046 T1190 T1505.003 T1595.002 T1595.003,T1592,malicious,False,False,False,False,False
+v1,fox,test,fox-0008,privilege_escalation,T1078 T1078.003 T1548.003,T1548.003 T1003.008 T1027,malicious,True,True,True,True,True
+v2,shaw,test,shaw-0011,dirb webshell wpscan,T1190 T1505.003 T1595.002 T1595.003,T1105,malicious,False,False,False,False,False
+v2,fox,test,fox-0015,cracking dirb privilege_escalation service_scans webshell wpscan,T1046 T1078 T1078.003 T1110.002 T1190 T1505.003 T1548.003 T1595.002 T1595.003,T1027,malicious,False,False,False,False,False

@@ -4,7 +4,7 @@ LogTriage finds attacks in security logs and explains them with evidence. Unsupe
 
 **This project was built by AI.** The code, the experiments, the evaluation, this README and the faithfulness annotation were all done by AI (Claude Code), directed by the repository owner, who made the decisions marked "decided by the user" in `status.md`. **No human annotators or raters took part.** So the manual faithfulness target is **NOT MEASURED** (D67), and the human evaluation of usefulness and readability is **NOT PERFORMED** (D68). The AI-annotated faithfulness below is a different measure, rated by two AI subagents, and does not stand in for either. The dashboard check of M13 was an AI browser check, not a human one.
 
-`plan.md` holds the design, `status.md` the decision log (D1–D73) and every recorded number, and `reports/results.md` the full results.
+`plan.md` holds the design, `status.md` the decision log (D1–D93) and every recorded number, and `reports/results.md` the full results of v1, the official version. `reports/results_v2.md` holds the v1 and v2 comparison of M12.
 
 ## Architecture
 
@@ -62,6 +62,20 @@ Other results, not targets:
 - **Missed on all three test testbeds:** `dnsteal_exfil`, because the DNS tunnel runs through the whole training period (D16), and `network_scans`, `service_stop` and `cracking`.
 - **Cost:** about 0.007 USD and 30 s per incident at off-peak rates; 0.5452 USD in the ledger for the whole project.
 
+## v2 (M12)
+
+v2 is an opt-in detection configuration, `configs/v2.yaml`, chosen on the dev testbed only (D78). It changes detection and nothing else: a finer `q` grid, with `q` 0.996 instead of 0.999 (candidate b), and a new `audit` feature, `n_unseen_units`, the systemd units not seen in training (candidate d). The agents, prompts, retrieval and model are v1's. `configs/default.yaml` stays v1, the official version, whatever v2 showed (`reports/v2_plan.md` §7, D93).
+
+```
+uv run logtriage detect --testbed russellmitchell --config configs/v2.yaml
+uv run logtriage investigate --testbed russellmitchell --config configs/v2.yaml
+uv run python -m logtriage.eval.results_v2
+```
+
+With `configs/v2.yaml`, `detect` and `investigate` write to `data/processed/<testbed>/v2/` and keep their own incident memory there, so v1's files are never touched; `investigate` spends money on a cache miss, as in v1. The last command regenerates `reports/results_v2.md` from the saved shaw and fox outputs.
+
+**Result.** On shaw and fox, two unseen testbeds where each version ran once, v2 credits 9 of 17 attack phases and v1 8: the one gain is fox `cracking`, through the lower `q` of candidate (b), while candidate (d) transferred nothing. v2 more than doubled incidents on fox (11 to 24, still within 25 per day), and neither version reaches the 80% phase-recall target on either testbed. Agent-level metrics did not improve: summed over shaw and fox, ATT&CK top-3 strict goes from 1 of 3 malicious incidents to 0 of 2, and verdict F1 from 0.261 to 0.100, because v2 adds incidents with no attack in them (uncertain on true benign, 17 to 36); the counts are small, and no cause is claimed for the ATT&CK change. The IDS baseline's phase recall (shaw 7/8 to 8/8, fox 7/9 to 9/9) is higher than either version's (v1: shaw 3/8, fox 5/9; v2: shaw 3/8, fox 6/9), as in v1's results. This is an observation from one run per testbed, not a statistical result; v1's official results above are unchanged. Details in [`reports/results_v2.md`](reports/results_v2.md).
+
 ## Setup
 
 You need [uv](https://docs.astral.sh/uv/). If it is missing, run `pip install uv`. uv manages Python 3.11 and the virtual environment. On macOS, XGBoost also needs the OpenMP runtime: `brew install libomp`.
@@ -91,7 +105,7 @@ uv run logtriage evaluate
 
 `download` fetches into `data/raw/zips/` and extracts only the files the project needs. The archives take about 7 GB for russellmitchell, 10 GB for santos, and 17 GB each for wardbeck and harrison. Rerunning it skips whatever is already in place. `inventory` needs AIT-ADS as well as the testbed; it writes `reports/inventory_<testbed>.md` and `data_meta/phases_<testbed>.csv`. `prepare` parses the logs and writes tables and DuckDB files to `data/processed/<testbed>/`; it takes about 20 seconds per testbed. `detect` fits the anomaly models and writes `scores.parquet` and `incidents.parquet`; it reads no ground truth. `index-attack` builds the ATT&CK index from the pinned bundle `data/raw/attack/enterprise-attack.json` (ATT&CK 20.1). `investigate` runs the agents and spends money on a cache miss. `evaluate` regenerates every table under `reports/results/` and `reports/results.md` from saved outputs and the cache, with no paid call.
 
-On a test testbed (santos, wardbeck, harrison) `detect`, the supervised test stage and `investigate` run once: a repeat is refused without `--rerun-reason`, and every run is written to `reports/results/test_runs.csv`. Never run `prepare` on a scored test testbed: it deletes the saved scores.
+On a test testbed (santos, wardbeck, harrison, and shaw and fox since M12) `detect`, the supervised test stage and `investigate` run once: a repeat is refused without `--rerun-reason`, and every run is written to `reports/results/test_runs.csv`. Since M12 `prepare` is guarded the same way (D83), so it cannot delete the saved scores of a test testbed by accident. v1 and v2 each run once, under their own ledger stages.
 
 The commands are `download`, `inventory`, `prepare`, `detect`, `index-attack`, `investigate`, `ablate`, `llm-only`, `evaluate` and `app`. Each takes `--config`, and most take `--testbed`.
 

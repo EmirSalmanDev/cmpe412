@@ -6,7 +6,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from logtriage.config import Settings, load_sources
+from logtriage import guards
+from logtriage.config import Settings, detection_mode, load_sources
 from logtriage.data.drain import add_templates
 from logtriage.data.features import build_windows
 from logtriage.data.labels import (
@@ -27,6 +28,7 @@ from logtriage.data.periods import (
 from logtriage.data.store import (
     DETECTION_TABLES,
     build_agent_db,
+    detection_dir,
     template_digest,
     write_lines,
 )
@@ -72,31 +74,42 @@ def _prepare_lines(
 def refresh_databases(testbed: str, settings: Settings) -> None:
     """Rebuild `agent.duckdb` and `eval.duckdb` so that they show every table on disk.
 
-    `detect` calls this through the CLI, because `logtriage.ml` may not touch ground truth.
+    `detect` calls this through the CLI, because `logtriage.ml` may not touch ground truth. In
+    v2 mode it builds the two files in `v2/` from v2's scores and incidents and leaves v1's alone.
     """
     out_dir = settings.paths.processed_dir / testbed
-    build_agent_db(out_dir)
-    build_eval_db(out_dir, settings.paths.data_meta_dir / f"phases_{testbed}.csv")
+    detection = detection_dir(out_dir, detection_mode(settings))
+    target = None if detection == out_dir else detection
+    build_agent_db(out_dir, target)
+    build_eval_db(out_dir, settings.paths.data_meta_dir / f"phases_{testbed}.csv", target)
 
 
-def run_prepare(testbed: str, settings: Settings) -> Path:
+def run_prepare(testbed: str, settings: Settings, rerun_reason: str | None = None) -> Path:
     """Build everything under `data/processed/<testbed>/`.
+
+    On a test testbed it runs once: the ledger gets a row before any output is written, and a
+    second run, or a run where processed files already exist, needs a reason (D83).
 
     Args:
         testbed: Testbed name.
         settings: Loaded settings.
+        rerun_reason: Required to prepare a test testbed again; log it in status.md.
 
     Returns:
         The output directory.
 
     Raises:
         FileNotFoundError: If the testbed or its phases file is missing.
+        ValueError: If a test testbed may not be prepared now, or in the container.
     """
     testbed_dir = settings.paths.raw_dir / testbed
     out_dir = settings.paths.processed_dir / testbed
     phases_csv = settings.paths.data_meta_dir / f"phases_{testbed}.csv"
     if not phases_csv.is_file() or not (testbed_dir / "dataset.yaml").is_file():
         raise FileNotFoundError(f"{testbed}: run `logtriage download` and `logtriage inventory`")
+    outputs = [out_dir / "periods.json", out_dir / "prepare_report.json"]
+    guards.check_run(guards.PREPARE, testbed, settings, outputs, rerun_reason)
+    guards.record_run(guards.PREPARE, testbed, settings, rerun_reason)
     phases = read_phases_csv(phases_csv)
     sim_start, sim_end = read_simulation_interval(testbed_dir / "dataset.yaml")
     periods = compute_periods(
