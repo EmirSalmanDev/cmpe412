@@ -4,9 +4,9 @@ Keep this file short and current. Update it at the end of every session and at e
 Format rules: newest entries first in the logs; numbers with their testbed; link plan sections as §N.
 
 ## Now
-- **Current milestone:** M12 v2: detection improvement on dev, measured once on shaw and fox against v1 (D74, D77, D85). `v1.0` stays the released version
-- **Branch:** `m12-v2` (not merged)
-- **Now:** v2 session 4B: merge, tags, release, after the user's review. Session 4A is done: `reports/results_v2.md` and its tables (`python -m logtriage.eval.results_v2`), README v2 section, plan §13 M12, draft release notes in `docs/release_v2.0.md` (for the user to paste; `gh` is not installed). v1 stays the default (D93). Nothing on santos, `wardbeck`, `harrison`
+- **Current milestone:** none. **The project is complete**: M0–M13 are done. `v1.0` is the official version; `v2.0` adds the opt-in detection mode `configs/v2.yaml` (D93)
+- **Branch:** `main` (M12 merged as `da33db4`, tagged `m12-done` and `v2.0`)
+- **Now:** nothing planned. Optional, if wanted: a data bundle for teammates (processed data, so the dashboard and `evaluate` run without downloading); a README section "Getting the data"; a `CLAUDE.md` rule for what to do when `data/` is missing. Manual steps for the user: the GitHub release `v2.0` from `docs/release_v2.0.md`, and a look at CI on `main` and on the tag (`gh` is not installed here)
 - **Blockers:** none
 
 ## Milestones
@@ -23,7 +23,7 @@ Format rules: newest entries first in the logs; numbers with their testbed; link
 - [x] M10 Docker
 - [x] M10b Extra test testbeds
 - [x] M11 Evaluation
-- [ ] M12 v2: detection improvement on dev, measured once on shaw and fox (D74, D77, D85), in progress: v2 frozen on dev (D78); shaw and fox prepared and their targets frozen (session 3A); v1 and v2 detection once each on both (session 3B-1); v1 and v2 `investigate` once each on both (session 3B-2); evaluated and documented (session 4A)
+- [x] M12 v2: detection improvement on dev, measured once on shaw and fox (D74, D77, D85), done: v2 frozen on dev (D78); shaw and fox prepared and their targets frozen (session 3A); v1 and v2 detection once each on both (session 3B-1); v1 and v2 `investigate` once each on both (session 3B-2); evaluated and documented (session 4A)
 - [x] M13 Finalize
 
 ## Recorded facts
@@ -353,6 +353,7 @@ Format: `YYYY-MM-DD · Dxx · what changed · why · evidence`. D1–D7 are the 
 
 ## Session log
 Format: `YYYY-MM-DD · milestone · what was done · next`.
+- 2026-11-09 · M12 · Session 4B, wording and merge. D94: README and release notes add that agent-level metrics did not improve (ATT&CK top-3 strict 1 of 3 to 0 of 2, verdict F1 0.261 to 0.100, sum over shaw and fox) and that the IDS baseline's phase recall is higher than either version's. Read-only check of the one flagged shaw v2 `dns` window (`inet-firewall` 2022-01-28 13:47): its scores are identical in both modes (0.998505), and v2's single `q` 0.996 applies to every log type, `dns` included; (c) changed no DNS rule, so the documents were already right and nothing changed. `main` had not moved; checks passed; merged `--no-ff` as `da33db4`; tags `m12-done` and `v2.0` on the status commit. No LLM call, no `detect`, `prepare` or `investigate` · Project complete; optional items in Now
 - 2026-11-09 · M12 · Session 4A, evaluation and documents. D91 (scope: automated metrics, faithfulness NOT MEASURED, plumbing only, byte identity) and D92 (format check disclosure) committed before any evaluation; `eval/results_v2.py` writes `reports/results_v2.md` and `reports/results/v2_eval_*.csv` from saved outputs; README v2 section, plan §13 M12, D93 release choice (v1 stays default, v2 opt-in, as v2_plan §7 says), `docs/release_v2.0.md` draft. No LLM call, no `detect`, `prepare` or `investigate`; nothing on santos, `wardbeck`, `harrison`; not merged, not tagged · Session 4B after the user's review
 - 2026-11-09 · M12 · Session 3B-2, `investigate` only. D89 (the user's decision: paid runs at any hour, peak allowed; stop 2.00 USD) and D90 (v2 `investigate` apart from v1, M11 fingerprint stop on the M12 testbeds, format check) committed before any paid call; dev check at 0 USD with the cache-only client: v1 replays all 7 dev reports, only `latency_s` differs. Paid, once each, at peak: v1 shaw, v1 fox, v2 shaw, v2 fox; 59 reports, 0 failed, 0 retries, fingerprint unchanged, format check clean; M12 spend 0.735257 USD. No `evaluate`, no new result; nothing on santos, `wardbeck`, `harrison`; no `prepare`, `detect` or supervised stage · Session 4 after the user's go
 - 2026-11-09 · M12 · Session 3B-1, detection only. D86 (v2 mode in `v2/` as `detect:v2`, ledger mode/commit/config hashes, configs checked against git), D87 (pre-registered expectation) and D88 (run protocol) committed before any detection; dev copy check: v1 byte-identical, v2 = D78 row. Once each on shaw and fox: v1 `detect` and supervised, v2 `detect`; all exit 0. §7 reading on the sum: v1 8 of 17, v2 9 of 17 (fox `cracking`, through `apache_access`, by the `q` change): "helps", one phase. Cost re-estimate 0.40–0.71 USD off-peak for all four `investigate` runs. No `investigate`, no LLM call, no `prepare`; nothing on santos, `wardbeck`, `harrison` · Session 3B-2 after the user's go
