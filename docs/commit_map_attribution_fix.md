@@ -2,7 +2,7 @@
 
 On 2026-11-09 the commit messages of `main` were rewritten to remove the line `Co-Authored-By: Claude <noreply@anthropic.com>`, and the blank line before it, from the 14 commits that carried it (`f05601b` to `16ec00a` in the old history). Nothing else changed: every rewritten commit has the same tree, subject, author, committer, dates and parents (mapped), and every other message byte is identical. The 125 commits up to `1df1830` keep their hashes, and so do the tags `m0-done` to `m10b-done` and `targets-frozen`. A later commit has a new hash only because a parent changed.
 
-Use this map to resolve an old hash cited in `status.md`, `plan.md`, the ledger or any document. The old history is kept off GitHub, in the bundle `../cmpe412-before-attribution-fix.bundle` and the local branch `backup/pre-attribution-fix`.
+Use this map to resolve an old hash cited in `status.md`, `plan.md`, the ledger or any document. The old history is not part of `main` or the tags on GitHub: they contain only rewritten history. But four old commits were pushed before the rewrite and stay reachable on GitHub by hash until GitHub garbage-collects them: `ab21d4b`, `3e7ad33`, `e8ca2f7` and `16ec00a`. `16ec00a` carries the `Co-Authored-By` trailer itself, and the history of each of the four contains commits that carry it (`f05601b`, `73b7ced`, `bae2ee0`; under `16ec00a` all 14). Locally the old history is kept in the bundle `../cmpe412-before-attribution-fix.bundle` and the local branch `backup/pre-attribution-fix`.
 
 ## Rewritten tags
 

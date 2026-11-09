@@ -3,6 +3,8 @@ name = "logtriage"
 version = "0.1.0"
 description = "ML anomaly detection on AIT-LDS security logs and an agent that writes evidence-cited, ATT&CK-mapped incident reports."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.12"
 dependencies = [
     "certifi>=2026.10.23",

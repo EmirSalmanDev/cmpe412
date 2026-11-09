@@ -1,6 +1,8 @@
 # Required by plan 12
 data/
 .env
+.env.*
+!.env.example
 *.sqlite
 .venv/
 __pycache__/
@@ -16,7 +18,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.coverage
 build/
 dist/
 *.egg-info/
 .DS_Store
+.claude/settings.local.json

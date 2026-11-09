@@ -4,7 +4,7 @@ LogTriage finds attacks in security logs and explains them with evidence. Unsupe
 
 **This project was built by AI.** The code, the experiments, the evaluation, this README and the faithfulness annotation were all done by AI (Claude Code), directed by the repository owner, who made the decisions marked "decided by the user" in `status.md`. **No human annotators or raters took part.** So the manual faithfulness target is **NOT MEASURED** (D67), and the human evaluation of usefulness and readability is **NOT PERFORMED** (D68). The AI-annotated faithfulness below is a different measure, rated by two AI subagents, and does not stand in for either. The dashboard check of M13 was an AI browser check, not a human one.
 
-`plan.md` holds the design, `status.md` the decision log (D1–D93) and every recorded number, and `reports/results.md` the full results of v1, the official version. `reports/results_v2.md` holds the v1 and v2 comparison of M12.
+`plan.md` holds the design, `status.md` the decision log (D1–D95) and every recorded number, and `reports/results.md` the full results of v1, the official version. `reports/results_v2.md` holds the v1 and v2 comparison of M12.
 
 ## Architecture
 
@@ -206,7 +206,7 @@ Tests marked `live` call the real LLM API. Tests marked `data` need the download
 
 ## Data license and citation
 
-The datasets are not included in this repository. Their licenses, as stated on the Zenodo records:
+The full datasets are not included in this repository. It holds only small excerpts of them: the claims sheets in `reports/faithfulness/`, the saved outputs and figures of the notebooks, `data_meta/phases_*.csv` and the test fixtures in `tests/fixtures/`. These excerpts remain under their dataset licenses, independent of the code license. The dataset licenses, as stated on the Zenodo records:
 
 - **AIT Log Data Set V2.0 (AIT-LDS)**, <https://doi.org/10.5281/zenodo.5789064>: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) (attribution, non-commercial use only, share alike).
 - **AIT Alert Data Set (AIT-ADS)**, <https://doi.org/10.5281/zenodo.8263181>: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (attribution).
@@ -216,6 +216,12 @@ The records ask users to cite:
 - M. Landauer, F. Skopik, M. Frank, W. Hotwagner, M. Wurzenberger, and A. Rauber. "Maintainable Log Datasets for Evaluation of Intrusion Detection Systems." *IEEE Transactions on Dependable and Secure Computing*, vol. 20, no. 4, pp. 3466–3482, 2023. doi: [10.1109/TDSC.2022.3201582](https://doi.org/10.1109/TDSC.2022.3201582). (AIT-LDS and AIT-ADS)
 - M. Landauer, F. Skopik, M. Wurzenberger, W. Hotwagner, and A. Rauber. "Have it Your Way: Generating Customized Log Datasets With a Model-Driven Simulation Testbed." *IEEE Transactions on Reliability*, vol. 70, no. 1, pp. 402–415, March 2021. doi: [10.1109/TR.2020.3031317](https://doi.org/10.1109/TR.2020.3031317). (AIT-LDS)
 - M. Landauer, F. Skopik, and M. Wurzenberger. "Introducing a New Alert Data Set for Multi-Step Attack Analysis." *Proceedings of the 17th Cyber Security Experimentation and Test Workshop*, 2024. doi: [10.1145/3675741.3675748](https://doi.org/10.1145/3675741.3675748). (AIT-ADS)
+
+## License
+
+- **Code:** MIT License, see [`LICENSE`](LICENSE). Copyright (c) 2026 Emir Salman.
+- **Data excerpts in this repository and the data bundle:** not covered by the MIT License; they remain under the licenses of the datasets they come from (AIT-LDS CC BY-NC-SA 4.0, AIT-ADS CC BY 4.0), see "Data license and citation" above.
+- **MITRE ATT&CK:** under its own terms of use, see "MITRE ATT&CK" below.
 
 ## MITRE ATT&CK
 
