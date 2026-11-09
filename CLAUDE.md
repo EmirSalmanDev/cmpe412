@@ -12,6 +12,7 @@ ML anomaly detection on AIT-LDS security logs + a LangGraph agent (DeepSeek V4 F
 - Every log line keeps `line_id = host|file|line_no` (1-based line number in the original file) from parsing to the report. Never renumber.
 - All timestamps are tz-aware UTC. Dev testbed = `russellmitchell`, test = `santos`, extra test = `wardbeck`, `harrison` (`test_testbeds` in the config). Tune only on dev.
 - Never commit `data/`, `.env`, secrets or files > 5 MB. The API key comes only from env `DEEPSEEK_API_KEY`.
+- If `data/` (or part of it) is missing, never recreate test-testbed data: no `prepare`, `detect`, `investigate` or supervised stage on any test testbed (`santos`, `wardbeck`, `harrison`, `shaw`, `fox`), and never use `--rerun-reason`. Stop, ask the user for the data bundle (README, "Getting the data"), and extract it into the repository root instead.
 - Unit tests use `tests/fixtures/`, no network, no real LLM (use fakes). Mark tests needing the real API `@pytest.mark.live`, tests needing `data/` or downloaded models `@pytest.mark.data`.
 - If a plan decision is wrong, follow plan §14.3: change it, log it in status.md, update plan.md in the same commit. Never deviate silently. Never change evaluation definitions or frozen targets to improve results.
 

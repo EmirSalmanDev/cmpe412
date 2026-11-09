@@ -87,6 +87,26 @@ cp .env.example .env
 
 Set `DEEPSEEK_API_KEY` in `.env` only if you will call the LLM. This file is gitignored and is the only place the key belongs. Evaluation, the dashboard pages and every replay below need no key.
 
+## Getting the data
+
+`data/` is not in git. Instead of downloading about 85 GB of archives, get the data bundle: one zip, `cmpe412-data-bundle-2026-11-09.zip`, 792 MB (792,453,451 bytes), 4.8 GB unpacked, 750 files.
+
+Download link: (to be added by the maintainer)
+
+It holds `data/` as it stood after M12 (`v2.0`): `data/processed/` for all six testbeds, the ATT&CK index `data/index/`, the LLM cache and ledger `data/cache/`, the run logs `data/logs/`, the AIT-ADS alerts and published labels `data/raw/ait_ads/`, the ATT&CK bundle `data/raw/attack/`, and the raw logs of `russellmitchell` and `santos` (`santos` only because `tests/test_data_inventory.py` reads it). It leaves out `data/raw/zips/` and the raw logs of `wardbeck`, `harrison`, `shaw` and `fox`, which no allowed command reads. With it, `uv run pytest -m "not live"` (data tests included), the dashboard, replay, `evaluate` and the dev pipeline on `russellmitchell` run without a download and without a key; the embedding model (about 130 MB) still comes from Hugging Face at first use.
+
+1. **Check the zip.** `shasum -a 256 cmpe412-data-bundle-2026-11-09.zip` (Linux: `sha256sum`) must print `07a43df8b82d7b6bd2d161cec8cabf629d7ee19ed39bf743105f391574260fb2`.
+2. **Extract it in the repository root**, so that `data/` sits next to `src/`: `unzip cmpe412-data-bundle-2026-11-09.zip`. Do not mix it into an existing `data/`.
+3. **Verify every file.** From the repository root, this prints nothing when all 750 files match the manifest in the zip (Linux: `sha256sum -c --quiet`):
+   ```
+   grep -v '^#' data/BUNDLE_MANIFEST.txt | awk '{print $1"  "$3}' | shasum -a 256 -c --quiet
+   ```
+   `data/BUNDLE_README.md` describes the content in more detail. Verify before the first test run: `tests/test_data_rag.py` opens the ATT&CK index with a writable Chroma client, which rewrites `data/index/chroma/chroma.sqlite3` (two rows in Chroma's own lock table) and the HNSW file `data_level0.bin`, so these two files no longer match the manifest afterwards; the indexed content does not change.
+
+The test testbeds (santos, wardbeck, harrison, shaw, fox) have already run `prepare`, `detect`, the supervised stage and `investigate` once, and their outputs are in the bundle. Never run those commands on a test testbed and never use `--rerun-reason`: every run is recorded in `reports/results/test_runs.csv`, and a second one would invalidate the published test results.
+
+The bundle redistributes data from AIT-LDS V2.0 (raw logs of two testbeds, and everything in `data/processed/`, which is derived from the logs; CC BY-NC-SA 4.0, non-commercial use only, share alike) and AIT-ADS (alerts and labels; CC BY 4.0), both by the AIT Austrian Institute of Technology and published on Zenodo, and the MITRE ATT&CK bundle; see "Data license and citation" and "MITRE ATT&CK" below for the licenses, citations and notices, which also apply to the bundle.
+
 ## How to run
 
 Run commands from the repository root.
