@@ -18,6 +18,7 @@ from langchain_core.messages import AIMessage, BaseMessage
 
 from logtriage import guards
 from logtriage.agents.cache import LlmCache
+from logtriage.agents.llm import EXPECTED_FINGERPRINT
 from logtriage.agents.runner import REPORTS_DIR, RUN_FILE, RunSummary, run_queue
 from logtriage.agents.tools import AgentTools
 from logtriage.config import Settings
@@ -33,8 +34,6 @@ CONDITIONS: dict[str, dict[str, bool]] = {
     "rag0": {"rag": False},
     "few_shot1": {"few_shot": True},
 }
-# The served model of every official report (Recorded facts, D44).
-EXPECTED_FINGERPRINT = "bc19ba97cbe016479903222bb1578db6"
 # Far above the 0.04 USD estimated for one condition (m11_design.md 3a), so it only stops a fault.
 MAX_USD_PER_CONDITION = 0.15
 RESULTS_DIR = "results"

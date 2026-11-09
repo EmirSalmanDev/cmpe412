@@ -2,6 +2,7 @@
 
 import csv
 import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -10,7 +11,17 @@ import pytest
 
 from agent_fakes import FakeChat, open_tools
 from logtriage import guards
-from logtriage.agents.runner import run_incidents
+from logtriage.agents import runner as runner_module
+from logtriage.agents.llm import EXPECTED_FINGERPRINT, CacheMissError, FingerprintChangedError
+from logtriage.agents.runner import (
+    AGENT_DB,
+    MEMORY_DIR,
+    RunSummary,
+    expected_fingerprint,
+    format_problems,
+    run_incidents,
+    run_paths,
+)
 from logtriage.config import (
     V1_MODE,
     V2_CONFIG_PATH,
@@ -162,17 +173,126 @@ def test_a_commit_outside_git_is_unknown(monkeypatch: pytest.MonkeyPatch) -> Non
     assert guards.current_commit() == guards.UNKNOWN_COMMIT
 
 
-def test_investigate_refuses_v2_settings_before_the_ledger(tmp_path: Path) -> None:
+# v2 investigate (D90): v2's incidents, reports, run table and memory, apart from v1's.
+
+
+def test_each_mode_investigates_from_its_own_paths(tmp_path: Path) -> None:
+    settings = agent_settings(tmp_path)
+    base = settings.paths.processed_dir / "shaw"
+    v1 = run_paths("shaw", settings, V1_MODE)
+    v2 = run_paths("shaw", settings, V2_MODE)
+    assert (v1.reports_dir, v1.database, v1.memory_dir) == (base / "reports", base / AGENT_DB, None)
+    assert v1.table == settings.paths.reports_dir / "results" / "agents_shaw.csv"
+    assert (v2.reports_dir, v2.database) == (base / "v2" / "reports", base / "v2" / AGENT_DB)
+    assert v2.memory_dir == base / "v2" / MEMORY_DIR
+    assert v2.table == settings.paths.reports_dir / "results" / "agents_shaw_v2.csv"
+
+
+@pytest.mark.parametrize("testbed", ["shaw", "fox"])
+def test_v1_and_v2_each_investigate_once_and_apart(testbed: str, tmp_path: Path) -> None:
+    v1 = agent_settings(tmp_path, prompts_frozen=True)
+    v2 = as_v2(agent_settings(tmp_path, prompts_frozen=True))
+    base = v1.paths.processed_dir / testbed
+    (base / "v2").mkdir(parents=True)
+    tools = open_tools(base / "v2", incidents=2)  # builds v2/agent.duckdb
+    try:
+        run_incidents(testbed, v2, backend=FakeChat(), tools=tools)
+        assert sorted(path.name for path in (base / "v2" / "reports").iterdir()) == [
+            "run_summary.json",
+            "x-0001.json",
+            "x-0002.json",
+        ]
+        assert not (base / "reports").exists()  # v1's folder untouched
+        assert (v2.paths.reports_dir / "results" / f"agents_{testbed}_v2.csv").is_file()
+        assert not (v2.paths.reports_dir / "results" / f"agents_{testbed}.csv").exists()
+        chat = FakeChat()
+        with pytest.raises(ValueError, match="rerun-reason"):
+            run_incidents(testbed, v2, backend=chat, tools=tools)
+        assert chat.calls == []
+        run_incidents(testbed, v1, ["x-0001"], backend=FakeChat(), tools=tools)  # v1's own run
+        assert (base / "reports" / "x-0001.json").is_file()
+    finally:
+        tools.close()
+    rows = guards.recorded_runs(v1)
+    assert [(row["stage"], row["mode"]) for row in rows] == [
+        ("investigate:v2", "v2"),
+        ("investigate", "v1"),
+    ]
+
+
+def test_v2_investigate_opens_the_v2_tables_and_its_own_memory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     settings = as_v2(agent_settings(tmp_path, prompts_frozen=True))
+    directory = settings.paths.processed_dir / "shaw" / "v2"
+    directory.mkdir(parents=True)
+    (directory / AGENT_DB).touch()
+    opened, closed = {}, []
+
+    class Tools:
+        def close(self) -> None:
+            closed.append(True)
+
+    def fake_open(testbed: str, settings: Settings, **kwargs: object) -> Tools:
+        opened.update(kwargs, testbed=testbed)
+        return Tools()
+
+    def fake_queue(*args: object, **kwargs: object) -> RunSummary:
+        assert isinstance(kwargs["tools"], Tools)
+        return RunSummary("shaw", "run")
+
+    monkeypatch.setattr(runner_module.AgentTools, "open", fake_open)
+    monkeypatch.setattr(runner_module, "run_queue", fake_queue)
+    run_incidents("shaw", settings)
+    assert opened == {
+        "testbed": "shaw",
+        "database": directory / AGENT_DB,
+        "memory_dir": directory / MEMORY_DIR,
+    }
+    assert closed == [True]
+
+
+def test_v2_investigate_needs_v2_detect_first(tmp_path: Path) -> None:
+    settings = as_v2(agent_settings(tmp_path, prompts_frozen=True))
+    with pytest.raises(FileNotFoundError, match="configs/v2.yaml"):
+        run_incidents("shaw", settings, backend=FakeChat())
+    assert guards.recorded_runs(settings) == []
+
+
+def test_the_m12_testbeds_keep_the_model_of_the_m11_reports(tmp_path: Path) -> None:
+    settings = agent_settings(tmp_path)
+    assert expected_fingerprint("shaw", settings) == EXPECTED_FINGERPRINT
+    assert expected_fingerprint("fox", settings) == EXPECTED_FINGERPRINT
+    assert expected_fingerprint("santos", settings) is None
+    assert expected_fingerprint("russellmitchell", settings) is None
+
+
+def test_a_paid_answer_from_another_model_stops_the_run(tmp_path: Path) -> None:
+    settings = agent_settings(tmp_path)
+    tools = open_tools(tmp_path, incidents=1)
+    try:
+        with pytest.raises(FingerprintChangedError):
+            run_incidents(
+                "russellmitchell",
+                settings,
+                backend=FakeChat(),  # answers as fp_fake
+                tools=tools,
+                expected_fingerprint=EXPECTED_FINGERPRINT,
+            )
+    finally:
+        tools.close()
+
+
+def test_a_cache_only_run_pays_nothing(tmp_path: Path) -> None:
+    settings = agent_settings(tmp_path)
     tools = open_tools(tmp_path, incidents=1)
     chat = FakeChat()
     try:
-        with pytest.raises(ValueError, match="v1 mode only"):
-            run_incidents("shaw", settings, backend=chat, tools=tools)
+        with pytest.raises(CacheMissError):
+            run_incidents("russellmitchell", settings, backend=chat, tools=tools, cache_only=True)
     finally:
         tools.close()
     assert chat.calls == []
-    assert guards.recorded_runs(settings) == []
 
 
 # The §7 reading of `reports/v2_plan.md`, as written (D86).
@@ -263,3 +383,22 @@ def test_the_frozen_denominators_are_those_of_the_targets_files() -> None:
         frozen = text.split("## Frozen denominators", 1)[1]
         for variant, size in zip(["primary", "all parsed", "without exfil"], sizes, strict=True):
             assert f"| {variant} | {size} |" in frozen
+
+
+def test_the_format_check_passes_a_clean_run_and_names_each_problem(tmp_path: Path) -> None:
+    settings = agent_settings(tmp_path)
+    tools = open_tools(tmp_path, incidents=2)
+    try:
+        run_incidents("russellmitchell", settings, backend=FakeChat(), tools=tools)
+    finally:
+        tools.close()
+    reports = settings.paths.processed_dir / "russellmitchell" / "reports"
+    assert format_problems(reports, ["x-0001", "x-0002"]) == []
+    assert format_problems(reports, ["x-0001", "x-0002", "x-0003"]) == ["x-0003: no report"]
+    report = json.loads((reports / "x-0002.json").read_text(encoding="utf-8"))
+    report["summary"][0]["evidence"] = ["E99"]
+    (reports / "x-0002.json").write_text(json.dumps(report), encoding="utf-8")
+    (reports / "x-0001.json").write_text("{}", encoding="utf-8")
+    problems = format_problems(reports, ["x-0001", "x-0002"])
+    assert problems[0].startswith("x-0001: does not parse")
+    assert problems[1] == "x-0002: cites eids outside its evidence: ['E99']"

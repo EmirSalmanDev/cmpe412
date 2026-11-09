@@ -144,7 +144,7 @@ shaw and fox, the next two unseen testbeds of the D55 order, are both test testb
 5. **v2 runs once on each testbed:**
    - `detect` with `configs/v2.yaml`;
    - `investigate`, both under their own stage names (`detect:v2`, `investigate:v2`) with ledger rows;
-   - outputs under `data/processed/<testbed>/v2/` and their own Chroma store, as for the ablations (D65), so v2 never touches v1's files or memory.
+   - outputs under `data/processed/<testbed>/v2/` and their own Chroma store, as for the ablations (D65), so v2 never touches v1's files or memory. The run table is `reports/results/agents_<testbed>_v2.csv` (changed: see status.md D86, D90).
 
    A v2 incident identical to a v1 one may hit the LLM cache. That is the same request, and the cache counts it as such.
 6. **Evaluate** from saved outputs: phase recall (primary, all parsed, without exfiltration, with per-type credit), incidents per day, alert reduction, ATT&CK top-3 and verdicts, for v1 and v2 side by side, per testbed and as the sum over shaw and fox (phase recall as detected over denominators summed; incidents per day per testbed only).

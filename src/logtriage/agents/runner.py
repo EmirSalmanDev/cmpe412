@@ -14,6 +14,7 @@ from logtriage import guards
 from logtriage.agents.cache import LlmCache
 from logtriage.agents.graph import AgentRuntime, IncidentState, build_graph
 from logtriage.agents.llm import (
+    EXPECTED_FINGERPRINT,
     BudgetExceededError,
     ChatBackend,
     LLMClient,
@@ -23,11 +24,15 @@ from logtriage.agents.llm import (
 from logtriage.agents.prompting import Prompt, load_prompts
 from logtriage.agents.schemas import IncidentReport, report_claims
 from logtriage.agents.tools import AgentTools
-from logtriage.config import V1_MODE, Settings, detection_mode
+from logtriage.config import M11_TESTBEDS, V1_MODE, Settings, detection_mode
+from logtriage.data.store import detection_dir
 
 logger = logging.getLogger(__name__)
 
 REPORTS_DIR = "reports"
+# v2's own incident memory, a Chroma store under `v2/`, apart from v1's (D90).
+MEMORY_DIR = "memory"
+AGENT_DB = "agent.duckdb"
 RUN_FILE = "run_summary.json"
 RECURSION_LIMIT = 50
 ROW_FIELDS = (
@@ -103,6 +108,47 @@ def load_report(reports_dir: Path, incident_id: str) -> IncidentReport | None:
     return IncidentReport.model_validate_json(path.read_text(encoding="utf-8"))
 
 
+def format_problems(reports_dir: Path, incident_ids: list[str]) -> list[str]:
+    """Check the saved reports of a run against their format (D90); return the problems found.
+
+    Each incident has exactly one report, which parses as `IncidentReport` and names its own
+    incident, and every claim cites only eids of its own evidence. The run summary records no
+    failed incident and no stop. Nothing is compared with any ground truth.
+
+    Args:
+        reports_dir: The run's reports folder.
+        incident_ids: The incidents of the run.
+
+    Returns:
+        One line per problem; empty if the reports pass.
+    """
+    problems = []
+    files = {path.stem: path for path in reports_dir.glob("*.json") if path.name != RUN_FILE}
+    expected, saved = set(incident_ids), set(files)
+    problems += [f"{name}: no report" for name in sorted(expected - saved)]
+    problems += [f"{name}: report of no incident" for name in sorted(saved - expected)]
+    for name in sorted(saved & expected):
+        try:
+            report = IncidentReport.model_validate_json(files[name].read_text(encoding="utf-8"))
+        except ValueError as error:
+            problems.append(f"{name}: does not parse: {str(error)[:200]}")
+            continue
+        if report.incident_id != name:
+            problems.append(f"{name}: names incident {report.incident_id}")
+        eids = {item.eid for item in report.evidence}
+        unknown = sorted({eid for claim in report_claims(report) for eid in claim.evidence} - eids)
+        if unknown:
+            problems.append(f"{name}: cites eids outside its evidence: {unknown}")
+    summary_path = reports_dir / RUN_FILE
+    if not summary_path.is_file():
+        problems.append(f"{RUN_FILE}: missing")
+    else:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        if summary["failed"] or summary["aborted"]:
+            problems.append(f"{RUN_FILE}: failed {summary['failed']}, stopped {summary['aborted']}")
+    return problems
+
+
 def write_run_table(reports_dir: Path, path: Path) -> list[dict[str, Any]]:
     """Write one row per saved report.
 
@@ -126,8 +172,48 @@ def write_run_table(reports_dir: Path, path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+@dataclass(frozen=True)
+class RunPaths:
+    """Where a run of one mode reads and writes."""
+
+    reports_dir: Path
+    table: Path
+    database: Path
+    # None: the official store under `paths.index_dir`.
+    memory_dir: Path | None
+
+
+def run_paths(testbed: str, settings: Settings, mode: str) -> RunPaths:
+    """Return the paths of a mode: v1's official ones, or v2's under `v2/` (D90).
+
+    v2 reads the agent tables `detect` built from its own incidents, and writes its reports,
+    run table and incident memory apart, so it never touches v1's.
+    """
+    base = settings.paths.processed_dir / testbed
+    if mode == V1_MODE:
+        return RunPaths(base / REPORTS_DIR, default_table(testbed, settings), base / AGENT_DB, None)
+    directory = detection_dir(base, mode)
+    table = settings.paths.reports_dir / "results" / f"agents_{testbed}_{mode}.csv"
+    return RunPaths(directory / REPORTS_DIR, table, directory / AGENT_DB, directory / MEMORY_DIR)
+
+
+def expected_fingerprint(testbed: str, settings: Settings) -> str | None:
+    """Return the served model a run must keep: that of the M11 test reports, on new testbeds.
+
+    The M12 testbeds are compared with them, so a run there stops if another model answers
+    (D89). Dev and the M11 testbeds keep their behaviour.
+    """
+    if guards.is_test_testbed(testbed, settings) and testbed not in M11_TESTBEDS:
+        return EXPECTED_FINGERPRINT
+    return None
+
+
 def check_test_run(
-    testbed: str, settings: Settings, reports_dir: Path, rerun_reason: str | None
+    testbed: str,
+    settings: Settings,
+    reports_dir: Path,
+    rerun_reason: str | None,
+    stage: str = guards.INVESTIGATE,
 ) -> None:
     """Allow a run on a test testbed only with frozen prompts, and once (status.md, M8, D57).
 
@@ -140,7 +226,7 @@ def check_test_run(
         return
     if not settings.agents.prompts_frozen:
         raise ValueError(f"{testbed}: freeze the prompts first (agents.prompts_frozen)")
-    guards.check_run(guards.INVESTIGATE, testbed, settings, [reports_dir / RUN_FILE], rerun_reason)
+    guards.check_run(stage, testbed, settings, [reports_dir / RUN_FILE], rerun_reason)
 
 
 def default_table(testbed: str, settings: Settings) -> Path:
@@ -156,11 +242,15 @@ def run_incidents(
     rerun_reason: str | None = None,
     backend: ChatBackend | None = None,
     tools: AgentTools | None = None,
+    cache_only: bool = False,
+    expected_fingerprint: str | None = None,
 ) -> RunSummary:
     """Investigate incidents, highest priority first.
 
     A failed incident is recorded and the queue goes on. A spending limit stops the run cleanly:
-    every finished report stays saved and the unfinished incident leaves no file.
+    every finished report stays saved and the unfinished incident leaves no file. The mode comes
+    from the config file: v2 (`configs/v2.yaml`) investigates v2's incidents and writes apart
+    from v1, under the ledger stage `investigate:v2` (D90).
 
     Args:
         testbed: Testbed name.
@@ -169,29 +259,45 @@ def run_incidents(
         use_cache: False bypasses reading the LLM cache.
         rerun_reason: Required to repeat a run on the test testbed.
         backend: Chat model; the configured one if None.
-        tools: Agent tools; opened from the testbed if None.
+        tools: Agent tools; opened from the mode's database and memory if None.
+        cache_only: Raise on a call the cache cannot answer, so nothing can be paid.
+        expected_fingerprint: Stop if a paid answer comes from another model (D44, D89).
 
     Returns:
         The outcome. `aborted` holds the reason if a limit stopped the run.
+
+    Raises:
+        FileNotFoundError: In v2, before the ledger, if v2 `detect` built no agent tables.
     """
-    if detection_mode(settings) != V1_MODE:
-        # v2 reports need their own folder, agent tables and memory (`reports/v2_plan.md` §5);
-        # until that exists, v2 settings must not reach v1's incidents (D86).
-        raise ValueError("investigate runs in v1 mode only; v2 mode is not implemented yet")
-    reports_dir = settings.paths.processed_dir / testbed / REPORTS_DIR
-    check_test_run(testbed, settings, reports_dir, rerun_reason)
-    guards.record_run(guards.INVESTIGATE, testbed, settings, rerun_reason, V1_MODE)
-    return run_queue(
-        testbed,
-        settings,
-        reports_dir,
-        default_table(testbed, settings),
-        incident_ids=incident_ids,
-        use_cache=use_cache,
-        rerun_reason=rerun_reason,
-        backend=backend,
-        tools=tools,
-    )
+    mode = detection_mode(settings)
+    paths = run_paths(testbed, settings, mode)
+    if mode != V1_MODE and not paths.database.is_file():
+        raise FileNotFoundError(f"{paths.database}: run `detect` with configs/v2.yaml first")
+    stage = guards.mode_stage(guards.INVESTIGATE, mode)
+    check_test_run(testbed, settings, paths.reports_dir, rerun_reason, stage)
+    guards.record_run(stage, testbed, settings, rerun_reason, mode)
+    owned = tools is None and mode != V1_MODE
+    if owned:
+        tools = AgentTools.open(
+            testbed, settings, memory_dir=paths.memory_dir, database=paths.database
+        )
+    try:
+        return run_queue(
+            testbed,
+            settings,
+            paths.reports_dir,
+            paths.table,
+            incident_ids=incident_ids,
+            use_cache=use_cache,
+            rerun_reason=rerun_reason,
+            backend=backend,
+            tools=tools,
+            cache_only=cache_only,
+            expected_fingerprint=expected_fingerprint,
+        )
+    finally:
+        if owned and tools is not None:
+            tools.close()
 
 
 def run_queue(

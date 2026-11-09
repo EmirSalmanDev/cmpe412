@@ -108,6 +108,7 @@ class AgentTools:
         settings: Settings,
         connection: duckdb.DuckDBPyConnection | None = None,
         memory_dir: Path | None = None,
+        database: Path | None = None,
     ) -> AgentTools:
         """Open the tools of a testbed.
 
@@ -118,12 +119,14 @@ class AgentTools:
                 the lock covers the whole database; opened here if None.
             memory_dir: A Chroma store of its own for the incident memory, so that an ablation
                 never writes to the official one (D65). The ATT&CK index stays shared.
+            database: The agent database; the testbed's `agent.duckdb` if None. v2 passes its
+                own, under `v2/` (D90).
 
         Returns:
             The tools, on a locked connection and the persistent Chroma store.
         """
         connection = connection or connect_agent(
-            settings.paths.processed_dir / testbed / "agent.duckdb"
+            database or settings.paths.processed_dir / testbed / "agent.duckdb"
         )
         client = open_client(settings.paths.index_dir)
         embedder = BgeEmbedder(settings.rag)
