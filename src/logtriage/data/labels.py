@@ -357,12 +357,15 @@ def write_labels(rows: list[dict[str, Any]], report: dict[str, Any], directory: 
     (directory / "label_report.json").write_text(text, encoding="utf-8")
 
 
-def build_eval_db(directory: Path, phases_csv: Path) -> None:
-    """Create `eval.duckdb`: every line view plus the label and phase tables (plan 5)."""
-    views = data_views(directory)
+def build_eval_db(directory: Path, phases_csv: Path, detection: Path | None = None) -> None:
+    """Create `eval.duckdb`: every line view plus the label and phase tables (plan 5).
+
+    With `detection`, the file goes there and its detection views read that folder (v2).
+    """
+    views = data_views(directory, detection)
     views["labels"] = f"SELECT * FROM read_parquet('{directory / LABELS_FILE}')"
     views["phases"] = f"SELECT * FROM read_csv('{phases_csv}')"
-    create_views(directory / "eval.duckdb", views)
+    create_views((detection or directory) / "eval.duckdb", views)
 
 
 def phase_report(report: dict[str, Any]) -> list[dict[str, Any]]:

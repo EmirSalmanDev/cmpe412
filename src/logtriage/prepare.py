@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from logtriage import guards
-from logtriage.config import Settings, load_sources
+from logtriage.config import Settings, detection_mode, load_sources
 from logtriage.data.drain import add_templates
 from logtriage.data.features import build_windows
 from logtriage.data.labels import (
@@ -28,6 +28,7 @@ from logtriage.data.periods import (
 from logtriage.data.store import (
     DETECTION_TABLES,
     build_agent_db,
+    detection_dir,
     template_digest,
     write_lines,
 )
@@ -73,11 +74,14 @@ def _prepare_lines(
 def refresh_databases(testbed: str, settings: Settings) -> None:
     """Rebuild `agent.duckdb` and `eval.duckdb` so that they show every table on disk.
 
-    `detect` calls this through the CLI, because `logtriage.ml` may not touch ground truth.
+    `detect` calls this through the CLI, because `logtriage.ml` may not touch ground truth. In
+    v2 mode it builds the two files in `v2/` from v2's scores and incidents and leaves v1's alone.
     """
     out_dir = settings.paths.processed_dir / testbed
-    build_agent_db(out_dir)
-    build_eval_db(out_dir, settings.paths.data_meta_dir / f"phases_{testbed}.csv")
+    detection = detection_dir(out_dir, detection_mode(settings))
+    target = None if detection == out_dir else detection
+    build_agent_db(out_dir, target)
+    build_eval_db(out_dir, settings.paths.data_meta_dir / f"phases_{testbed}.csv", target)
 
 
 def run_prepare(testbed: str, settings: Settings, rerun_reason: str | None = None) -> Path:

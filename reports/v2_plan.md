@@ -135,7 +135,7 @@ shaw and fox, the next two unseen testbeds of the D55 order, are both test testb
    - the D28 exposure from counts.
 
    The targets and definitions are those of `reports/targets.md`, unchanged.
-4. **v1 runs once on each testbed, each step through `guards.py` with its own row in `reports/results/test_runs.csv` before it starts:**
+4. **v1 runs once on each testbed, each step through `guards.py` with its own row in `reports/results/test_runs.csv` before it starts** (each row also holds the mode, the commit and the config sha256; changed: see status.md D86)**:**
    - `detect`, with v1's `configs/default.yaml` in v1 mode;
    - the supervised test stage, with the frozen v1 models;
    - `investigate`, into the official memory.

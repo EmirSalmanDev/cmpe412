@@ -23,7 +23,7 @@ from logtriage.agents.llm import (
 from logtriage.agents.prompting import Prompt, load_prompts
 from logtriage.agents.schemas import IncidentReport, report_claims
 from logtriage.agents.tools import AgentTools
-from logtriage.config import Settings
+from logtriage.config import V1_MODE, Settings, detection_mode
 
 logger = logging.getLogger(__name__)
 
@@ -174,9 +174,13 @@ def run_incidents(
     Returns:
         The outcome. `aborted` holds the reason if a limit stopped the run.
     """
+    if detection_mode(settings) != V1_MODE:
+        # v2 reports need their own folder, agent tables and memory (`reports/v2_plan.md` §5);
+        # until that exists, v2 settings must not reach v1's incidents (D86).
+        raise ValueError("investigate runs in v1 mode only; v2 mode is not implemented yet")
     reports_dir = settings.paths.processed_dir / testbed / REPORTS_DIR
     check_test_run(testbed, settings, reports_dir, rerun_reason)
-    guards.record_run(guards.INVESTIGATE, testbed, settings, rerun_reason)
+    guards.record_run(guards.INVESTIGATE, testbed, settings, rerun_reason, V1_MODE)
     return run_queue(
         testbed,
         settings,

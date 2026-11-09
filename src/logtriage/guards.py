@@ -6,19 +6,33 @@ and `incidents.parquet`, so `prepare` then `detect` would look like a first run 
 """
 
 import csv
+import hashlib
 import logging
+import subprocess
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from logtriage.config import DEV_TESTBED, Settings
+from logtriage.config import DEV_TESTBED, V1_MODE, V2_MODE, Settings
 
 logger = logging.getLogger(__name__)
 
 # Written by the Dockerfile. A file, because an environment variable can be set by hand (D51, D53).
 CONTAINER_MARKER = Path("/etc/logtriage-container")
 RUNS_FILE = "test_runs.csv"
-RUN_FIELDS = ["testbed", "stage", "utc", "reason"]
+# `mode`, `commit`, `config_sha256` and `base_sha256` joined in M12 (D86); older rows leave them
+# empty. `config_sha256` is the named config file, `base_sha256` the file it extends, if any.
+RUN_FIELDS = [
+    "testbed",
+    "stage",
+    "utc",
+    "reason",
+    "mode",
+    "commit",
+    "config_sha256",
+    "base_sha256",
+]
+UNKNOWN_COMMIT = "unknown"
 PREPARE = "prepare"
 DETECT = "detect"
 SUPERVISED = "supervised"
@@ -27,10 +41,23 @@ ABLATION = "ablation"
 LLM_ONLY = "llm_only"
 LLM_ONLY_CHECK = "llm_only_check"
 # These run once on a test testbed, and no retry rule ever covers them (D57, D69). `prepare`
-# joined in M12, so a new test testbed is prepared exactly once (D83).
+# joined in M12, so a new test testbed is prepared exactly once (D83). The v2 stages have their
+# own names, so v1 and v2 each run once (D86, `reports/v2_plan.md` §5).
 ONCE_ONLY = (PREPARE, DETECT, SUPERVISED, INVESTIGATE)
 RETRY_SUFFIX = "retry1"
 RETRY_WAIT = timedelta(minutes=10)
+
+
+def mode_stage(stage: str, mode: str) -> str:
+    """Return the ledger stage of a stage in a detection mode: `detect`, or `detect:v2`."""
+    if mode not in (V1_MODE, V2_MODE):
+        raise ValueError(f"{mode}: unknown mode")
+    return stage if mode == V1_MODE else f"{stage}:{mode}"
+
+
+def is_once_only(stage: str) -> bool:
+    """Return True for a stage that runs once, in either mode, with no retry rule."""
+    return stage.split(":", 1)[0] in ONCE_ONLY
 
 
 def is_test_testbed(testbed: str, settings: Settings) -> bool:
@@ -112,7 +139,7 @@ def retry_name(stage: str) -> str:
 
 def is_paid_evaluation_stage(stage: str) -> bool:
     """Return True for an ablation or LLM-only stage, the only ones a retry can cover (D69)."""
-    return stage not in ONCE_ONLY and (
+    return not is_once_only(stage) and (
         stage.startswith(f"{ABLATION}:") or stage in (LLM_ONLY, LLM_ONLY_CHECK)
     )
 
@@ -154,30 +181,98 @@ def check_retry(
         raise ValueError(f"{stage}: wait {RETRY_WAIT} after the failure, only {waited} passed")
 
 
-def record_stage(stage: str, testbed: str, settings: Settings, reason: str) -> None:
+def record_stage(stage: str, testbed: str, settings: Settings, reason: str, mode: str = "") -> None:
     """Add a paid evaluation stage to the ledger before it starts, on any testbed (D65, D66)."""
     if not reason.strip():
         raise ValueError(f"{stage}: a ledger row needs a reason")
-    _append_run(stage, testbed, settings, reason)
+    _append_run(stage, testbed, settings, reason, mode)
 
 
-def record_run(stage: str, testbed: str, settings: Settings, reason: str | None) -> None:
-    """Add a run on a test testbed to the ledger, before it starts, so a crash counts as a run."""
+def record_run(
+    stage: str, testbed: str, settings: Settings, reason: str | None, mode: str = ""
+) -> None:
+    """Add a run on a test testbed to the ledger, before it starts, so a crash counts as a run.
+
+    Args:
+        stage: The ledger stage, with its mode suffix for v2 (`mode_stage`).
+        testbed: Testbed name.
+        settings: Loaded settings; their config files are hashed into the row.
+        reason: Why the stage runs again, or None.
+        mode: `v1` or `v2` for a detection-dependent stage, empty for `prepare`.
+    """
     if not is_test_testbed(testbed, settings):
         return
-    _append_run(stage, testbed, settings, reason)
+    _append_run(stage, testbed, settings, reason, mode)
     if reason:
         logger.warning("%s on %s runs again: %s", stage, testbed, reason)
 
 
-def _append_run(stage: str, testbed: str, settings: Settings, reason: str | None) -> None:
+def file_sha256(path: Path) -> str:
+    """Return the sha256 of a file."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def current_commit() -> str:
+    """Return the checked-out commit, with `+dirty` if tracked code or configs differ from it."""
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        changed = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no", "--", "src", "configs"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return UNKNOWN_COMMIT
+    return f"{commit}+dirty" if changed else commit
+
+
+def run_fields(settings: Settings, mode: str) -> dict[str, str]:
+    """Return the mode, commit and config hashes of a ledger row (D86)."""
+    files = settings.config_files
+    return {
+        "mode": mode,
+        "commit": current_commit(),
+        "config_sha256": file_sha256(files[0]) if files else "",
+        "base_sha256": file_sha256(files[1]) if len(files) > 1 else "",
+    }
+
+
+def _upgrade_header(path: Path) -> None:
+    """Rewrite a ledger with an older header under `RUN_FIELDS`; old rows keep their values."""
+    with path.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames == RUN_FIELDS:
+            return
+        rows = list(reader)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=RUN_FIELDS)
+        writer.writeheader()
+        writer.writerows({name: row.get(name) or "" for name in RUN_FIELDS} for row in rows)
+
+
+def _append_run(
+    stage: str, testbed: str, settings: Settings, reason: str | None, mode: str
+) -> None:
     """Write one row of the ledger."""
     path = runs_path(settings)
     path.parent.mkdir(parents=True, exist_ok=True)
     is_new = not path.is_file()
+    if not is_new:
+        _upgrade_header(path)
     with path.open("a", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=RUN_FIELDS)
         if is_new:
             writer.writeheader()
         utc = datetime.now(UTC).isoformat(timespec="seconds")
-        writer.writerow({"testbed": testbed, "stage": stage, "utc": utc, "reason": reason or ""})
+        writer.writerow(
+            {
+                "testbed": testbed,
+                "stage": stage,
+                "utc": utc,
+                "reason": reason or "",
+                **run_fields(settings, mode),
+            }
+        )

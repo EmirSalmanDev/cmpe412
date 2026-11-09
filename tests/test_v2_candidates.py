@@ -64,9 +64,10 @@ def test_the_default_config_is_v1() -> None:
 
 
 def test_v2_differs_from_v1_in_detection_settings_only() -> None:
+    # `config_files` records where the settings were read from (D86); it is no setting.
     v1 = load_settings(REPO / "configs" / "default.yaml", env_file=None).model_dump()
     v2 = load_settings(REPO / "configs" / "v2.yaml", env_file=None).model_dump()
-    assert [key for key in v1 if v1[key] != v2[key]] in ([], ["ml"])
+    assert [key for key in v1 if v1[key] != v2[key]] in (["config_files"], ["ml", "config_files"])
     changed = {key for key in v1["ml"] if v1["ml"][key] != v2["ml"][key]}
     assert changed <= {"thin_calibration", "q_grid", "optional_features", "q", "gap_minutes"}
 

@@ -8,6 +8,8 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from logtriage.config import V1_MODE, V2_MODE
+
 LINES_SCHEMA = pa.schema(
     [
         ("line_id", pa.string()),
@@ -32,6 +34,9 @@ LINES_SCHEMA = pa.schema(
 
 
 DETECTION_TABLES = ("scores", "incidents")
+# v2 detection writes its scores, incidents and databases here, under the testbed's folder, and
+# reads the testbed's lines and windows, so it never touches v1's files (`reports/v2_plan.md` §5).
+V2_DIR = "v2"
 # Window features that only detection reads. They are built into the windows like any feature,
 # the models use them only when `ml.optional_features` lists them (v2), and the agents never see
 # them, in v1 or v2, so the agents stay as in v1 (D76, D79). `features` re-exports this set.
@@ -108,11 +113,25 @@ def _family_views(directory: Path, family: str) -> dict[str, str]:
     return views
 
 
-def data_views(directory: Path) -> dict[str, str]:
-    """Return view name to SQL for the line, window and detection tables of a testbed."""
+def detection_dir(directory: Path, mode: str) -> Path:
+    """Return where detection of a mode writes: the testbed's folder in v1, `v2/` in v2 (D86)."""
+    if mode == V1_MODE:
+        return directory
+    if mode == V2_MODE:
+        return directory / V2_DIR
+    raise ValueError(f"{mode}: unknown mode")
+
+
+def data_views(directory: Path, detection: Path | None = None) -> dict[str, str]:
+    """Return view name to SQL for the line, window and detection tables of a testbed.
+
+    Args:
+        directory: The testbed's folder, holding lines and windows.
+        detection: The folder holding scores and incidents; `directory` if None.
+    """
     views = {**_family_views(directory, "lines"), **_family_views(directory, "windows")}
     for name in DETECTION_TABLES:
-        path = directory / f"{name}.parquet"
+        path = (detection or directory) / f"{name}.parquet"
         if path.is_file():
             views[name] = f"SELECT * FROM read_parquet('{path}')"
     return views
@@ -149,6 +168,10 @@ def create_tables(db_path: Path, sources: dict[str, str]) -> None:
                     connection.execute(f'ALTER TABLE "{name}" DROP COLUMN "{column}"')
 
 
-def build_agent_db(directory: Path) -> None:
-    """Create `agent.duckdb`: tables only, and no ground truth (plan 5)."""
-    create_tables(directory / "agent.duckdb", data_views(directory))
+def build_agent_db(directory: Path, detection: Path | None = None) -> None:
+    """Create `agent.duckdb`: tables only, and no ground truth (plan 5).
+
+    With `detection`, the file goes there and holds that folder's scores and incidents (v2).
+    """
+    target = detection or directory
+    create_tables(target / "agent.duckdb", data_views(directory, detection))

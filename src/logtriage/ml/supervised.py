@@ -26,6 +26,7 @@ from logtriage import guards
 from logtriage.config import (
     DEV_TESTBED,
     TEST_TESTBED,
+    V1_MODE,
     Settings,
     SupervisedConfig,
     load_settings,
@@ -668,7 +669,7 @@ def run_test(
     zeros = zero_features(
         feature_report(testbed, settings), {name: features[name] for name in trained}
     )
-    guards.record_run(guards.SUPERVISED, testbed, settings, rerun_reason)
+    guards.record_run(guards.SUPERVISED, testbed, settings, rerun_reason, V1_MODE)
     test = {
         name: table.assign(**dict.fromkeys(zeros.get(name, []), 0.0))
         for name, table in labeled_windows(testbed, settings).items()

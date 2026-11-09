@@ -10,9 +10,9 @@ import numpy as np
 import pandas as pd
 
 from logtriage import guards
-from logtriage.config import Settings
+from logtriage.config import Settings, detection_mode
 from logtriage.data.features import REPORT_FILE, SCALER_DIR, FeatureScaler
-from logtriage.data.store import OPTIONAL_FEATURES
+from logtriage.data.store import OPTIONAL_FEATURES, detection_dir
 from logtriage.ml.ensemble import (
     apply_threshold,
     calibrate,
@@ -192,6 +192,9 @@ def detect(
 def run_detect(testbed: str, settings: Settings, rerun_reason: str | None = None) -> Path:
     """Write `scores.parquet`, `incidents.parquet` and `detect_report.json`.
 
+    The mode comes from the config file: `configs/v2.yaml` is v2, which writes to `v2/` under the
+    testbed's folder with the ledger stage `detect:v2`; v1 writes to the folder itself (D86).
+
     Args:
         testbed: Testbed name.
         settings: Loaded settings, with the tuned `ml.q` and `ml.gap_minutes`.
@@ -203,11 +206,14 @@ def run_detect(testbed: str, settings: Settings, rerun_reason: str | None = None
     Raises:
         ValueError: If a test testbed may not be scored now.
     """
-    directory = settings.paths.processed_dir / testbed
+    mode = detection_mode(settings)
+    directory = detection_dir(settings.paths.processed_dir / testbed, mode)
+    stage = guards.mode_stage(guards.DETECT, mode)
     outputs = [directory / SCORES_FILE, directory / INCIDENTS_FILE]
-    guards.check_run(guards.DETECT, testbed, settings, outputs, rerun_reason)
-    guards.record_run(guards.DETECT, testbed, settings, rerun_reason)
+    guards.check_run(stage, testbed, settings, outputs, rerun_reason)
+    guards.record_run(stage, testbed, settings, rerun_reason, mode)
     scored = score_testbed(testbed, settings)
+    directory.mkdir(exist_ok=True)
     window_seconds = settings.features.window_seconds
     scores, incidents = detect(scored, settings.ml.q, settings.ml.gap_minutes, window_seconds)
     columns = [name for name in scores.columns if name not in ENTITY_COLUMNS]
@@ -224,7 +230,7 @@ def run_detect(testbed: str, settings: Settings, rerun_reason: str | None = None
     }
     text = json.dumps(report, indent=2, sort_keys=True, default=_plain) + "\n"
     (directory / DETECT_REPORT_FILE).write_text(text, encoding="utf-8")
-    logger.info("%s: %d incidents", testbed, len(incidents))
+    logger.info("%s %s: %d incidents", testbed, mode, len(incidents))
     return directory
 
 

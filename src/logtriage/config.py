@@ -25,6 +25,11 @@ TEST_TESTBED = "santos"
 # test testbeds (M12: shaw and fox) join `test_testbeds`, so every guard covers
 # them, but not this list: the official v1 results and `logtriage evaluate` stay as they are (D83).
 M11_TESTBEDS = ("santos", "wardbeck", "harrison")
+# The frozen v2 detection config (D78). Detection reads its mode from the config file, so a run
+# with this file is v2 and writes apart from v1; any other file is v1 (D86).
+V2_CONFIG_PATH = Path("configs/v2.yaml")
+V1_MODE = "v1"
+V2_MODE = "v2"
 
 
 class PlaceholderSection(BaseModel):
@@ -285,6 +290,9 @@ class Settings(BaseSettings):
     phases: PhasesConfig = Field(default_factory=PhasesConfig)
     drain: DrainConfig = Field(default_factory=DrainConfig)
     deepseek_api_key: SecretStr | None = Field(default=None, validation_alias="DEEPSEEK_API_KEY")
+    # The YAML files the settings were read from, the named file first, then its `base` chain.
+    # Set by `load_settings`; empty for settings built in code.
+    config_files: list[Path] = Field(default_factory=list)
 
     @classmethod
     def settings_customise_sources(
@@ -384,6 +392,27 @@ def read_config_values(config_path: Path | str, seen: tuple[Path, ...] = ()) -> 
     return deep_merge(read_config_values(path.parent / base, (*seen, path)), values)
 
 
+def config_chain(config_path: Path | str) -> list[Path]:
+    """Return a config file and the `base` files it extends, the named file first."""
+    chain: list[Path] = []
+    path: Path | None = Path(config_path)
+    while path is not None:
+        if path.resolve() in [item.resolve() for item in chain]:
+            raise ValueError(f"{config_path}: the chain of base configs loops")
+        chain.append(path)
+        with path.open(encoding="utf-8") as handle:
+            base = (yaml.safe_load(handle) or {}).get(BASE_KEY)
+        path = None if base is None else path.parent / base
+    return chain
+
+
+def detection_mode(settings: "Settings") -> str:
+    """Return `v2` for settings read from `configs/v2.yaml`, else `v1` (D86)."""
+    files = settings.config_files
+    is_v2 = bool(files) and files[0].resolve() == V2_CONFIG_PATH.resolve()
+    return V2_MODE if is_v2 else V1_MODE
+
+
 def load_settings(
     config_path: Path | str = DEFAULT_CONFIG_PATH,
     env_file: Path | str | None = DEFAULT_ENV_FILE,
@@ -400,4 +429,5 @@ def load_settings(
     values = read_config_values(config_path)
     # The API key must come from the environment, never from a config file.
     values = {key: value for key, value in values.items() if key.lower() != "deepseek_api_key"}
+    values["config_files"] = config_chain(config_path)
     return Settings(_env_file=env_file, **values)
